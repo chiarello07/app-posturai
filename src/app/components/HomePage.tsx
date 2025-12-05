@@ -29,26 +29,45 @@ export default function HomePage({ userProfile, onNavigate }: HomePageProps) {
     { label: "S", full: "SÁB", value: 6 },
   ];
 
-  // Extrair primeiro nome ou nome composto
+   // Extrair primeiro nome ou nome composto
   const getFirstName = (fullName: string) => {
-    if (!fullName) return "Usuário";
+    console.log("🐛 [getFirstName] Recebido:", fullName);
+    
+    if (!fullName || fullName.includes("@")) {
+      // Se não tem nome ou veio email, usar "Usuário"
+      console.warn("⚠️ [getFirstName] Nome inválido ou email detectado");
+      return "Usuário";
+    }
+    
     const parts = fullName.trim().split(" ");
     
     // Se só tem um nome, retorna ele
-    if (parts.length === 1) return parts[0];
+    if (parts.length === 1) {
+      console.log("✅ [getFirstName] Nome único:", parts[0]);
+      return parts[0];
+    }
     
     // Nomes compostos comuns
     const compostos = ["ana", "maria", "joão", "josé", "luiz", "carlos"];
     const firstName = parts[0].toLowerCase();
     
     if (compostos.includes(firstName) && parts.length > 1) {
+      console.log("✅ [getFirstName] Nome composto:", `${parts[0]} ${parts[1]}`);
       return `${parts[0]} ${parts[1]}`;
     }
     
+    console.log("✅ [getFirstName] Primeiro nome:", parts[0]);
     return parts[0];
   };
 
-  const firstName = getFirstName(userProfile?.name || "");
+  // DEBUG: Ver o que tem no userProfile
+  console.log("🐛 [HOME] userProfile completo:", userProfile);
+  console.log("🐛 [HOME] userProfile.name:", userProfile?.name);
+  console.log("🐛 [HOME] userProfile.email:", userProfile?.email);
+
+  const firstName = getFirstName(userProfile?.name || userProfile?.email?.split("@")[0] || "Usuário");
+  
+  console.log("🐛 [HOME] firstName final:", firstName);
 
   // Verificar se usuário tem análise postural
   const hasAnalysis = userProfile?.has_analysis || false;

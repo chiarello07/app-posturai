@@ -62,10 +62,61 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [appLanguage, setAppLanguage] = useState<Language>("pt");
 
+    // Verificar sessão ao carregar o app
+    // Verificar sessão ao carregar o app
   useEffect(() => {
+    const checkSession = async () => {
+      console.log("🔍 [SESSION] Verificando sessão existente...");
+      
+      setIsLoading(true);
+
+      try {
+        // Buscar sessão do Supabase
+        const currentUser = await getCurrentUser();
+        
+        console.log("🔍 [SESSION] Resultado getCurrentUser:", currentUser);
+
+        if (currentUser && currentUser.id) {
+          console.log("✅ [SESSION] Sessão encontrada! User ID:", currentUser.id);
+          
+          // Buscar perfil do usuário
+          const profileResult = await getProfile(currentUser.id);
+          
+          console.log("🔍 [SESSION] Resultado getProfile:", profileResult);
+
+          if (profileResult && profileResult.success && profileResult.data) {
+            console.log("✅ [SESSION] Perfil carregado, restaurando sessão!");
+            setUserProfile(profileResult.data);
+            setCurrentTab("home");
+          } else {
+            console.warn("⚠️ [SESSION] Perfil não encontrado, criando básico...");
+            const basicProfile = {
+              id: currentUser.id,
+              email: currentUser.email || "",
+              name: currentUser.email?.split("@")[0] || "Usuário",
+              has_analysis: false
+            };
+            setUserProfile(basicProfile);
+            setCurrentTab("home");
+          }
+        } else {
+          console.log("ℹ️ [SESSION] Nenhuma sessão encontrada, mostrando login");
+          setCurrentTab("login");
+        }
+      } catch (err: any) {
+        console.error("❌ [SESSION] Erro ao verificar sessão:", err);
+        setCurrentTab("login");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkSession();
+
+    // Language (manter)
     const savedLanguage = getSavedLanguage();
     setAppLanguage(savedLanguage);
-  }, []);
+  }, []); // ← Executar apenas uma vez ao carregar
 
   const handleLanguageChange = (language: Language) => {
     setAppLanguage(language);

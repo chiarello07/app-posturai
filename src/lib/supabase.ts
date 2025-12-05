@@ -348,14 +348,40 @@ export async function getLatestAnalysis(userId: string) {
  * Obter perfil do usuário
  */
 export async function getProfile(userId: string) {
+  console.log("🔍 [getProfile] Buscando perfil para userId:", userId);
+  
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
     .eq('id', userId)
     .single();
 
-  if (error) return null;
-  return data;
+  console.log("🔍 [getProfile] Resultado Supabase:", { data, error });
+
+  if (error) {
+    console.error("❌ [getProfile] Erro ao buscar perfil:", error);
+    return { 
+      success: false, 
+      data: null, 
+      error 
+    };
+  }
+
+  if (!data) {
+    console.warn("⚠️ [getProfile] Perfil não encontrado (data é null)");
+    return { 
+      success: false, 
+      data: null, 
+      error: new Error("Perfil não encontrado") 
+    };
+  }
+
+  console.log("✅ [getProfile] Perfil encontrado:", data);
+  return { 
+    success: true, 
+    data, 
+    error: null 
+  };
 }
 
 /**

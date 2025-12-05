@@ -384,7 +384,9 @@ export default function Home() {
           <TrainingPlan userProfile={userProfile} analysis={analysis} />
         )}
 
-        {currentTab === "progress" && <ProgressTracking />}
+        {currentTab === "progress" && (
+  <ProgressTracking onBack={() => setCurrentTab("home")} />
+)}
 
         {currentTab === "nutrition" && userProfile && (
           <NutritionalTips onBack={() => setCurrentTab("home")} />

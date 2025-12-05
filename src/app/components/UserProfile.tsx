@@ -15,13 +15,11 @@ export default function UserProfile({ profile, onBack, onLogout }: UserProfilePr
 
   const handleLogout = () => {
     if (confirm("Tem certeza que deseja sair da sua conta?")) {
-      // Limpar todos os dados de sessão
       localStorage.removeItem("userProfile");
       localStorage.removeItem("isLoggedIn");
       localStorage.removeItem("completeAnalysis");
       localStorage.removeItem("exercisePlan");
       
-      // Chamar função de logout passada como prop
       if (onLogout) {
         onLogout();
       }
@@ -37,9 +35,9 @@ export default function UserProfile({ profile, onBack, onLogout }: UserProfilePr
   };
 
   return (
-    <div className="min-h-screen bg-black text-white pb-24">
-      {/* Header com botão voltar */}
-      <header className="bg-gradient-to-r from-pink-600 to-purple-600 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-gray-100 to-slate-200 pb-24">
+      {/* Header */}
+      <header className="bg-gradient-to-r from-pink-500 to-purple-600 p-6 shadow-xl">
         <div className="max-w-4xl mx-auto">
           <button
             onClick={onBack}
@@ -48,39 +46,39 @@ export default function UserProfile({ profile, onBack, onLogout }: UserProfilePr
             <ArrowLeft className="w-5 h-5" />
             <span className="font-medium">Voltar</span>
           </button>
-          <h1 className="text-2xl font-bold">Meu Perfil</h1>
+          <h1 className="text-2xl font-bold text-white">Meu Perfil</h1>
         </div>
       </header>
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto p-6">
         {/* Profile Info Card */}
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-6">
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 mb-6 shadow-lg">
           <div className="flex items-center gap-4 mb-4">
-            <div className="w-20 h-20 bg-gradient-to-br from-pink-500 to-purple-600 rounded-full flex items-center justify-center text-3xl font-bold">
+            <div className="w-20 h-20 bg-gradient-to-br from-pink-500 to-purple-600 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-lg">
               {profile.name?.charAt(0).toUpperCase()}
             </div>
             <div>
-              <h2 className="text-xl font-bold">{profile.name}</h2>
-              <p className="text-gray-400 text-sm">{profile.email}</p>
+              <h2 className="text-xl font-bold text-gray-900">{profile.name}</h2>
+              <p className="text-gray-600 text-sm">{profile.email}</p>
             </div>
           </div>
 
           {/* User Details */}
-          <div className="space-y-2 text-sm text-gray-300 border-t border-gray-800 pt-4">
+          <div className="space-y-2 text-sm text-gray-700 border-t border-gray-200 pt-4">
             {profile.phone && (
               <p>
-                <span className="text-gray-500">Telefone:</span> {profile.phone}
+                <span className="text-gray-500 font-medium">Telefone:</span> {profile.phone}
               </p>
             )}
             {profile.age && (
               <p>
-                <span className="text-gray-500">Idade:</span> {profile.age} anos
+                <span className="text-gray-500 font-medium">Idade:</span> {profile.age} anos
               </p>
             )}
             {profile.weight && profile.height && (
               <p>
-                <span className="text-gray-500">Físico:</span> {profile.weight}kg • {profile.height}cm
+                <span className="text-gray-500 font-medium">Físico:</span> {profile.weight}kg • {profile.height}cm
               </p>
             )}
           </div>
@@ -91,56 +89,56 @@ export default function UserProfile({ profile, onBack, onLogout }: UserProfilePr
           {/* Editar Dados */}
           <button
             onClick={handleEditProfile}
-            className="w-full bg-gray-900 border border-gray-800 hover:border-pink-600 p-4 rounded-xl flex items-center gap-4 transition-all group"
+            className="w-full bg-white border border-gray-200 hover:border-pink-400 hover:shadow-xl p-4 rounded-xl flex items-center gap-4 transition-all group shadow-lg"
           >
-            <div className="w-12 h-12 bg-pink-600/10 rounded-xl flex items-center justify-center group-hover:bg-pink-600/20 transition-colors">
-              <Edit className="w-6 h-6 text-pink-500" />
+            <div className="w-12 h-12 bg-pink-100 rounded-xl flex items-center justify-center group-hover:bg-pink-200 transition-colors">
+              <Edit className="w-6 h-6 text-pink-600" />
             </div>
             <div className="flex-1 text-left">
-              <h3 className="font-bold">Editar Dados</h3>
-              <p className="text-sm text-gray-400">Atualize suas informações pessoais</p>
+              <h3 className="font-bold text-gray-900 group-hover:text-pink-600 transition-colors">Editar Dados</h3>
+              <p className="text-sm text-gray-600">Atualize suas informações pessoais</p>
             </div>
           </button>
 
           {/* Suporte */}
           <button
             onClick={handleSupport}
-            className="w-full bg-gray-900 border border-gray-800 hover:border-purple-600 p-4 rounded-xl flex items-center gap-4 transition-all group"
+            className="w-full bg-white border border-gray-200 hover:border-purple-400 hover:shadow-xl p-4 rounded-xl flex items-center gap-4 transition-all group shadow-lg"
           >
-            <div className="w-12 h-12 bg-purple-600/10 rounded-xl flex items-center justify-center group-hover:bg-purple-600/20 transition-colors">
-              <HelpCircle className="w-6 h-6 text-purple-500" />
+            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center group-hover:bg-purple-200 transition-colors">
+              <HelpCircle className="w-6 h-6 text-purple-600" />
             </div>
             <div className="flex-1 text-left">
-              <h3 className="font-bold">Suporte</h3>
-              <p className="text-sm text-gray-400">Precisa de ajuda? Entre em contato</p>
+              <h3 className="font-bold text-gray-900 group-hover:text-purple-600 transition-colors">Suporte</h3>
+              <p className="text-sm text-gray-600">Precisa de ajuda? Entre em contato</p>
             </div>
           </button>
 
           {/* Termos e Condições */}
           <button
             onClick={handleTerms}
-            className="w-full bg-gray-900 border border-gray-800 hover:border-indigo-600 p-4 rounded-xl flex items-center gap-4 transition-all group"
+            className="w-full bg-white border border-gray-200 hover:border-indigo-400 hover:shadow-xl p-4 rounded-xl flex items-center gap-4 transition-all group shadow-lg"
           >
-            <div className="w-12 h-12 bg-indigo-600/10 rounded-xl flex items-center justify-center group-hover:bg-indigo-600/20 transition-colors">
-              <FileText className="w-6 h-6 text-indigo-500" />
+            <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center group-hover:bg-indigo-200 transition-colors">
+              <FileText className="w-6 h-6 text-indigo-600" />
             </div>
             <div className="flex-1 text-left">
-              <h3 className="font-bold">Termos e Condições</h3>
-              <p className="text-sm text-gray-400">Leia nossos termos de uso</p>
+              <h3 className="font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">Termos e Condições</h3>
+              <p className="text-sm text-gray-600">Leia nossos termos de uso</p>
             </div>
           </button>
 
           {/* Logout */}
           <button
             onClick={handleLogout}
-            className="w-full bg-gray-900 border border-gray-800 hover:border-red-600 p-4 rounded-xl flex items-center gap-4 transition-all group"
+            className="w-full bg-white border border-gray-200 hover:border-red-400 hover:shadow-xl p-4 rounded-xl flex items-center gap-4 transition-all group shadow-lg"
           >
-            <div className="w-12 h-12 bg-red-600/10 rounded-xl flex items-center justify-center group-hover:bg-red-600/20 transition-colors">
-              <LogOut className="w-6 h-6 text-red-500" />
+            <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center group-hover:bg-red-200 transition-colors">
+              <LogOut className="w-6 h-6 text-red-600" />
             </div>
             <div className="flex-1 text-left">
-              <h3 className="font-bold text-red-500">Sair da Conta</h3>
-              <p className="text-sm text-gray-400">Desconectar do PosturAI</p>
+              <h3 className="font-bold text-red-600 group-hover:text-red-700 transition-colors">Sair da Conta</h3>
+              <p className="text-sm text-gray-600">Desconectar do PosturAI</p>
             </div>
           </button>
         </div>

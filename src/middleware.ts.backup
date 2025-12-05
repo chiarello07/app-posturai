@@ -1,0 +1,32 @@
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
+
+export async function middleware(req: NextRequest) {
+  const res = NextResponse.next();
+  const supabase = createMiddlewareClient({ req, res });
+
+  // Verifica sessão do Supabase corretamente
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const isAuthPage = req.nextUrl.pathname.startsWith("/login");
+  const isOnboard = req.nextUrl.pathname.startsWith("/onboarding");
+
+  // Se não tem sessão e não está em página pública → redireciona para login
+  if (!session && !isAuthPage && !isOnboard) {
+    return NextResponse.redirect(new URL("/login", req.url));
+  }
+
+  // Se tem sessão e está tentando acessar login → redireciona para home
+  if (session && isAuthPage) {
+    return NextResponse.redirect(new URL("/home", req.url));
+  }
+
+  return res;
+}
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)']
+};

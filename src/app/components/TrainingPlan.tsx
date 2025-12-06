@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Play, Clock, Target, Activity, ArrowLeft, Dumbbell } from "lucide-react";
+import { Play, Clock, Target, Activity, ArrowLeft, Dumbbell, Lightbulb, AlertCircle } from "lucide-react";
 
 interface TrainingPlanProps {
   userProfile: any;
@@ -131,10 +131,13 @@ export default function TrainingPlan({ userProfile, analysis }: TrainingPlanProp
         </div>
 
         {/* Informação sobre o Plano */}
-        {exercises.length > 3 && (
+        {exercises.length > 0 && (
           <div className="bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200 rounded-2xl p-5 mb-6 shadow-lg">
-            <p className="text-gray-700 text-sm leading-relaxed">
-              <span className="font-semibold text-blue-600">💡 Dica:</span> Este plano foi criado especialmente para você com base na sua análise postural. Execute os exercícios na ordem apresentada para melhores resultados.
+            <p className="text-gray-700 text-sm leading-relaxed flex items-start gap-3">
+              <Lightbulb className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <span>
+                <span className="font-semibold text-blue-600">Dica:</span> Este plano foi criado especialmente para você com base na sua análise postural. Execute os exercícios na ordem apresentada para melhores resultados.
+              </span>
             </p>
           </div>
         )}
@@ -197,7 +200,10 @@ export default function TrainingPlan({ userProfile, analysis }: TrainingPlanProp
 
         {/* Dicas Importantes */}
         <div className="mt-6 bg-white border border-gray-200 rounded-2xl p-6 shadow-lg">
-          <h3 className="text-lg font-bold text-gray-900 mb-3">⚠️ Dicas Importantes</h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-pink-500" />
+            Dicas Importantes
+          </h3>
           <ul className="space-y-2 text-sm text-gray-700">
             <li className="flex items-start gap-2">
               <span className="text-pink-500 mt-1">•</span>

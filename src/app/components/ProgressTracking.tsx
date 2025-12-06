@@ -1,6 +1,6 @@
 "use client";
 
-import { TrendingUp, Calendar, Award, Flame, ArrowLeft } from "lucide-react";
+import { TrendingUp, Calendar, Award, Flame, ArrowLeft, Lightbulb } from "lucide-react";
 
 interface ProgressTrackingProps {
   onBack: () => void;
@@ -10,7 +10,7 @@ export default function ProgressTracking({ onBack }: ProgressTrackingProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-gray-100 to-slate-200 px-4 py-8 pb-24">
       <div className="max-w-4xl mx-auto">
-        {/* Botão Voltar - ADICIONADO */}
+        {/* Botão Voltar */}
         <button
           onClick={onBack}
           className="flex items-center gap-2 text-gray-600 hover:text-pink-500 transition-colors mb-6"
@@ -113,7 +113,7 @@ export default function ProgressTracking({ onBack }: ProgressTrackingProps) {
           
           <div className="space-y-3">
             {['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'].map((day, index) => {
-              const completed = index < 5; // Simulando 5 dias completados
+              const completed = index < 5;
               return (
                 <div key={day} className="flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
@@ -140,7 +140,10 @@ export default function ProgressTracking({ onBack }: ProgressTrackingProps) {
 
         {/* Dicas de Progresso */}
         <div className="mt-6 bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200 rounded-2xl p-6 shadow-lg">
-          <h3 className="text-lg font-bold text-gray-900 mb-3">💡 Dica para Acelerar seu Progresso</h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <Lightbulb className="w-5 h-5 text-blue-600" />
+            Dica para Acelerar seu Progresso
+          </h3>
           <p className="text-sm text-gray-700 leading-relaxed">
             Mantenha a consistência! Treinar 3-4 vezes por semana gera melhores resultados do que treinar intensamente por poucos dias. Seu corpo precisa de tempo para se adaptar às mudanças posturais.
           </p>

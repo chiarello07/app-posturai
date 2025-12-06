@@ -8,7 +8,7 @@ import {
   User as UserIcon,
   Home as HomeIcon,
   ArrowLeft,
-  Leaf
+  Zap
 } from "lucide-react";
 import SignupCredentials from "./components/SignupCredentials";
 import OnboardingFlow from "./components/OnboardingFlow";
@@ -18,7 +18,7 @@ import ProgressTracking from "./components/ProgressTracking";
 import UserProfile from "./components/UserProfile";
 import HomePage from "./components/HomePage";
 import CompleteAnalysisReport from "./components/CompleteAnalysisReport";
-import NutritionalTips from "./components/NutritionalTips";
+import BoostPosturAI from "./components/BoostPosturAI";
 
 import {
   createUser,
@@ -54,7 +54,7 @@ export default function Home() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(""); // ← ADICIONADO
+  const [error, setError] = useState("");
 
   const [resetEmail, setResetEmail] = useState("");
   const [onboardingInitialStep, setOnboardingInitialStep] = useState(1);
@@ -62,16 +62,13 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [appLanguage, setAppLanguage] = useState<Language>("pt");
 
-    // Verificar sessão ao carregar o app
-    // Verificar sessão ao carregar o app
-  useEffect(() => {
+     useEffect(() => {
     const checkSession = async () => {
       console.log("🔍 [SESSION] Verificando sessão existente...");
       
       setIsLoading(true);
 
       try {
-        // Buscar sessão do Supabase
         const currentUser = await getCurrentUser();
         
         console.log("🔍 [SESSION] Resultado getCurrentUser:", currentUser);
@@ -79,7 +76,6 @@ export default function Home() {
         if (currentUser && currentUser.id) {
           console.log("✅ [SESSION] Sessão encontrada! User ID:", currentUser.id);
           
-          // Buscar perfil do usuário
           const profileResult = await getProfile(currentUser.id);
           
           console.log("🔍 [SESSION] Resultado getProfile:", profileResult);
@@ -113,10 +109,14 @@ export default function Home() {
 
     checkSession();
 
-    // Language (manter)
     const savedLanguage = getSavedLanguage();
     setAppLanguage(savedLanguage);
-  }, []); // ← Executar apenas uma vez ao carregar
+  }, []);
+
+  // Scroll automático ao trocar de aba
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentTab]);
 
   const handleLanguageChange = (language: Language) => {
     setAppLanguage(language);
@@ -127,9 +127,8 @@ export default function Home() {
     setCurrentTab("signup-credentials");
   };
 
-  // ← FUNÇÃO CORRIGIDA
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault(); // ← CRÍTICO: Previne reload da página
+    e.preventDefault();
     
     console.log("🔐 [LOGIN] Tentando fazer login...", { email });
     
@@ -151,20 +150,17 @@ export default function Home() {
 
       console.log("✅ [LOGIN] Login bem-sucedido! User ID:", result.data.id);
 
-      // Buscar perfil
       console.log("🔍 [LOGIN] Buscando perfil...");
       const profileResult = await getProfile(result.data.id);
       
       console.log("🔍 [LOGIN] Resultado getProfile:", profileResult);
 
-      // Verificar se profileResult existe e tem dados
       if (profileResult && profileResult.success && profileResult.data) {
         console.log("✅ [LOGIN] Perfil encontrado:", profileResult.data);
         setUserProfile(profileResult.data);
         localStorage.setItem("userProfile", JSON.stringify(profileResult.data));
         setCurrentTab("home");
       } else {
-        // Perfil não encontrado - criar um básico
         console.warn("⚠️ [LOGIN] Perfil não encontrado, criando básico...");
         const basicProfile = {
           id: result.data.id,
@@ -190,14 +186,12 @@ export default function Home() {
     setIsLoading(true);
 
     try {
-      // Verificar se tem userId
       if (!profile.userId) {
         throw new Error("userId não encontrado no profile");
       }
 
       console.log("🔍 [ONBOARDING] Buscando perfil do usuário:", profile.userId);
 
-      // Buscar perfil completo do Supabase
       const profileResult = await getProfile(profile.userId);
       
       console.log("🔍 [ONBOARDING] Resultado getProfile:", profileResult);
@@ -209,7 +203,6 @@ export default function Home() {
         localStorage.setItem("userProfile", JSON.stringify(profileResult.data));
         setCurrentTab("home");
       } else {
-        // Fallback para profile recebido
         console.log("⚠️ [ONBOARDING] Usando perfil recebido diretamente");
         setUserProfile(profile);
         localStorage.setItem("userProfile", JSON.stringify(profile));
@@ -275,9 +268,14 @@ export default function Home() {
       <main>
         {currentTab === "login" && (
           <div className="relative min-h-screen flex flex-col items-center justify-center px-4 bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
-            {/* DROPDOWN DE LINGUAGEM REMOVIDO */}
-
-            <div className="text-center mb-12">
+                        <div className="text-center mb-12">
+              <div className="flex justify-center mb-6">
+                <img 
+                  src="/images/posturai-logo.png" 
+                  alt="PosturAI Logo" 
+                  className="w-32 h-32 object-contain"
+                />
+              </div>
               <h1 className="text-5xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent mb-4">
                 PosturAI
               </h1>
@@ -307,7 +305,6 @@ export default function Home() {
                 className="w-full bg-gray-800 border border-gray-700 text-white py-3 px-4 rounded-xl focus:outline-none focus:border-pink-500 transition-colors"
               />
 
-              {/* MENSAGEM DE ERRO */}
               {error && (
                 <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
                   <p className="text-red-400 text-sm">{error}</p>
@@ -385,11 +382,11 @@ export default function Home() {
         )}
 
         {currentTab === "progress" && (
-  <ProgressTracking onBack={() => setCurrentTab("home")} />
-)}
+          <ProgressTracking onBack={() => setCurrentTab("home")} />
+        )}
 
-        {currentTab === "nutrition" && userProfile && (
-          <NutritionalTips onBack={() => setCurrentTab("home")} />
+        {currentTab === "nutrition" && (
+          <BoostPosturAI onBack={() => setCurrentTab("home")} />
         )}
 
         {currentTab === "profile" && userProfile && (
@@ -436,14 +433,6 @@ export default function Home() {
                 >
                   <TrendingUp className="w-6 h-6 text-white" />
                   <span className="text-xs text-gray-400">Progresso</span>
-                </button>
-
-                <button 
-                  onClick={() => setCurrentTab("nutrition")}
-                  className="flex flex-col items-center gap-1"
-                >
-                  <Leaf className="w-6 h-6 text-white" />
-                  <span className="text-xs text-gray-400">Nutrição</span>
                 </button>
 
                 <button 

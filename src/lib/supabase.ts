@@ -22,40 +22,33 @@ export interface UserProfile {
 export interface OnboardingData {
   user_id: string;
   name: string;
+  main_goals: string[];
+  experience_level: string;
+  gender?: string;  // ✅ NOVO
+  last_period_start?: string;  // ✅ NOVO
+  last_period_end?: string;  // ✅ NOVO
+  exercise_frequency: string;
+  dedication_hours: number;
+  weight?: number;  // ✅ NOVO
+  height?: number;  // ✅ NOVO
+  pain_areas?: string[] | null;
+  injuries: string;
+  injury_details?: string;
+  heart_problems: string;
+  heart_problems_details?: string;
   birth_date: string;
   phone: string;
-  nationality?: string;
-  instagram?: string;
-  gender?: string;
-  height: number;
-  weight: number;
   occupation: string;
   work_hours: number;
   work_position: string;
   drinks: string;
-  drink_frequency?: string;
   smoker: string;
-  cigarettes_per_day?: number;
   sleep_hours: string;
-  family_diseases?: string;
-  family_diseases_details?: string;
-  surgery?: string;
-  surgery_details?: string;
-  heart_problems?: string;
-  heart_problems_details?: string;
-  injuries?: string;
-  injury_details?: string;
-  pain_areas?: string[];
   meals_per_day: string;
   supplements: string;
-  supplements_details?: string;
   nutrition_plan: string;
-  main_goals: string[];
   favorite_activity: string;
   training_time: string;
-  exercise_frequency: string;
-  experience_level: string;
-  dedication_hours: number;
   completed: boolean;
 }
 
@@ -138,12 +131,21 @@ export async function logoutUser() {
  * Obter usuário atual
  */
 export async function getCurrentUser() {
+  console.log("🔍 [getCurrentUser] Verificando sessão...");
+  
   const { data: { user }, error } = await supabase.auth.getUser();
   
-  if (error || !user) {
+  if (error) {
+    console.error("❌ [getCurrentUser] Erro:", error);
+    return null;
+  }
+  
+  if (!user) {
+    console.log("ℹ️ [getCurrentUser] Nenhum usuário logado");
     return null;
   }
 
+  console.log("✅ [getCurrentUser] Usuário encontrado:", user);
   return user;
 }
 
@@ -170,12 +172,17 @@ export async function saveOnboarding(data: Partial<OnboardingData>) {
     return { success: false, error };
   }
 
-  // Atualizar nome em profiles
-  if (data.name) {
+  // Atualizar dados em profiles
+  if (data.user_id) {
     await supabase
       .from('profiles')
       .update({
-        name: data.name,
+        name: data.name || undefined,
+        gender: data.gender || undefined,
+        last_period_start: data.last_period_start || undefined,
+        last_period_end: data.last_period_end || undefined,
+        weight: data.weight || undefined,
+        height: data.height || undefined,
         updated_at: new Date().toISOString()
       })
       .eq('id', data.user_id);

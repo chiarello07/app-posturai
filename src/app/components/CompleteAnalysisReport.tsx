@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ArrowLeft, Camera, Activity, AlertCircle, CheckCircle, TrendingUp, FileText, User } from "lucide-react";
+import { ArrowLeft, Camera, Activity, AlertCircle, CheckCircle, TrendingUp, FileText, User, AlertTriangle } from "lucide-react";
 import { saveAnalysis, getLatestAnalysis } from "@/lib/supabase";
 
 interface CompleteAnalysisReportProps {
@@ -214,7 +214,7 @@ export default function CompleteAnalysisReport({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-gray-100 to-slate-200 px-4 py-8 pb-24">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-gray-100 to-slate-200 px-4 py-8 pb-32">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header com Botão Voltar */}
         <div className="flex items-center justify-between mb-6">
@@ -400,10 +400,11 @@ export default function CompleteAnalysisReport({
             )}
           </div>
         </div>
+
         {/* Seção 3: Diagnóstico */}
         <div className="bg-gradient-to-br from-pink-50 to-purple-50 border border-pink-200 rounded-2xl p-6 space-y-4 shadow-lg">
           <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Activity className="w-6 h-6 text-pink-500" />
+                        <Activity className="w-6 h-6 text-pink-500" />
             Diagnóstico Postural Integrado
           </h2>
 
@@ -429,7 +430,7 @@ export default function CompleteAnalysisReport({
               <div className="space-y-1">
                 {analysis.diagnosis.riskFactors.map((factor: string, index: number) => (
                   <div key={index} className="flex items-start gap-2 text-gray-700 text-sm">
-                    <span className="text-yellow-600 mt-1">⚠</span>
+                    <AlertTriangle className="w-4 h-4 text-yellow-600 flex-shrink-0 mt-0.5" />
                     <span>{factor}</span>
                   </div>
                 ))}
@@ -525,7 +526,7 @@ export default function CompleteAnalysisReport({
               <div className="space-y-2">
                 {analysis.prognosis.successFactors.map((factor: string, index: number) => (
                   <div key={index} className="flex items-start gap-2 text-gray-700 text-sm">
-                    <span className="text-green-500 mt-1">✓</span>
+                    <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
                     <span>{factor}</span>
                   </div>
                 ))}
@@ -543,8 +544,9 @@ export default function CompleteAnalysisReport({
           <p className="text-gray-700 text-sm mb-3">
             Com base na sua análise postural, criamos um plano de exercícios específico para suas necessidades. 
           </p>
-          <p className="text-pink-600 text-sm font-semibold">
-            📋 Acesse a aba "Treino" no menu inferior para ver todos os exercícios detalhados!
+          <p className="text-pink-600 text-sm font-semibold flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            Acesse a aba "Treino" no menu inferior para ver todos os exercícios detalhados!
           </p>
         </div>
 

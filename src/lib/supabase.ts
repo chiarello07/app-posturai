@@ -128,25 +128,26 @@ export async function logoutUser() {
 }
 
 /**
- * Obter usuário atual
+ * Obter usuário atual (sem lançar erro se não houver sessão)
  */
 export async function getCurrentUser() {
-  console.log("🔍 [getCurrentUser] Verificando sessão...");
-  
-  const { data: { user }, error } = await supabase.auth.getUser();
-  
-  if (error) {
-    console.error("❌ [getCurrentUser] Erro:", error);
-    return null;
-  }
-  
-  if (!user) {
-    console.log("ℹ️ [getCurrentUser] Nenhum usuário logado");
-    return null;
-  }
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    
+    if (error) {
+      console.log("Nenhuma sessão ativa");
+      return null;
+    }
+    
+    if (!session?.user) {
+      return null;
+    }
 
-  console.log("✅ [getCurrentUser] Usuário encontrado:", user);
-  return user;
+    return session.user;
+  } catch (err) {
+    console.log("Erro ao verificar sessão:", err);
+    return null;
+  }
 }
 
 // ============================================================================
@@ -412,48 +413,76 @@ export async function updateProfile(userId: string, updates: Partial<UserProfile
 // FUNÇÃO LEGADA (MANTER POR COMPATIBILIDADE)
 // ============================================================================
 
-export async function createUser(profile: any) {
-  // 1. Criar usuário no Supabase Auth
-  const { data: authData, error: authError } = await supabase.auth.signUp({
-    email: profile.email,
-    password: profile.password,
-    options: {
-      data: {
-        name: profile.name || '' // Metadados opcionais
+/**
+ * Criar novo usuário (signup)
+ */
+/**
+ * Criar novo usuário (signup) e fazer login automaticamente
+ */
+export async function createUser(email: string, password: string) {
+  console.log("📝 [createUser] Criando usuário:", email);
+
+  try {
+    // 1. Criar usuário no Supabase Auth
+    const { data: signupData, error: signupError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name: email.split('@')[0]
+        },
+        emailRedirectTo: undefined // Desabilita email de confirmação (se configurado no Supabase)
       }
+    });
+
+    if (signupError) {
+      console.error("❌ [createUser] Erro ao criar:", signupError);
+      return { success: false, error: signupError, data: null };
     }
-  });
 
-  if (authError || !authData.user) {
-    console.error("❌ [SUPABASE] Erro ao criar usuário:", authError);
-    return { success: false, error: authError };
-  }
+    if (!signupData.user) {
+      return { 
+        success: false, 
+        error: { message: "Erro ao criar usuário" }, 
+        data: null 
+      };
+    }
 
-  console.log("✅ [SUPABASE] Usuário criado:", authData.user.id);
+    console.log("✅ [createUser] Usuário criado! ID:", signupData.user.id);
 
-  // 2. O TRIGGER automático já criou o registro em profiles!
-  // Não precisa fazer INSERT manual
+    // 2. Aguardar trigger criar perfil
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
-  // 3. Buscar o perfil criado automaticamente
-  const { data: profileData, error: profileError } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', authData.user.id)
-    .single();
+    // 3. Fazer login para estabelecer sessão (resolve o AuthSessionMissingError)
+    console.log("🔐 [createUser] Fazendo login automático...");
+    const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
 
-  if (profileError) {
-    console.error("❌ [SUPABASE] Erro ao buscar perfil:", profileError);
-    // Mesmo com erro, retorna sucesso porque usuário foi criado
+    if (loginError) {
+      console.error("❌ [createUser] Erro no login automático:", loginError);
+      // Mesmo com erro no login, retorna sucesso porque usuário foi criado
+      return { 
+        success: true, 
+        data: signupData.user, 
+        error: null 
+      };
+    }
+
+    console.log("✅ [createUser] Login automático bem-sucedido!");
+
     return { 
       success: true, 
-      data: { 
-        id: authData.user.id, 
-        email: profile.email 
-      } 
+      data: loginData.user, 
+      error: null 
+    };
+  } catch (err: any) {
+    console.error("❌ [createUser] Erro inesperado:", err);
+    return { 
+      success: false, 
+      error: { message: err.message }, 
+      data: null 
     };
   }
-
-  console.log("✅ [SUPABASE] Perfil encontrado:", profileData);
-
-  return { success: true, data: profileData };
 }

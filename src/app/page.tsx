@@ -26,7 +26,8 @@ import {
   getProfile,
   logoutUser,
   saveAnalysis,
-  getCurrentUser
+  getCurrentUser,
+  supabase
 } from "@/lib/supabase";
 
 import {
@@ -56,54 +57,30 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
+  const [tempEmail, setTempEmail] = useState("");
+  const [tempPassword, setTempPassword] = useState("");
+
   const [resetEmail, setResetEmail] = useState("");
   const [onboardingInitialStep, setOnboardingInitialStep] = useState(1);
 
   const [isLoading, setIsLoading] = useState(false);
   const [appLanguage, setAppLanguage] = useState<Language>("pt");
 
-     useEffect(() => {
+  useEffect(() => {
     const checkSession = async () => {
-      console.log("🔍 [SESSION] Verificando sessão existente...");
-      
-      setIsLoading(true);
-
       try {
-        const currentUser = await getCurrentUser();
+        const { data: { session } } = await supabase.auth.getSession();
         
-        console.log("🔍 [SESSION] Resultado getCurrentUser:", currentUser);
-
-        if (currentUser && currentUser.id) {
-          console.log("✅ [SESSION] Sessão encontrada! User ID:", currentUser.id);
+        if (session?.user) {
+          const profileResult = await getProfile(session.user.id);
           
-          const profileResult = await getProfile(currentUser.id);
-          
-          console.log("🔍 [SESSION] Resultado getProfile:", profileResult);
-
-          if (profileResult && profileResult.success && profileResult.data) {
-            console.log("✅ [SESSION] Perfil carregado, restaurando sessão!");
+          if (profileResult?.success && profileResult.data) {
             setUserProfile(profileResult.data);
             setCurrentTab("home");
-          } else {
-            console.warn("⚠️ [SESSION] Perfil não encontrado, criando básico...");
-            const basicProfile = {
-              id: currentUser.id,
-              email: currentUser.email || "",
-              name: currentUser.email?.split("@")[0] || "Usuário",
-              has_analysis: false
-            };
-            setUserProfile(basicProfile);
-            setCurrentTab("home");
           }
-        } else {
-          console.log("ℹ️ [SESSION] Nenhuma sessão encontrada, mostrando login");
-          setCurrentTab("login");
         }
-      } catch (err: any) {
-        console.error("❌ [SESSION] Erro ao verificar sessão:", err);
-        setCurrentTab("login");
-      } finally {
-        setIsLoading(false);
+      } catch (err) {
+        console.log("Nenhuma sessão ativa");
       }
     };
 
@@ -113,7 +90,6 @@ export default function Home() {
     setAppLanguage(savedLanguage);
   }, []);
 
-  // Scroll automático ao trocar de aba
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [currentTab]);
@@ -180,37 +156,76 @@ export default function Home() {
     }
   };
 
+  const handleCredentialsSubmit = (email: string, password: string) => {
+    console.log("📧 [CREDENTIALS] Email/senha recebidos, armazenando temporariamente");
+    setTempEmail(email);
+    setTempPassword(password);
+    setCurrentTab("onboarding");
+  };
+
   const handleOnboardingComplete = async (profile: any) => {
-    console.log("🎉 [ONBOARDING COMPLETE] Recebido profile:", profile);
+    console.log("🎉 [ONBOARDING COMPLETE] Criando usuário...");
     
     setIsLoading(true);
 
     try {
-      if (!profile.userId) {
-        throw new Error("userId não encontrado no profile");
+      // 1. CRIAR USUÁRIO
+      console.log("📝 [SIGNUP] Criando usuário:", tempEmail);
+      const signupResult = await createUser(tempEmail, tempPassword);
+
+      if (!signupResult.success || !signupResult.data) {
+        throw new Error(signupResult.error?.message || "Erro ao criar conta");
       }
 
-      console.log("🔍 [ONBOARDING] Buscando perfil do usuário:", profile.userId);
+      console.log("✅ [SIGNUP] Usuário criado! ID:", signupResult.data.id);
 
-      const profileResult = await getProfile(profile.userId);
+      // 2. FAZER LOGIN EXPLÍCITO (RESOLVER AuthSessionMissingError)
+      console.log("🔐 [LOGIN] Fazendo login automático...");
+      const loginResult = await loginUser(tempEmail, tempPassword);
+
+      if (!loginResult.success || !loginResult.data) {
+        console.warn("⚠️ [LOGIN] Erro no login automático, mas usuário foi criado");
+        // Continua mesmo com erro no login
+      } else {
+        console.log("✅ [LOGIN] Sessão estabelecida!");
+      }
+
+      // 3. ATUALIZAR PROFILE COM USER_ID
+      profile.user_id = signupResult.data.id;
       
-      console.log("🔍 [ONBOARDING] Resultado getProfile:", profileResult);
+      console.log("📤 [ONBOARDING] Salvando dados...");
 
+      // Aguardar um pouco para garantir que o perfil foi criado pelo trigger
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // 4. BUSCAR PERFIL COMPLETO (agora com sessão ativa)
+      const profileResult = await getProfile(signupResult.data.id);
+      
       if (profileResult && profileResult.success && profileResult.data) {
-        console.log("✅ [ONBOARDING] Perfil encontrado:", profileResult.data);
-        
+        console.log("✅ [ONBOARDING] Perfil carregado:", profileResult.data);
         setUserProfile(profileResult.data);
         localStorage.setItem("userProfile", JSON.stringify(profileResult.data));
-        setCurrentTab("home");
       } else {
-        console.log("⚠️ [ONBOARDING] Usando perfil recebido diretamente");
-        setUserProfile(profile);
-        localStorage.setItem("userProfile", JSON.stringify(profile));
-        setCurrentTab("home");
+        console.log("⚠️ [ONBOARDING] Usando perfil básico");
+        const basicProfile = {
+          id: signupResult.data.id,
+          email: tempEmail,
+          name: profile.name || tempEmail.split("@")[0],
+          has_analysis: false
+        };
+        setUserProfile(basicProfile);
+        localStorage.setItem("userProfile", JSON.stringify(basicProfile));
       }
+
+      // 5. LIMPAR CREDENCIAIS
+      setTempEmail("");
+      setTempPassword("");
+
+      setCurrentTab("home");
     } catch (err: any) {
-      console.error("❌ [ONBOARDING] Erro em handleOnboardingComplete:", err);
-      alert("Erro ao finalizar onboarding: " + err.message);
+      console.error("❌ [ONBOARDING] Erro:", err);
+      setError(err.message || "Erro ao criar conta");
+      alert("Erro ao criar conta: " + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -241,11 +256,6 @@ export default function Home() {
     setCurrentTab("login");
   };
 
-  const handleCredentialsSubmit = (email: string, password: string) => {
-    console.log("📧 [CREDENTIALS] Email/senha recebidos, indo para onboarding");
-    setCurrentTab("onboarding");
-  };
-
   const handleGoToPosturalAnalysis = () => {
     if (!userProfile) {
       setCurrentTab("login");
@@ -264,70 +274,73 @@ export default function Home() {
   console.log("🖥️ [RENDER] isLoading:", isLoading);
 
   return (
-    <div className="min-h-screen bg-black">
+    <div 
+      className="min-h-screen"
+      style={{
+        background: currentTab === "login" || currentTab === "signup-credentials"
+          ? "linear-gradient(to bottom right, rgb(241, 245, 249), rgb(243, 244, 246), rgb(226, 232, 240))"
+          : "#000000"
+      }}
+    >
       <main>
         {currentTab === "login" && (
-          <div className="relative min-h-screen flex flex-col items-center justify-center px-4 bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
-                        <div className="text-center mb-12">
-              <div className="flex justify-center mb-6">
-                <img 
-                  src="/images/posturai-logo.png" 
-                  alt="PosturAI Logo" 
-                  className="w-32 h-32 object-contain"
-                />
-              </div>
-              <h1 className="text-5xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent mb-4">
-                PosturAI
-              </h1>
-              <p className="text-gray-400 text-sm">
-                Sua análise postural inteligente
-              </p>
-            </div>
-
-            <form onSubmit={handleLogin} className="w-full max-w-md space-y-4">
-              <input
-                type="email"
-                placeholder="Email"
-                required
-                disabled={isLoading}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 text-white py-3 px-4 rounded-xl focus:outline-none focus:border-pink-500 transition-colors"
-              />
-
-              <input
-                type="password"
-                placeholder="Senha"
-                required
-                disabled={isLoading}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 text-white py-3 px-4 rounded-xl focus:outline-none focus:border-pink-500 transition-colors"
-              />
-
-              {error && (
-                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
-                  <p className="text-red-400 text-sm">{error}</p>
+          <div className="relative min-h-screen flex flex-col items-center justify-center px-4">
+              <div className="text-center mb-8">
+                <div className="w-20 h-20 bg-gradient-to-br from-pink-500 to-purple-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+                  <Activity className="w-10 h-10 text-white" />
                 </div>
-              )}
+                <h1 className="text-5xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent mb-4">
+                  PosturAI
+                </h1>
+                <p className="text-gray-600">Sua análise postural inteligente</p>
+              </div>
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-gradient-to-r from-pink-600 to-purple-600 text-white py-4 px-6 rounded-xl font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
-              >
-                {isLoading ? "Entrando..." : "Entrar"}
-              </button>
+            <div className="bg-white rounded-3xl shadow-2xl p-8 border border-gray-200 w-full max-w-md">
+              <form onSubmit={handleLogin} className="space-y-4">
+                <input
+                  type="email"
+                  placeholder="Email"
+                  required
+                  disabled={isLoading}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-white border-2 border-gray-200 text-gray-900 py-3 px-4 rounded-xl focus:outline-none focus:border-pink-500 transition-colors"
+                />
 
-              <button
-                type="button"
-                onClick={handleCreateAccount}
-                disabled={isLoading}
-                className="w-full bg-gray-800 border border-gray-700 text-white py-4 px-6 rounded-xl font-bold hover:bg-gray-700 transition-colors disabled:opacity-50"
-              >
-                Criar Conta
-              </button>
-            </form>
+                <input
+                  type="password"
+                  placeholder="Senha"
+                  required
+                  disabled={isLoading}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-white border-2 border-gray-200 text-gray-900 py-3 px-4 rounded-xl focus:outline-none focus:border-pink-500 transition-colors"
+                />
+
+                {error && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                    <p className="text-red-600 text-sm">{error}</p>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full bg-gradient-to-r from-pink-600 to-purple-600 text-white py-4 px-6 rounded-xl font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  {isLoading ? "Entrando..." : "Entrar"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCreateAccount}
+                  disabled={isLoading}
+                  className="w-full bg-white border-2 border-gray-300 text-gray-700 py-4 px-6 rounded-xl font-bold hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Criar Conta
+                </button>
+              </form>
+            </div>
           </div>
         )}
 

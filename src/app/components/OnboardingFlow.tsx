@@ -17,11 +17,12 @@ export default function OnboardingFlow({ onComplete, onBack, initialStep = 1 }: 
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
 
-  const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState({
     name: "",
     mainGoals: [] as string[],
     experienceLevel: "",
     gender: "",
+    wantsToInformPeriod: false,  // ✅ NOVO CAMPO
     lastPeriodStart: "",
     lastPeriodEnd: "",
     availability: "",
@@ -64,7 +65,7 @@ export default function OnboardingFlow({ onComplete, onBack, initialStep = 1 }: 
     }
   };
 
-  const handleNext = async () => {
+    const handleNext = async () => {
     if (step < 3) {
       setStep(step + 1);
     } else {
@@ -77,18 +78,19 @@ export default function OnboardingFlow({ onComplete, onBack, initialStep = 1 }: 
           throw new Error("Usuário não autenticado");
         }
 
+        // ✅ CONVERSÃO CORRETA DE TIPOS
         const onboardingData = {
           user_id: user.id,
           name: formData.name,
           main_goals: formData.mainGoals,
           experience_level: formData.experienceLevel,
-          gender: formData.gender,
+          gender: formData.gender || undefined,
           last_period_start: formData.lastPeriodStart || undefined,
           last_period_end: formData.lastPeriodEnd || undefined,
           exercise_frequency: formData.availability,
-          dedication_hours: parseFloat(formData.sessionDuration),
-          weight: parseFloat(formData.weight),
-          height: parseFloat(formData.height),
+          dedication_hours: parseFloat(formData.sessionDuration) || 0,
+          weight: formData.weight ? parseFloat(formData.weight) : undefined,  // ✅ CONVERTENDO PARA NUMBER
+          height: formData.height ? parseFloat(formData.height) : undefined,  // ✅ CONVERTENDO PARA NUMBER
           pain_areas: formData.painAreas.length > 0 ? formData.painAreas : null,
           injuries: formData.hasRecentInjuries,
           injury_details: formData.injuryDetails || undefined,
@@ -110,9 +112,14 @@ export default function OnboardingFlow({ onComplete, onBack, initialStep = 1 }: 
           completed: true
         };
 
+        console.log("📤 [ONBOARDING] Enviando dados:", onboardingData);
+
         const result = await saveOnboarding(onboardingData);
+        
+        console.log("📥 [ONBOARDING] Resultado:", result);
+
         if (!result.success) {
-          throw new Error("Erro ao salvar onboarding");
+          throw new Error(result.error?.message || "Erro ao salvar onboarding");
         }
 
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -123,14 +130,14 @@ export default function OnboardingFlow({ onComplete, onBack, initialStep = 1 }: 
         });
 
       } catch (err: any) {
-        console.error("Erro ao finalizar onboarding:", err);
+        console.error("❌ [ONBOARDING] Erro ao finalizar:", err);
         setError(err.message || "Erro ao salvar dados. Tente novamente.");
         setIsAnalyzing(false);
       }
     }
   };
 
-  const isStepValid = () => {
+    const isStepValid = () => {
     switch (step) {
       case 1:
         if (!formData.name || formData.mainGoals.length === 0 || !formData.experienceLevel || !formData.gender) {
@@ -138,6 +145,10 @@ export default function OnboardingFlow({ onComplete, onBack, initialStep = 1 }: 
         }
         // Se feminino, exige data da menstruação
         if (formData.gender === "Feminino" && !formData.lastPeriodStart) {
+          return false;
+        }
+        // Se "Prefiro não informar" e disse que quer informar, exige data
+        if (formData.gender === "Prefiro não informar" && formData.wantsToInformPeriod === true && !formData.lastPeriodStart) {
           return false;
         }
         return true;
@@ -311,7 +322,7 @@ export default function OnboardingFlow({ onComplete, onBack, initialStep = 1 }: 
                 </div>
               </div>
 
-              {/* Gênero */}
+                            {/* Gênero */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Qual seu gênero?
@@ -324,7 +335,21 @@ export default function OnboardingFlow({ onComplete, onBack, initialStep = 1 }: 
                     <button
                       key={gender}
                       type="button"
-                      onClick={() => handleInputChange("gender", gender)}
+                      onClick={() => {
+                        handleInputChange("gender", gender);
+                        // Se mudar de Feminino ou "Prefiro não informar" para Masculino, limpa os dados de menstruação
+                        if (gender === "Masculino") {
+                          handleInputChange("lastPeriodStart", "");
+                          handleInputChange("lastPeriodEnd", "");
+                          handleInputChange("wantsToInformPeriod", false);
+                        }
+                        // Se mudar para "Prefiro não informar", reseta a escolha
+                        if (gender === "Prefiro não informar") {
+                          handleInputChange("wantsToInformPeriod", false);
+                          handleInputChange("lastPeriodStart", "");
+                          handleInputChange("lastPeriodEnd", "");
+                        }
+                      }}
                       className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
                         formData.gender === gender
                           ? "border-pink-500 bg-pink-50 text-pink-700"
@@ -336,6 +361,84 @@ export default function OnboardingFlow({ onComplete, onBack, initialStep = 1 }: 
                   ))}
                 </div>
               </div>
+
+              {/* Pergunta sobre menstruação (se "Prefiro não informar") */}
+              {formData.gender === "Prefiro não informar" && (
+                <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">
+                    Deseja informar dados sobre menstruação?
+                  </label>
+                  <p className="text-xs text-gray-600 mb-3">
+                    Isso nos ajuda a adaptar a intensidade do treino ao ciclo hormonal, mas é totalmente opcional
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleInputChange("wantsToInformPeriod", true)}
+                      className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                        formData.wantsToInformPeriod === true
+                          ? "border-purple-500 bg-purple-50 text-purple-700"
+                          : "border-gray-200 text-gray-700 hover:border-purple-300"
+                      }`}
+                    >
+                      Sim
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleInputChange("wantsToInformPeriod", false);
+                        handleInputChange("lastPeriodStart", "");
+                        handleInputChange("lastPeriodEnd", "");
+                      }}
+                      className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                        formData.wantsToInformPeriod === false
+                          ? "border-purple-500 bg-purple-50 text-purple-700"
+                          : "border-gray-200 text-gray-700 hover:border-purple-300"
+                      }`}
+                    >
+                      Não
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Ciclo Menstrual (se Feminino OU se "Prefiro não informar" e disse SIM) */}
+              {(formData.gender === "Feminino" || 
+                (formData.gender === "Prefiro não informar" && formData.wantsToInformPeriod === true)) && (
+                <div className="bg-pink-50 border border-pink-200 rounded-xl p-4">
+                  <div className="flex items-start gap-3 mb-3">
+                    <Calendar className="w-5 h-5 text-pink-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">
+                        Data da última menstruação
+                      </label>
+                      <p className="text-xs text-gray-600 mb-3">
+                        Nos ajuda a adaptar intensidade do treino ao seu ciclo hormonal
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Início</label>
+                      <input
+                        type="date"
+                        value={formData.lastPeriodStart}
+                        onChange={(e) => handleInputChange("lastPeriodStart", e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-pink-500 focus:outline-none text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Fim (opcional)</label>
+                      <input
+                        type="date"
+                        value={formData.lastPeriodEnd}
+                        onChange={(e) => handleInputChange("lastPeriodEnd", e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-pink-500 focus:outline-none text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Ciclo Menstrual (se Feminino) */}
               {formData.gender === "Feminino" && (

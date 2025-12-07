@@ -7,10 +7,17 @@ import { Sparkles } from "lucide-react";
 
 interface HomePageProps {
   userProfile: any;
-  onNavigate: (tab: string) => void;
+  onStartPosturalAnalysis: () => void;
+  onStartWorkout: () => void;
+  nextWorkoutPhase: string;
 }
 
-export default function HomePage({ userProfile, onNavigate }: HomePageProps) {
+export default function HomePage({ 
+  userProfile, 
+  onStartPosturalAnalysis,
+  onStartWorkout,
+  nextWorkoutPhase
+}: HomePageProps) {
   const [selectedDay, setSelectedDay] = useState(new Date().getDay());
   const [currentBoostTip, setCurrentBoostTip] = useState<BoostTip | null>(null);
   const [showAnalysisAlert, setShowAnalysisAlert] = useState(false);
@@ -31,23 +38,23 @@ export default function HomePage({ userProfile, onNavigate }: HomePageProps) {
     saveShownTip(tip.id);
   }, []);
   
-// ✅ LER META DO PERFIL DO USUÁRIO
-const getWeekGoalFromFrequency = (frequency: string): number => {
-  if (!frequency) return 4;
-  
-  const mapping: { [key: string]: number } = {
-    "1-2": 2,
-    "3-4": 4,
-    "5-6": 6,
-    "todos": 7,
+  // ✅ LER META DO PERFIL DO USUÁRIO
+  const getWeekGoalFromFrequency = (frequency: string): number => {
+    if (!frequency) return 4;
+    
+    const mapping: { [key: string]: number } = {
+      "1-2": 2,
+      "3-4": 4,
+      "5-6": 6,
+      "todos": 7,
+    };
+    
+    return mapping[frequency] || 4;
   };
-  
-  return mapping[frequency] || 4;
-};
 
-const weekGoal = getWeekGoalFromFrequency(userProfile?.exercise_frequency);
-const weekProgress = weekHistory.filter(day => day).length;
-const progressPercentage = (weekProgress / weekGoal) * 100;
+  const weekGoal = getWeekGoalFromFrequency(userProfile?.exercise_frequency);
+  const weekProgress = weekHistory.filter(day => day).length;
+  const progressPercentage = (weekProgress / weekGoal) * 100;
   
   const days = [
     { label: "D", full: "DOM", value: 0 },
@@ -89,7 +96,7 @@ const progressPercentage = (weekProgress / weekGoal) * 100;
       setTimeout(() => setShowAnalysisAlert(false), 3000);
       return;
     }
-    onNavigate("training");
+    onStartWorkout();
   };
 
   const handleToggleTraining = (dayIndex: number) => {
@@ -117,7 +124,6 @@ const progressPercentage = (weekProgress / weekGoal) * 100;
           <p className="text-gray-600">Que bom ter você de volta!</p>
         </div>
         <button
-          onClick={() => onNavigate("profile")}
           className="w-12 h-12 bg-gradient-to-br from-pink-500 to-purple-600 rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-lg"
         >
           <UserIcon className="w-6 h-6 text-white" />
@@ -243,17 +249,20 @@ const progressPercentage = (weekProgress / weekGoal) * 100;
           </div>
         </section>
 
+        {/* BOTÃO INICIAR TREINO - ATUALIZADO */}
         <section>
           <button
             onClick={handleStartTraining}
-            className="w-full bg-gradient-to-r from-pink-500 to-purple-600 rounded-3xl p-6 flex items-center justify-between hover:scale-[1.02] transition-all shadow-2xl hover:shadow-pink-500/50"
+            className="w-full bg-gradient-to-r from-green-500 to-emerald-600 rounded-3xl p-6 flex items-center justify-between hover:scale-[1.02] transition-all shadow-2xl hover:shadow-green-500/50"
           >
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
                 <Zap className="w-7 h-7 text-white" />
               </div>
               <div className="text-left">
-                <h3 className="text-lg font-bold text-white">Iniciar Treino</h3>
+                <h3 className="text-lg font-bold text-white">
+                  🏋️ Iniciar Treino {nextWorkoutPhase}
+                </h3>
                 <p className="text-sm text-white/80">
                   {hasAnalysis ? "Seu treino está pronto" : "Configure sua análise"}
                 </p>
@@ -269,7 +278,6 @@ const progressPercentage = (weekProgress / weekGoal) * 100;
           <h3 className="text-sm font-semibold text-gray-500 mb-3 px-1">Ações Rápidas</h3>
           <div className="grid grid-cols-3 gap-3">
             <button
-              onClick={() => onNavigate("training")}
               className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col items-center gap-2 hover:scale-105 transition-all shadow-lg hover:shadow-xl"
             >
               <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
@@ -279,7 +287,7 @@ const progressPercentage = (weekProgress / weekGoal) * 100;
             </button>
 
             <button
-              onClick={() => onNavigate("analysis")}
+              onClick={onStartPosturalAnalysis}
               className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col items-center gap-2 hover:scale-105 transition-all shadow-lg hover:shadow-xl"
             >
               <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
@@ -289,7 +297,6 @@ const progressPercentage = (weekProgress / weekGoal) * 100;
             </button>
 
             <button
-              onClick={() => onNavigate("nutrition")}
               className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col items-center gap-2 hover:scale-105 transition-all shadow-lg hover:shadow-xl"
             >
               <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">

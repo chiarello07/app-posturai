@@ -2,30 +2,30 @@
 
 export interface WorkoutProgress {
   userId: string;
-  lastWorkoutPhase: string; // 'A', 'B', 'C'
+  lastWorkoutPhase: string;
   lastWorkoutDate: string;
   completedWorkouts: {
     phase: string;
     date: string;
-    exercises: string[]; // IDs dos exercícios concluídos
-    duration?: number; // Duração em minutos
+    exercises: string[];
+    duration?: number;
   }[];
-  currentStreak: number; // Dias seguidos treinando
+  currentStreak: number;
   totalWeeksCompleted: number;
-  currentPeriodizationPhase: string; // 'adaptacao', 'hipertrofia', 'força'
+  currentPeriodizationPhase: string;
 }
 
 export function getNextWorkoutPhase(
   lastPhase: string | null,
   totalPhases: number
 ): string {
-  if (!lastPhase) return 'A'; // Primeira vez
+  if (!lastPhase) return 'A';
 
   const phases = ['A', 'B', 'C', 'D', 'E', 'F'];
   const currentIndex = phases.indexOf(lastPhase);
   
   if (currentIndex === -1 || currentIndex >= totalPhases - 1) {
-    return 'A'; // Volta pro início do ciclo
+    return 'A';
   }
   
   return phases[currentIndex + 1];
@@ -52,7 +52,6 @@ export function saveWorkoutProgress(
         currentPeriodizationPhase: 'adaptacao'
       };
 
-  // Atualizar progresso
   progress.lastWorkoutPhase = phase;
   progress.lastWorkoutDate = new Date().toISOString();
   progress.completedWorkouts.push({
@@ -62,13 +61,8 @@ export function saveWorkoutProgress(
     duration
   });
 
-  // Calcular streak
   progress.currentStreak = calculateStreak(progress.completedWorkouts);
-
-  // Calcular semanas completas (cada ciclo ABC = 1 semana)
   progress.totalWeeksCompleted = Math.floor(progress.completedWorkouts.length / 3);
-
-  // Determinar fase de periodização baseado em semanas
   progress.currentPeriodizationPhase = determinePeriodizationPhase(progress.totalWeeksCompleted);
 
   localStorage.setItem(key, JSON.stringify(progress));
@@ -97,7 +91,7 @@ function calculateStreak(workouts: any[]): number {
     const previous = new Date(sorted[i + 1].date);
     const diffDays = Math.floor((current.getTime() - previous.getTime()) / (1000 * 60 * 60 * 24));
 
-    if (diffDays <= 2) { // Permite 1 dia de descanso
+    if (diffDays <= 2) {
       streak++;
     } else {
       break;
@@ -108,10 +102,10 @@ function calculateStreak(workouts: any[]): number {
 }
 
 function determinePeriodizationPhase(weeksCompleted: number): string {
-  if (weeksCompleted < 4) return 'adaptacao'; // Semanas 1-4
-  if (weeksCompleted < 8) return 'hipertrofia'; // Semanas 5-8
-  if (weeksCompleted < 12) return 'força'; // Semanas 9-12
-  return 'manutencao'; // Após 12 semanas
+  if (weeksCompleted < 4) return 'adaptacao';
+  if (weeksCompleted < 8) return 'hipertrofia';
+  if (weeksCompleted < 12) return 'força';
+  return 'manutencao';
 }
 
 export function getWorkoutStats(userId: string) {
@@ -131,7 +125,7 @@ export function getWorkoutStats(userId: string) {
   return {
     totalWorkouts: progress.completedWorkouts.length,
     currentStreak: progress.currentStreak,
-    nextPhase: getNextWorkoutPhase(progress.lastWorkoutPhase, 3), // 3 fases (A, B, C)
+    nextPhase: getNextWorkoutPhase(progress.lastWorkoutPhase, 3),
     lastWorkoutDate: progress.lastWorkoutDate,
     totalWeeksCompleted: progress.totalWeeksCompleted,
     currentPeriodizationPhase: progress.currentPeriodizationPhase

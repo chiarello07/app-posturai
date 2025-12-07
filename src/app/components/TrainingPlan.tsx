@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { getUserWorkout } from "@/lib/supabase";
 
-import PeriodizationTimeline from './PeriodizationTimeline';
+import { PeriodizationTimeline } from './PeriodizationTimeline';
 import { getWorkoutStats } from '@/lib/training/progressTracker';
 
 interface TrainingPlanProps {
@@ -288,8 +288,15 @@ const finishWorkout = () => {
         </div>
 
 {/* PERIODIZAÇÃO TIMELINE */}
-{workoutStats && (
-  <PeriodizationTimeline weeksCompleted={workoutStats.totalWeeksCompleted} />
+{/* TEMPORARIAMENTE DESABILITADO
+{workoutStats && workoutStats.totalWeeksCompleted !== undefined && (
+  <PeriodizationTimeline weeksCompleted={workoutStats.totalWeeksCompleted || 0} />
+)}
+*/}
+
+{/* PERIODIZAÇÃO TIMELINE */}
+{workoutStats && workoutStats.totalWeeksCompleted !== undefined && (
+  <PeriodizationTimeline weeksCompleted={workoutStats.totalWeeksCompleted || 0} />
 )}
 
         {/* FASES DE TREINO */}

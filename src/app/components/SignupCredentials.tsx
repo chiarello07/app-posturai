@@ -1,137 +1,160 @@
 "use client";
 
 import { useState } from "react";
-import { createUser, loginUser } from "@/lib/supabase";
+import { ArrowLeft, ChevronRight, Mail, Lock, Eye, EyeOff } from "lucide-react";
 
-interface Props {
+interface SignupCredentialsProps {
   onContinue: (email: string, password: string) => void;
   onBack: () => void;
 }
 
-export default function SignupCredentials({ onContinue, onBack }: Props) {
+export default function SignupCredentials({ onContinue, onBack }: SignupCredentialsProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async () => {
+  const handleContinue = () => {
+    console.log("🔥 [DEBUG] handleContinue executado - ARQUIVO ATUALIZADO!");
+    console.log("🔥 [DEBUG] Email:", email);
+    console.log("🔥 [DEBUG] Password:", password ? "***" : "undefined");
     setError("");
 
     // Validações
+    if (!email || !password || !confirmPassword) {
+      setError("Preencha todos os campos");
+      return;
+    }
+
     if (!email.includes("@")) {
-      setError("Digite um email válido.");
+      setError("Email inválido");
       return;
     }
+
     if (password.length < 6) {
-      setError("A senha deve ter no mínimo 6 caracteres.");
-      return;
-    }
-    if (password !== confirm) {
-      setError("As senhas não coincidem.");
+      setError("Senha deve ter no mínimo 6 caracteres");
       return;
     }
 
-    setLoading(true);
-
-    try {
-      console.log("📧 [SIGNUP] Tentando criar usuário...", { email });
-
-      // 1. Criar usuário no Supabase
-      const createResult = await createUser({ email, password });
-
-      console.log("📧 [SIGNUP] Resultado createUser:", createResult);
-
-      if (!createResult.success) {
-        // Extrair mensagem de erro do objeto
-        const errorMessage = typeof createResult.error === 'string' 
-          ? createResult.error 
-          : createResult.error?.message || JSON.stringify(createResult.error) || "Erro ao criar conta";
-        
-        console.error("❌ [SIGNUP] Erro ao criar usuário:", errorMessage);
-        throw new Error(errorMessage);
-      }
-
-      console.log("✅ [SIGNUP] Usuário criado com sucesso!");
-
-      // 2. Fazer login automático
-      console.log("🔐 [SIGNUP] Fazendo login automático...");
-      const loginResult = await loginUser(email, password);
-
-      console.log("🔐 [SIGNUP] Resultado loginUser:", loginResult);
-
-      if (!loginResult.success) {
-        const loginErrorMessage = typeof loginResult.error === 'string'
-          ? loginResult.error
-          : loginResult.error?.message || "Erro ao fazer login após criar conta";
-        
-        console.error("❌ [SIGNUP] Erro ao fazer login:", loginErrorMessage);
-        throw new Error(loginErrorMessage);
-      }
-
-      console.log("✅ [SIGNUP] Login automático realizado!");
-
-      // 3. Sucesso! Ir para onboarding
-      onContinue(email, password);
-    } catch (err: any) {
-      console.error("❌ [SIGNUP] Erro geral:", err);
-      setError(err.message || "Erro ao criar conta. Tente novamente.");
-      setLoading(false);
+    if (password !== confirmPassword) {
+      setError("As senhas não coincidem");
+      return;
     }
+
+    // NÃO cria usuário ainda, apenas passa para onboarding
+    onContinue(email, password);
   };
 
+  const isValid = email && password && confirmPassword && password === confirmPassword && password.length >= 6;
+
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center px-6">
-      <h1 className="text-4xl font-bold text-white mb-8">Criar Conta</h1>
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-gray-100 to-slate-200 flex items-center justify-center px-4">
+      <div className="max-w-md w-full">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-2 text-gray-600 hover:text-pink-500 transition-colors mb-6"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          <span className="font-medium">Voltar</span>
+        </button>
 
-      <input
-        type="email"
-        placeholder="Email"
-        className="w-full max-w-md bg-gray-800 border border-gray-700 text-white py-3 px-4 rounded-xl mb-4"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        disabled={loading}
-      />
+        <div className="bg-white rounded-3xl shadow-2xl p-8 border border-gray-200">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-gradient-to-br from-pink-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Mail className="w-8 h-8 text-white" />
+            </div>
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">
+              Criar sua conta
+            </h2>
+            <p className="text-gray-600">
+              Vamos começar com suas credenciais
+            </p>
+          </div>
 
-      <input
-        type="password"
-        placeholder="Senha"
-        className="w-full max-w-md bg-gray-800 border border-gray-700 text-white py-3 px-4 rounded-xl mb-4"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        disabled={loading}
-      />
+          <div className="space-y-4">
+            {/* Email */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="seu@email.com"
+                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-pink-500 focus:outline-none transition-colors"
+              />
+            </div>
 
-      <input
-        type="password"
-        placeholder="Confirmar senha"
-        className="w-full max-w-md bg-gray-800 border border-gray-700 text-white py-3 px-4 rounded-xl mb-4"
-        value={confirm}
-        onChange={(e) => setConfirm(e.target.value)}
-        disabled={loading}
-      />
+            {/* Senha */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Senha
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-pink-500 focus:outline-none transition-colors pr-12"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
 
-      {error && (
-        <div className="w-full max-w-md mb-4 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
-          <p className="text-red-400 text-sm">{error}</p>
+            {/* Confirmar Senha */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Confirmar senha
+              </label>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Digite a senha novamente"
+                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-pink-500 focus:outline-none transition-colors pr-12"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+                <p className="text-red-600 text-sm">{error}</p>
+              </div>
+            )}
+
+            <button
+              onClick={handleContinue}
+              disabled={!isValid}
+              className={`w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all ${
+                isValid
+                  ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:shadow-lg hover:shadow-pink-500/50"
+                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
+              }`}
+            >
+              Continuar
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
         </div>
-      )}
-
-      <button
-        onClick={handleSubmit}
-        disabled={loading}
-        className="w-full max-w-md bg-gradient-to-r from-pink-600 to-purple-600 text-white py-4 rounded-xl font-bold mb-4 disabled:opacity-50"
-      >
-        {loading ? "Criando conta..." : "Continuar"}
-      </button>
-
-      <button
-        onClick={onBack}
-        disabled={loading}
-        className="w-full max-w-md bg-gray-800 text-white py-4 rounded-xl font-bold disabled:opacity-50"
-      >
-        Voltar
-      </button>
+      </div>
     </div>
   );
 }

@@ -31,9 +31,23 @@ export default function HomePage({ userProfile, onNavigate }: HomePageProps) {
     saveShownTip(tip.id);
   }, []);
   
-  const weekProgress = weekHistory.filter(day => day).length;
-  const weekGoal = 4;
-  const progressPercentage = (weekProgress / weekGoal) * 100;
+// ✅ LER META DO PERFIL DO USUÁRIO
+const getWeekGoalFromFrequency = (frequency: string): number => {
+  if (!frequency) return 4;
+  
+  const mapping: { [key: string]: number } = {
+    "1-2": 2,
+    "3-4": 4,
+    "5-6": 6,
+    "todos": 7,
+  };
+  
+  return mapping[frequency] || 4;
+};
+
+const weekGoal = getWeekGoalFromFrequency(userProfile?.exercise_frequency);
+const weekProgress = weekHistory.filter(day => day).length;
+const progressPercentage = (weekProgress / weekGoal) * 100;
   
   const days = [
     { label: "D", full: "DOM", value: 0 },

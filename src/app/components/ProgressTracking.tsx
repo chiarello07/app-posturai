@@ -1,12 +1,32 @@
 "use client";
 
 import { TrendingUp, Calendar, Award, Flame, ArrowLeft, Lightbulb } from "lucide-react";
+import { WeeklyReport } from './WeeklyReport';
 
 interface ProgressTrackingProps {
   onBack: () => void;
+  userProfile?: any;
 }
 
-export default function ProgressTracking({ onBack }: ProgressTrackingProps) {
+export default function ProgressTracking({ onBack, userProfile }: ProgressTrackingProps) {
+  const [refreshKey, setRefreshKey] = React.useState(0);
+
+  // ✅ LISTENER PARA RECARREGAR
+  React.useEffect(() => {
+    const handleWorkoutUpdate = () => {
+      console.log('🔄 EVENTO RECEBIDO! Atualizando progresso...');
+      setRefreshKey(prev => prev + 1);
+    };
+
+    window.addEventListener('workoutCompleted', handleWorkoutUpdate);
+    console.log('👂 Listener registrado!');
+    
+    return () => {
+      window.removeEventListener('workoutCompleted', handleWorkoutUpdate);
+      console.log('🔇 Listener removido!');
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-gray-100 to-slate-200 px-4 py-8 pb-24">
       <div className="max-w-4xl mx-auto">
@@ -31,6 +51,9 @@ export default function ProgressTracking({ onBack }: ProgressTrackingProps) {
             Acompanhe sua evolução ao longo do tempo
           </p>
         </div>
+
+        {/* RELATÓRIO SEMANAL */}
+        {userProfile?.id && <WeeklyReport key={refreshKey} userId={userProfile.id} />}
 
         {/* Cards Principais */}
         <div className="grid md:grid-cols-2 gap-6 mb-8">

@@ -125,58 +125,53 @@ export default function Home() {
     setCurrentTab("signup-credentials");
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+const handleLogin = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError("");
+  setIsLoading(true);
+
+  try {
+    console.log("🔐 [LOGIN] Tentando login...");
     
-    console.log("🔐 [LOGIN] Tentando fazer login...", { email });
-    
-    setIsLoading(true);
-    setError("");
+    const result = await loginUser(email, password);
 
-    try {
-      const result = await loginUser(email, password);
-      
-      console.log("🔐 [LOGIN] Resultado loginUser:", result);
-
-      if (!result.success || !result.data) {
-        const errorMsg = result.error?.message || "Credenciais inválidas";
-        console.error("❌ [LOGIN] Erro:", errorMsg);
-        setError(errorMsg);
-        setIsLoading(false);
-        return;
-      }
-
-      console.log("✅ [LOGIN] Login bem-sucedido! User ID:", result.data.id);
-
-      console.log("🔍 [LOGIN] Buscando perfil...");
-      const profileResult = await getProfile(result.data.id);
-      
-      console.log("🔍 [LOGIN] Resultado getProfile:", profileResult);
-
-      if (profileResult && profileResult.success && profileResult.data) {
-        console.log("✅ [LOGIN] Perfil encontrado:", profileResult.data);
-        setUserProfile(profileResult.data);
-        localStorage.setItem("userProfile", JSON.stringify(profileResult.data));
-        setCurrentTab("home");
-      } else {
-        console.warn("⚠️ [LOGIN] Perfil não encontrado, criando básico...");
-        const basicProfile = {
-          id: result.data.id,
-          email: email,
-          name: email.split("@")[0],
-          has_analysis: false
-        };
-        setUserProfile(basicProfile);
-        localStorage.setItem("userProfile", JSON.stringify(basicProfile));
-        setCurrentTab("home");
-      }
-    } catch (err: any) {
-      console.error("❌ [LOGIN] Erro geral:", err);
-      setError(err.message || "Erro ao fazer login");
-    } finally {
+    if (!result.success || !result.data) {
+      const errorMsg = result.error?.message || "Credenciais inválidas";
+      console.error("❌ [LOGIN] Erro:", errorMsg);
+      setError(errorMsg);
       setIsLoading(false);
+      return;
     }
-  };
+
+    console.log("✅ [LOGIN] Autenticação OK, buscando perfil...");
+    
+    // ✅ BUSCAR PROFILE
+    const profileResult = await getProfile(result.data.id);
+    
+    // ✅ VALIDAÇÃO CRÍTICA
+    if (!profileResult.success || !profileResult.data) {
+      console.error("❌ [LOGIN] Profile não encontrado!");
+      
+      // Fazer logout
+      await supabase.auth.signOut();
+      
+      setError("Erro ao carregar perfil. Por favor, contate o suporte.");
+      setIsLoading(false);
+      return;
+    }
+
+    console.log("✅ [LOGIN] Profile carregado:", profileResult.data.email);
+    
+    setUserProfile(profileResult.data);
+    setCurrentTab("home");
+    setIsLoading(false);
+
+  } catch (err) {
+    console.error("❌ [LOGIN] Exceção:", err);
+    setError("Erro inesperado ao fazer login");
+    setIsLoading(false);
+  }
+};
 
   const handleCredentialsSubmit = (email: string, password: string) => {
     console.log("📧 [CREDENTIALS] Email recebido:", email);
@@ -556,6 +551,7 @@ export default function Home() {
               console.log('🏋️ [START WORKOUT] Stats:', stats);
               setShowStartWorkoutModal(true);
             }}
+            onNavigateToProfile={() => setCurrentTab("profile")}
             nextWorkoutPhase={getWorkoutStats(userProfile.id).nextPhase}
           />
         )}
@@ -592,7 +588,10 @@ export default function Home() {
         )}
 
         {currentTab === "progress" && (
-          <ProgressTracking onBack={() => setCurrentTab("home")} />
+          <ProgressTracking 
+          onBack={() => setCurrentTab("home")} 
+          userProfile={userProfile}
+          />
         )}
 
         {currentTab === "nutrition" && (

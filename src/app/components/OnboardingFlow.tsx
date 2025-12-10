@@ -31,7 +31,7 @@ export default function OnboardingFlow({ onComplete, onBack, initialStep = 1 }: 
     weight: "",
     height: "",
     painAreas: [] as string[],
-    trainingEnvironment: "",
+    trainingEnvironment: "gym",
     hasRecentInjuries: "",
     injuryDetails: "",
     hasMedicalConditions: "",
@@ -114,6 +114,12 @@ const handleNext = async () => {
   }
 };
 
+const trainingEnvironments = [
+  { id: 'gym', label: 'Academia', icon: Dumbbell, visible: true },
+  // { id: 'home', label: 'Em Casa', icon: Home, visible: false }, // ← OCULTO ATÉ 19/12
+  // { id: 'both', label: 'Ambos', icon: Calendar, visible: false } // ← OCULTO ATÉ 19/12
+];
+
 const isStepValid = () => {
   switch (step) {
     case 1:
@@ -131,7 +137,7 @@ const isStepValid = () => {
       }
       return true;
     case 2:
-      return formData.availability && formData.sessionDuration && formData.weight && formData.height && formData.trainingEnvironment;
+      return formData.availability && formData.sessionDuration && formData.weight && formData.height;
     case 3:
       return formData.hasRecentInjuries && formData.hasMedicalConditions && formData.medicalClearance;
     default:
@@ -610,37 +616,6 @@ const isStepValid = () => {
                       }`}
                     >
                       {area}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Local de Treino */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Onde você vai treinar?
-                </label>
-                <div className="space-y-3">
-                  {[
-                    { value: "casa", title: "Em casa", desc: "Sem equipamentos ou com poucos", icon: "🏠" },
-                    { value: "academia", title: "Na academia", desc: "Com acesso a equipamentos", icon: "🏋️" },
-                    { value: "ambos", title: "Ambos", desc: "Casa e academia", icon: "🔄" },
-                  ].map((location) => (
-                    <button
-                      key={location.value}
-                      type="button"
-                      onClick={() => handleInputChange("trainingEnvironment", location.value)}
-                      className={`w-full p-4 rounded-xl border-2 text-left transition-all flex items-center gap-3 ${
-                        formData.trainingEnvironment === location.value
-                          ? "border-pink-500 bg-pink-50"
-                          : "border-gray-200 hover:border-pink-300"
-                      }`}
-                    >
-                      <span className="text-3xl">{location.icon}</span>
-                      <div className="flex-1">
-                        <div className="font-semibold text-gray-900">{location.title}</div>
-                        <div className="text-sm text-gray-600">{location.desc}</div>
-                      </div>
                     </button>
                   ))}
                 </div>

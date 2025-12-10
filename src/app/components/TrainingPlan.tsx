@@ -30,6 +30,7 @@ import {
 } from '@/lib/training/workoutTracker';
 import ActiveWorkout from './ActiveWorkout';
 import { saveWorkoutProgress } from '@/lib/training/progressTracker';
+import {toast } from 'sonner';
 
 interface TrainingPlanProps {
   userProfile: any;
@@ -77,6 +78,9 @@ interface TrainingPlan {
   };
 }
 
+// ✅ REGEX PARA DETECTAR TEMPO (seg, min, s)
+const TIME_PATTERN = /seg|min|s$/i;
+
 export default function TrainingPlan({ userProfile }: TrainingPlanProps) {
   const [trainingPlan, setTrainingPlan] = useState<TrainingPlan | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -91,12 +95,17 @@ export default function TrainingPlan({ userProfile }: TrainingPlanProps) {
   const [timerInterval, setTimerInterval] = useState<NodeJS.Timeout | null>(null);
   const [workoutStartTime, setWorkoutStartTime] = useState<string>('');
   const [showActiveWorkout, setShowActiveWorkout] = useState<number | null>(null);
+  const [selectedPhase, setSelectedPhase] = useState<number | null>(null);
+  const [showPeriodizationModal, setShowPeriodizationModal] = useState(false);
+  const [showBorgModal, setShowBorgModal] = useState(false);
+  const [borgScore, setBorgScore] = useState<number | null>(null);
+
 
   useEffect(() => {
     if (userProfile?.id) {
       const stats = getWorkoutStats(userProfile.id);
       setWorkoutStats(stats);
-      console.log('📊 [STATS]:', stats);
+// ✅ Removido console.log (não precisa de toast aqui, é silencioso)
     }
   }, [userProfile]);
 
@@ -107,7 +116,6 @@ export default function TrainingPlan({ userProfile }: TrainingPlanProps) {
   }, [userProfile]);
 
   const loadTrainingPlan = async () => {
-    console.log("🏋️ [TRAINING PLAN] Carregando treino...");
     setIsLoading(true);
 
     try {
@@ -133,7 +141,6 @@ export default function TrainingPlan({ userProfile }: TrainingPlanProps) {
       setIsLoading(false);
 
     } catch (error) {
-      console.error("❌ [TRAINING PLAN] Erro ao carregar:", error);
       setIsLoading(false);
     }
   };
@@ -181,7 +188,7 @@ const finishWorkout = () => {
       exerciseId: ex.id,
       exerciseName: ex.name,
       sets: ex.sets,
-      reps: (typeof ex.reps === 'string' && /seg|min|s$/i.test(ex.reps)) ? 0 : (ex.reps || 0),
+      reps: (typeof ex.reps === 'string' && TIME_PATTERN.test(ex.reps)) ? 0 : (ex.reps || 0),
       duration: ex.duration,
       rest: ex.rest,
       completed: completedIds.includes(uniqueId),
@@ -204,22 +211,31 @@ const finishWorkout = () => {
     exercises: exerciseLogs,
     totalSets: metrics.totalSets,
     totalReps: metrics.totalReps,
-    totalVolume: 0, // Implementar futuramente
+    totalVolume: 0,
     estimatedCalories: metrics.estimatedCalories,
     completionRate: metrics.completionRate
   };
   
-  // ✅ SALVAR NO HISTÓRICO
-  saveWorkoutSession(session);
+  // ✅ SALVAR NO HISTÓRICO (PROCESSADO!)
+  const processedSession = {
+    ...session,
+    exercises: session.exercises.map(ex => ({
+      ...ex,
+      reps: typeof ex.reps === 'string' 
+        ? (TIME_PATTERN.test(ex.reps) ? 0 : parseInt(ex.reps, 10) || 0)
+        : (ex.reps || 0)
+    }))
+  };
+  saveWorkoutSession(processedSession);
   
   // ✅ MOSTRAR MODAL
   setCompletedPhaseName(phase.name);
-  setShowCompletionModal(true);
+  setShowBorgModal(true); // Mostra Borg ANTES do modal de conclusão
   
   setActiveWorkout(null);
   setCompletedExercises(new Set());
   
-  console.log('📊 Treino finalizado:', session);
+toast.success('Treino salvo com sucesso! 🎉');
 };
 
   const cancelWorkout = () => {
@@ -231,6 +247,8 @@ const finishWorkout = () => {
       setActiveWorkout(null);
       setCompletedExercises(new Set());
       setWorkoutTimer(0);
+
+      toast.info('Treino cancelado');
     }
   };
 
@@ -246,7 +264,7 @@ const finishWorkout = () => {
       exerciseId: ex.id,
       exerciseName: ex.name,
       sets: ex.sets,
-      reps: (typeof ex.reps === 'string' && /seg|min|s$/i.test(ex.reps)) ? 0 : (ex.reps || 0),
+      reps: (typeof ex.reps === 'string' && TIME_PATTERN.test(ex.reps)) ? 0 : (ex.reps || 0),
       duration: ex.duration,
       rest: ex.rest,
       completed: completedIds.includes(uniqueId),
@@ -274,8 +292,17 @@ const finishWorkout = () => {
     completionRate: metrics.completionRate
   };
   
-  // ✅ SALVAR NO HISTÓRICO
-  saveWorkoutSession(session);
+  // ✅ SALVAR NO HISTÓRICO (PROCESSADO!)
+  const processedSession = {
+    ...session,
+    exercises: session.exercises.map(ex => ({
+      ...ex,
+      reps: typeof ex.reps === 'string' 
+        ? (TIME_PATTERN.test(ex.reps) ? 0 : parseInt(ex.reps, 10) || 0)
+        : (ex.reps || 0)
+    }))
+  };
+  saveWorkoutSession(processedSession);
   
   saveWorkoutProgress(
     userProfile?.id || 'guest',
@@ -283,9 +310,6 @@ const finishWorkout = () => {
     completedIds,
     Math.floor(duration / 60)
   );
-
-  console.log('🔔 Evento workoutCompleted disparado!');
-  window.dispatchEvent(new CustomEvent('workoutCompleted'));
 
   // ✅ MOSTRAR MODAL
   setCompletedPhaseName(phase.name);
@@ -297,6 +321,7 @@ const finishWorkout = () => {
   setShowActiveWorkout(null);
   
   console.log('📊 Treino finalizado:', session);
+  toast.success('Treino concluído! 💪');
 };
 
   const formatTime = (seconds: number) => {
@@ -386,555 +411,1161 @@ const finishWorkout = () => {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-6">
-      <div className="max-w-6xl mx-auto">
-        
-        {/* HEADER */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 mb-6">
-          <div className="flex items-start justify-between mb-6">
-            <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2">
-                {trainingPlan.programName}
-              </h1>
-              <p className="text-xl text-gray-600">
-                Seu plano personalizado de correção postural
-              </p>
-            </div>
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl">
-              <p className="text-sm font-medium">Seu Nível</p>
-              <p className="text-2xl font-bold capitalize">{trainingPlan.level}</p>
-            </div>
-          </div>
+return (
+  <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 pb-24">
+    <div className="max-w-5xl mx-auto px-6 py-8">
+      
+      {/* ✅ HEADER MINIMALISTA */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Plano de Treino</h1>
+        <p className="text-gray-600">Personalizado para correção postural</p>
+      </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-blue-50 rounded-xl p-4 flex items-center gap-3">
-              <Calendar className="w-8 h-8 text-blue-600" />
-              <div>
-                <p className="text-sm text-gray-600">Duração Estimada</p>
-                <p className="text-lg font-bold text-gray-900">{trainingPlan.duration}</p>
-              </div>
-            </div>
+      {/* ✅ FASE ATUAL + BOTÃO INFO */}
+<div className="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-100">
+  <div className="flex items-center justify-between">
+    <div className="flex items-center gap-4">
+      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+        <Award className="w-6 h-6 text-white" />
+      </div>
+      <div>
+        <p className="text-xs text-gray-500 uppercase tracking-wide">Fase Atual</p>
+        <p className="text-lg font-bold text-gray-900">
+          {trainingPlan.periodization?.currentPhase || "Adaptação Anatômica"}
+        </p>
+        <p className="text-sm text-gray-600">
+          {workoutStats?.totalWeeksCompleted || 0} de {trainingPlan.periodization?.totalWeeks || 12} semanas
+        </p>
+      </div>
+    </div>
+    
+    {/* ✅ BOTÃO CORRETO PARA ABRIR MODAL */}
+    <button
+      onClick={() => setShowPeriodizationModal(true)}
+      className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl"
+    >
+      <Info className="w-4 h-4" />
+      <span>Como funciona</span>
+    </button>
+  </div>
+</div>
 
-            <div className="bg-indigo-50 rounded-xl p-4 flex items-center gap-3">
-              <Target className="w-8 h-8 text-indigo-600" />
-              <div>
-                <p className="text-sm text-gray-600">Treinos Disponíveis</p>
-                <p className="text-lg font-bold text-gray-900">
-                  {trainingPlan.phases.map((p, i) => String.fromCharCode(65 + i)).join(' | ')}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-purple-50 rounded-xl p-4 flex items-center gap-3">
-              <Award className="w-8 h-8 text-purple-600" />
-              <div>
-                <p className="text-sm text-gray-600">Fase Atual</p>
-                <p className="text-lg font-bold text-gray-900">
-                  {trainingPlan.periodization?.currentPhase || "Adaptação Anatômica"}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {trainingPlan.periodization && (
-            <div className="mt-6 bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-amber-500 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <Info className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-semibold text-gray-900 mb-1">Progressão do Programa</p>
-                  <p className="text-sm text-gray-700">
-                    {trainingPlan.periodization.progressionCriteria}
-                  </p>
-                  <p className="text-xs text-gray-600 mt-2">
-                    Duração total: {trainingPlan.periodization.totalWeeks} semanas
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
+      {/* ✅ STATS COMPACTOS */}
+      <div className="grid grid-cols-3 gap-3 mb-8">
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
+          <p className="text-2xl font-bold text-gray-900">{trainingPlan.phases.length}</p>
+          <p className="text-xs text-gray-600">Treinos</p>
         </div>
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
+          <p className="text-2xl font-bold text-gray-900">{trainingPlan.duration}</p>
+          <p className="text-xs text-gray-600">Duração</p>
+        </div>
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
+          <p className="text-2xl font-bold text-gray-900 capitalize">{trainingPlan.level}</p>
+          <p className="text-xs text-gray-600">Nível</p>
+        </div>
+      </div>
 
-        {/* PERIODIZAÇÃO TIMELINE */}
-        {workoutStats && workoutStats.totalWeeksCompleted !== undefined && (
-          <PeriodizationTimeline weeksCompleted={workoutStats.totalWeeksCompleted || 0} />
-        )}
-
-                {/* FASES DE TREINO */}
-        <div className="space-y-4">
+      {/* ✅ CARDS DE TREINOS HORIZONTAIS */}
+      <div>
+        <h2 className="text-lg font-bold text-gray-900 mb-4">Seus Treinos</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {trainingPlan.phases.map((phase, phaseIndex) => {
-            const isExpanded = expandedPhase === phaseIndex;
-            const isActive = activeWorkout === phaseIndex;
-            const phaseProgress = phase.exercises.filter(ex => {
-              const uniqueId = `phase-${phaseIndex}-exercise-${phase.exercises.indexOf(ex)}`;
-              return completedExercises.has(uniqueId);
-            }).length;
-            const phaseTotal = phase.exercises.length;
+            const phaseLetter = String.fromCharCode(65 + phaseIndex);
+            const phaseColors = [
+              { bg: 'from-blue-500 to-indigo-600', light: 'bg-blue-50', text: 'text-blue-700' },
+              { bg: 'from-purple-500 to-pink-600', light: 'bg-purple-50', text: 'text-purple-700' },
+              { bg: 'from-green-500 to-emerald-600', light: 'bg-green-50', text: 'text-green-700' },
+            ];
+            const colors = phaseColors[phaseIndex % 3];
 
             return (
-              <div
+              <button
                 key={phaseIndex}
-                className={`bg-white rounded-2xl shadow-lg overflow-hidden transition-all ${
-                  isActive ? 'ring-4 ring-green-500' : ''
-                }`}
+                onClick={() => setSelectedPhase(phaseIndex)}
+                className="bg-white rounded-2xl p-6 shadow-sm border-2 border-gray-100 hover:border-blue-300 hover:shadow-md transition-all text-left group"
               >
-                {/* HEADER DA FASE */}
-                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex-1">
-                      <h2 className="text-2xl font-bold mb-2">{phase.name}</h2>
-                      <p className="text-blue-100 mb-3">{phase.description}</p>
-                      
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        {phase.focus.map((focus, idx) => (
-                          <span
-                            key={idx}
-                            className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium"
-                          >
-                            {focus}
-                          </span>
-                        ))}
-                      </div>
-
-                      <div className="flex items-center gap-4 text-sm">
-                        <div className="flex items-center gap-2">
-                          <Repeat className="w-4 h-4" />
-                          <span>{phase.frequency}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Dumbbell className="w-4 h-4" />
-                          <span>{phase.exercises.length} exercícios</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => togglePhase(phaseIndex)}
-                      className="ml-4 p-2 hover:bg-white/20 rounded-lg transition"
-                    >
-                      {isExpanded ? (
-                        <ChevronUp className="w-6 h-6" />
-                      ) : (
-                        <ChevronDown className="w-6 h-6" />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* CRONÔMETRO (SE TREINO ATIVO) */}
-                  {isActive && (
-                    <div className="mb-4 bg-white/20 backdrop-blur-sm rounded-xl p-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Clock className="w-6 h-6" />
-                        <div>
-                          <p className="text-xs text-blue-100">Tempo de Treino</p>
-                          <p className="text-2xl font-bold">{formatTime(workoutTimer)}</p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={cancelWorkout}
-                        className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-semibold transition"
-                      >
-                        Encerrar Treino
-                      </button>
-                    </div>
-                  )}
-
-                  {/* BOTÃO INICIAR TREINO */}
-                  <button
-                    onClick={() => startWorkout(phaseIndex)}
-                    className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-3 transition-all ${
-                      isActive
-                        ? 'bg-green-500 hover:bg-green-600'
-                        : 'bg-white text-blue-600 hover:bg-blue-50'
-                    }`}
-                  >
-                    <Play className="w-6 h-6" />
-                    {isActive ? `Treino em Andamento (${phaseProgress}/${phaseTotal})` : `Iniciar ${phase.name}`}
-                  </button>
+                {/* LETRA GRANDE */}
+                <div className={`w-16 h-16 bg-gradient-to-br ${colors.bg} rounded-2xl flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform`}>
+                  <span className="text-3xl font-bold text-white">{phaseLetter}</span>
                 </div>
 
-                {/* LISTA DE EXERCÍCIOS */}
-                {isExpanded && (
-                  <div className="p-6 space-y-4">
-                    {phase.exercises.map((exercise, exIndex) => {
-                      const uniqueId = `phase-${phaseIndex}-exercise-${exIndex}`;
-                      const isExerciseExpanded = expandedExercise === uniqueId;
-                      const isCompleted = completedExercises.has(uniqueId);
+                {/* NOME */}
+                <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-1">
+                  {phase.name.replace(`Treino ${phaseLetter} - `, '')}
+                </h3>
 
-                      return (
-                        <div
-                          key={uniqueId}
-                          className={`border-2 rounded-xl overflow-hidden transition-all ${
-                            isCompleted
-                              ? 'border-green-500 bg-green-50'
-                              : 'border-gray-200 bg-white'
-                          }`}
-                        >
-                          <div className="p-4">
-                            <div className="flex items-start gap-4">
-                              <button
-                                onClick={() => completeExercise(uniqueId)}
-                                className={`flex-shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${
-                                  isCompleted
-                                    ? 'bg-green-500 border-green-500'
-                                    : 'border-gray-300 hover:border-green-500'
-                                }`}
-                              >
-                                {isCompleted && <CheckCircle2 className="w-5 h-5 text-white" />}
-                              </button>
+                {/* DESCRIÇÃO */}
+                <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                  {phase.description}
+                </p>
 
-                              <div className="flex-shrink-0 w-20 h-20 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl flex items-center justify-center overflow-hidden">
-                                {exercise.imageUrl ? (
-                                  <img
-                                    src={exercise.imageUrl}
-                                    alt={exercise.name}
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : exercise.gifUrl ? (
-                                  <img
-                                    src={exercise.gifUrl}
-                                    alt={exercise.name}
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <ImageIcon className="w-8 h-8 text-blue-400" />
-                                )}
-                              </div>
-
-                              <div className="flex-1">
-                                <h3 className="text-lg font-bold text-gray-900 mb-2">
-                                  {exIndex + 1}. {exercise.name}
-                                </h3>
-
-                                <div className="flex flex-wrap gap-3 text-sm">
-                                  {exercise.sets && (
-                                    <div className="flex items-center gap-1 text-gray-600">
-                                      <Repeat className="w-4 h-4" />
-                                      <span className="font-semibold">{exercise.sets}</span> séries
-                                    </div>
-                                  )}
-
-                                  {exercise.reps && (
-                                    <div className="flex items-center gap-1 text-gray-600">
-                                      <TrendingUp className="w-4 h-4" />
-                                      <span className="font-semibold">{exercise.reps}</span> repetições
-                                    </div>
-                                  )}
-
-                                  {exercise.duration && (
-                                    <div className="flex items-center gap-1 text-gray-600">
-                                      <Clock className="w-4 h-4" />
-                                      <span className="font-semibold">{exercise.duration}s</span>
-                                    </div>
-                                  )}
-
-                                  {exercise.rest && (
-                                    <div className="flex items-center gap-1 text-gray-600">
-                                      <Clock className="w-4 h-4" />
-                                      Descanso: <span className="font-semibold">{exercise.rest}s</span>
-                                    </div>
-                                  )}
-                                </div>
-
-                                {exercise.tempo && (
-                                  <div className="mt-2 bg-blue-50 rounded-lg px-3 py-2 inline-block">
-                                    <p className="text-xs text-gray-600 mb-1">⏱️ Tempo de Execução:</p>
-                                    <div className="flex gap-4 text-xs font-medium text-gray-700">
-                                      <span>Subida: {exercise.tempo.concentric}s</span>
-                                      <span>Pausa: {exercise.tempo.isometric}s</span>
-                                      <span>Descida: {exercise.tempo.eccentric}s</span>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-
-                              <button
-                                onClick={() => toggleExercise(uniqueId)}
-                                className="flex-shrink-0 p-2 hover:bg-gray-100 rounded-lg transition"
-                              >
-                                {isExerciseExpanded ? (
-                                  <ChevronUp className="w-5 h-5 text-gray-600" />
-                                ) : (
-                                  <ChevronDown className="w-5 h-5 text-gray-600" />
-                                )}
-                              </button>
-                            </div>
-                          </div>
-
-                          {isExerciseExpanded && (
-                            <div className="border-t border-gray-200 bg-gray-50 p-6 space-y-4">
-                              <div>
-                                <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                                  <Info className="w-4 h-4 text-blue-600" />
-                                  Como Executar
-                                </h4>
-                                <p className="text-gray-700 leading-relaxed">
-                                  {exercise.description}
-                                </p>
-                              </div>
-
-                              {exercise.cues && exercise.cues.length > 0 && (
-                                <div>
-                                  <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                                    <CheckCircle2 className="w-4 h-4 text-green-600" />
-                                    Dicas Importantes
-                                  </h4>
-                                  <ul className="space-y-2">
-                                    {exercise.cues.map((cue, idx) => (
-                                      <li key={idx} className="flex items-start gap-2 text-gray-700">
-                                        <span className="text-green-600 mt-1">✓</span>
-                                        <span>{cue}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-
-                              {exercise.benefits && exercise.benefits.length > 0 && (
-                                <div>
-                                  <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                                    <Award className="w-4 h-4 text-purple-600" />
-                                    Benefícios
-                                  </h4>
-                                  <ul className="space-y-2">
-                                    {exercise.benefits.map((benefit, idx) => (
-                                      <li key={idx} className="flex items-start gap-2 text-gray-700">
-                                        <span className="text-purple-600 mt-1">★</span>
-                                        <span>{benefit}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-
-                              {(exercise.videoUrl || exercise.gifUrl) && (
-                                <div>
-                                  <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                                    <Video className="w-4 h-4 text-red-600" />
-                                    Demonstração
-                                  </h4>
-                                  <div className="bg-gray-200 rounded-xl h-48 flex items-center justify-center">
-                                    {exercise.videoUrl ? (
-                                      <video
-                                        src={exercise.videoUrl}
-                                        controls
-                                        className="w-full h-full rounded-xl"
-                                      />
-                                    ) : exercise.gifUrl ? (
-                                      <img
-                                        src={exercise.gifUrl}
-                                        alt={exercise.name}
-                                        className="w-full h-full object-contain rounded-xl"
-                                      />
-                                    ) : (
-                                      <p className="text-gray-500">Vídeo em breve</p>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-
-                              <button
-                                onClick={() => completeExercise(uniqueId)}
-                                className={`w-full py-3 rounded-lg font-semibold transition-all ${
-                                  isCompleted
-                                    ? 'bg-green-500 text-white hover:bg-green-600'
-                                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                                }`}
-                              >
-                                {isCompleted ? '✓ Exercício Concluído' : 'Marcar como Concluído'}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-
-                    {isActive && (
-                      <div className="mt-6 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-500 rounded-xl p-6">
-                        <div className="flex items-center justify-between mb-4">
-                          <div>
-                            <h3 className="text-xl font-bold text-gray-900 mb-1">
-                              Progresso do Treino
-                            </h3>
-                            <p className="text-gray-600">
-                              {phaseProgress} de {phaseTotal} exercícios concluídos
-                            </p>
-                          </div>
-                          <div className="text-4xl font-bold text-green-600">
-                            {Math.round((phaseProgress / phaseTotal) * 100)}%
-                          </div>
-                        </div>
-
-                        <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
-                          <div
-                            className="bg-gradient-to-r from-green-500 to-emerald-500 h-full transition-all duration-500"
-                            style={{ width: `${(phaseProgress / phaseTotal) * 100}%` }}
-                          />
-                        </div>
-
-                        {phaseProgress === phaseTotal && (
-                          <div className="mt-4 text-center">
-                            <p className="text-green-600 font-bold text-lg mb-2">
-                              🎉 Parabéns! Treino Completo!
-                            </p>
-                            <button
-                              onClick={finishWorkout}
-                              className="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-700 transition"
-                                                          >
-                              Finalizar Treino
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                {/* INFO */}
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1 text-gray-600">
+                    <Dumbbell className="w-3 h-3" />
+                    <span>{phase.exercises.length} exercícios</span>
                   </div>
-                )}
-              </div>
+                  <div className={`${colors.light} ${colors.text} px-2 py-1 rounded-full font-medium`}>
+                    Ver detalhes
+                  </div>
+                </div>
+              </button>
             );
           })}
         </div>
+      </div>
 
-{/* MODAL DE CONCLUSÃO */}
-{showCompletionModal && (() => {
-  const lastSession = getWorkoutHistory(userProfile?.id || 'guest').slice(-1)[0];
-  
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 animate-scale-in">
-        <div className="text-center">
-          {/* ÍCONE DE SUCESSO */}
-          <div className="mx-auto w-20 h-20 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full flex items-center justify-center mb-4">
-            <CheckCircle2 className="w-12 h-12 text-white" />
+      {/* ✅ DICA RÁPIDA */}
+      <div className="mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-100">
+        <div className="flex items-start gap-4">
+          <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Info className="w-5 h-5 text-blue-600" />
           </div>
-          
-          {/* TÍTULO */}
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">
-            🎉 Parabéns!
-          </h2>
-          
-          {/* MENSAGEM */}
-          <p className="text-xl text-gray-700 mb-4">
-            <span className="font-bold text-blue-600">{completedPhaseName}</span> concluído!
-          </p>
-          
-          {/* TEMPO */}
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 mb-6">
-            <p className="text-sm text-gray-600 mb-1">Tempo de Treino</p>
-            <p className="text-3xl font-bold text-gray-900">
-              {formatTime(workoutTimer)}
+          <div>
+            <p className="text-sm font-semibold text-gray-900 mb-1">
+              Para iniciar um treino, vá para a aba Home
+            </p>
+            <p className="text-xs text-gray-600">
+              Esta seção é apenas para visualizar e entender seu plano completo
             </p>
           </div>
-          
-          {/* ESTATÍSTICAS */}
-          {lastSession && (
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              <div className="bg-green-50 rounded-lg p-3">
-                <p className="text-xs text-gray-600">Exercícios</p>
-                <p className="text-2xl font-bold text-purple-600">
-                  {Number(lastSession?.totalReps) || 0}
-                </p>
-              </div>
-              <div className="bg-blue-50 rounded-lg p-3">
-                <p className="text-xs text-gray-600">Séries</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  {Number(lastSession?.totalSets) || 0}
-                </p>
-              </div>
-              <div className="bg-purple-50 rounded-lg p-3">
-                <p className="text-xs text-gray-600">Repetições</p>
-                <p className="text-2xl font-bold text-purple-600">
-                  {typeof lastSession?.totalReps === 'number' 
-                    ? lastSession.totalReps 
-                    : parseInt(String(lastSession?.totalReps || '0').replace(/\D/g, '')) || 0}
-                </p>
-              </div>
-              <div className="bg-orange-50 rounded-lg p-3">
-                <p className="text-xs text-gray-600">Calorias (estimado)</p>
-                <p className="text-2xl font-bold text-orange-600">
-                  ~{lastSession.estimatedCalories || 0}
-                </p>
-                <p className="text-[10px] text-gray-500 mt-1">
-                    Baseado em tempo e intensidade
-                </p>
-              </div>
-            </div>
-          )}
-          
-          {/* MENSAGEM MOTIVACIONAL */}
-          <p className="text-sm text-gray-600 mb-6">
-            Continue assim! Cada treino te aproxima dos seus objetivos de postura e saúde.
-          </p>
-          
-          {/* BOTÃO FECHAR */}
-          <button
-            onClick={() => setShowCompletionModal(false)}
-            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 transition"
-          >
-            Continuar
-          </button>
         </div>
       </div>
-    </div>
-  );
-})()}
 
-{/* FOOTER - DICAS GERAIS */}
-<div className="mt-8 bg-white rounded-2xl shadow-lg p-6">
-  <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-    <Info className="w-6 h-6 text-blue-600" />
-    Dicas para Melhor Resultado
-  </h3>
-  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-    <div className="bg-blue-50 rounded-lg p-4 flex items-start gap-3">
-      <div className="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-        <div className="text-2xl">💧</div>
-      </div>
-      <div className="flex-1">
-        <p className="font-semibold text-gray-900 mb-1">Hidratação</p>
-        <p className="text-sm text-gray-700">
-          Beba água antes, durante e após o treino
-        </p>
-      </div>
     </div>
 
-    <div className="bg-green-50 rounded-lg p-4 flex items-start gap-3">
-      <div className="flex-shrink-0 w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-        <div className="text-2xl">🔥</div>
-      </div>
-      <div className="flex-1">
-        <p className="font-semibold text-gray-900 mb-1">Aquecimento</p>
-        <p className="text-sm text-gray-700">
-          Sempre aqueça 5-10 minutos antes de iniciar
-        </p>
-      </div>
-    </div>
+    {/* ✅ MODAL: DETALHES DO TREINO */}
+    {selectedPhase !== null && (
+      <div 
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+        onClick={() => setSelectedPhase(null)}
+      >
+        <div 
+          className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {(() => {
+            const phase = trainingPlan.phases[selectedPhase];
+            const phaseLetter = String.fromCharCode(65 + selectedPhase);
+            const phaseColors = [
+              { bg: 'from-blue-500 to-indigo-600' },
+              { bg: 'from-purple-500 to-pink-600' },
+              { bg: 'from-green-500 to-emerald-600' },
+            ];
+            const colors = phaseColors[selectedPhase % 3];
 
-    <div className="bg-purple-50 rounded-lg p-4 flex items-start gap-3">
-      <div className="flex-shrink-0 w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-        <div className="text-2xl">😴</div>
-      </div>
-      <div className="flex-1">
-        <p className="font-semibold text-gray-900 mb-1">Descanso</p>
-        <p className="text-sm text-gray-700">
-          Respeite os intervalos entre séries e treinos
-        </p>
-      </div>
-    </div>
+            return (
+              <>
+                {/* HEADER DO MODAL */}
+                <div className={`bg-gradient-to-br ${colors.bg} p-8 rounded-t-3xl text-white relative`}>
+                  <button
+                    onClick={() => setSelectedPhase(null)}
+                    className="absolute top-4 right-4 w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors"
+                  >
+                    <span className="text-2xl">×</span>
+                  </button>
+                  
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+                      <span className="text-4xl font-bold">{phaseLetter}</span>
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold">{phase.name}</h2>
+                      <p className="text-white/90 text-sm mt-1">{phase.description}</p>
+                    </div>
+                  </div>
 
-    <div className="bg-amber-50 rounded-lg p-4 flex items-start gap-3">
-      <div className="flex-shrink-0 w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
-        <div className="text-2xl">📈</div>
+                  {/* TAGS DE FOCO */}
+                  <div className="flex flex-wrap gap-2">
+                    {phase.focus.map((focus, idx) => (
+                      <span
+                        key={idx}
+                        className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium"
+                      >
+                        {focus}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* CONTEÚDO DO MODAL */}
+                <div className="p-8">
+                  <div className="flex items-center gap-4 text-sm text-gray-600 mb-6">
+                    <div className="flex items-center gap-2">
+                      <Dumbbell className="w-4 h-4" />
+                      <span>{phase.exercises.length} exercícios</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Repeat className="w-4 h-4" />
+                      <span>{phase.frequency}</span>
+                    </div>
+                  </div>
+
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">Exercícios</h3>
+                  
+                  <div className="space-y-3">
+                    {phase.exercises.map((exercise, exIndex) => (
+                      <div
+                        key={exIndex}
+                        className="bg-gray-50 rounded-xl p-4 border border-gray-200"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-sm border border-gray-200">
+                            <span className="text-sm font-bold text-gray-700">{exIndex + 1}</span>
+                          </div>
+                          
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-bold text-gray-900 mb-2">
+                              {exercise.name}
+                            </h4>
+                            
+                            <div className="flex flex-wrap gap-3 text-xs text-gray-600 mb-2">
+                              {exercise.sets && (
+                                <div className="flex items-center gap-1">
+                                  <Repeat className="w-3 h-3" />
+                                  <span>{exercise.sets} séries</span>
+                                </div>
+                              )}
+                              {exercise.reps && (
+                                <div className="flex items-center gap-1">
+                                  <TrendingUp className="w-3 h-3" />
+                                  <span>{exercise.reps} reps</span>
+                                </div>
+                              )}
+                              {exercise.duration && (
+                                <div className="flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  <span>{exercise.duration}s</span>
+                                </div>
+                              )}
+                              {exercise.rest && (
+                                <div className="flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  <span>Descanso {exercise.rest}s</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <p className="text-xs text-gray-600 line-clamp-2">
+                              {exercise.description}
+                            </p>
+                          </div>
+
+                          {(exercise.imageUrl || exercise.gifUrl) && (
+                            <div className="flex-shrink-0 w-16 h-16 bg-white rounded-lg overflow-hidden border border-gray-200">
+                              <img
+                                src={exercise.imageUrl || exercise.gifUrl}
+                                alt={exercise.name}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-6 bg-blue-50 rounded-xl p-4 border border-blue-100">
+                    <p className="text-sm text-gray-700 text-center">
+                      <span className="font-semibold">💡 Dica:</span> Inicie este treino pela aba Home
+                    </p>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+        </div>
       </div>
-      <div className="flex-1">
-        <p className="font-semibold text-gray-900 mb-1">Progressão</p>
-        <p className="text-sm text-gray-700">
-          Aumente a dificuldade gradualmente
-        </p>
+    )}
+
+{/* ============================================ */}
+{/* MODAL DE PERIODIZAÇÃO - VERSÃO 2.0 ÉPICA    */}
+{/* ============================================ */}
+{showPeriodizationModal && (
+  <div 
+    className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4"
+    onClick={() => setShowPeriodizationModal(false)}
+  >
+    <div 
+      className="bg-gradient-to-br from-white to-gray-50 rounded-3xl shadow-2xl w-full max-w-6xl max-h-[95vh] overflow-hidden flex flex-col"
+      onClick={(e) => e.stopPropagation()}
+    >
+      
+      {/* ============= HEADER ÉPICO ============= */}
+      <div className="relative bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 p-6 md:p-8">
+        {/* Efeitos visuais de fundo */}
+        <div className="absolute inset-0 opacity-20">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl -mr-48 -mt-48"></div>
+          <div className="absolute bottom-0 left-0 w-72 h-72 bg-white rounded-full blur-3xl -ml-36 -mb-36"></div>
+        </div>
+        
+        {/* Botão fechar */}
+<button
+  onClick={() => setShowPeriodizationModal(false)}
+  className="absolute top-4 right-4 w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-all backdrop-blur-sm z-50 group cursor-pointer"
+  type="button"
+>
+  <span className="text-2xl text-white group-hover:rotate-90 transition-transform pointer-events-none">×</span>
+</button>
+        
+        {/* Conteúdo do header */}
+        <div className="relative z-10">
+          
+          {/* Título e objetivo */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                  <Target className="w-7 h-7 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-bold text-white">
+                    Seu Plano de Transformação
+                  </h2>
+                  <p className="text-white/90 text-sm">
+                    Periodização científica personalizada
+                  </p>
+                </div>
+              </div>
+              
+              {/* Badge de objetivo */}
+              <div className="flex flex-wrap gap-2">
+                <span className="bg-white/20 backdrop-blur-sm text-white px-4 py-1.5 rounded-full text-sm font-semibold">
+                  🎯 Correção Postural + Hipertrofia
+                </span>
+                <span className="bg-white/20 backdrop-blur-sm text-white px-4 py-1.5 rounded-full text-sm font-semibold">
+                  📍 {trainingPlan.phases[0]?.frequency || "3x por semana"}
+                </span>
+              </div>
+            </div>
+            
+            {/* Badge Premium/Free */}
+            <div className="bg-gradient-to-r from-yellow-400 to-orange-500 px-6 py-3 rounded-2xl shadow-lg">
+              <div className="flex items-center gap-2">
+                <Award className="w-5 h-5 text-white" />
+                <span className="text-white font-bold">FREE</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Progresso atual - VERSÃO ENXUTA */}
+<div className="bg-white/15 backdrop-blur-md rounded-2xl p-4">
+  <div className="flex items-center justify-between mb-3">
+    <div>
+      <p className="text-xs text-white/70 uppercase tracking-wide mb-1">Progresso</p>
+      <p className="text-xl font-bold text-white">
+        Semana {workoutStats?.totalWeeksCompleted || 0}/12
+      </p>
+    </div>
+    <div className="text-right">
+      <p className="text-xs text-white/70 uppercase tracking-wide mb-1">Fase</p>
+      <p className="text-sm font-bold text-white">
+        {(workoutStats?.totalWeeksCompleted || 0) <= 4 
+          ? "Adaptação"
+          : (workoutStats?.totalWeeksCompleted || 0) <= 8
+          ? "Hipertrofia"
+          : "Força"}
+      </p>
+    </div>
+  </div>
+  
+  {/* Barra de progresso */}
+  <div className="relative bg-white/20 rounded-full h-2.5 overflow-hidden">
+    <div
+      className="absolute inset-0 bg-gradient-to-r from-green-400 via-blue-500 to-purple-600 rounded-full transition-all duration-1000 ease-out"
+      style={{ 
+        width: `${Math.min(((workoutStats?.totalWeeksCompleted || 0) / 12) * 100, 100)}%` 
+      }}
+    />
+  </div>
+  <p className="text-xs text-white/80 text-right mt-1">
+    {Math.round(((workoutStats?.totalWeeksCompleted || 0) / 12) * 100)}% concluído
+  </p>
+</div>
+</div>
+</div>
+
+
+      {/* ============= CONTEÚDO ROLÁVEL ============= */}
+      <div className="flex-1 overflow-y-auto p-4 md:p-8">
+        
+        {/* ============= SEÇÃO: TIMELINE DE MESOCICLOS ============= */}
+        <section className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl md:text-2xl font-bold text-gray-900 flex items-center gap-2">
+              <Calendar className="w-6 h-6 text-indigo-600" />
+              Fases da Periodização
+            </h3>
+            
+            {/* Legenda */}
+            <div className="hidden md:flex items-center gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-green-500 rounded-full"></div>
+                <span className="text-gray-600">Concluído</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
+                <span className="text-gray-600">Atual</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-gray-300 rounded-full"></div>
+                <span className="text-gray-600">Próximo</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* MESOCICLOS EM TIMELINE */}
+          <div className="space-y-6">
+            
+            {/* ========== FASE 1: ADAPTAÇÃO ANATÔMICA ========== */}
+            <div className="relative">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0">
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg ${
+                    (workoutStats?.totalWeeksCompleted || 0) <= 4 
+                      ? 'bg-gradient-to-br from-blue-500 to-indigo-600' 
+                      : 'bg-gradient-to-br from-green-500 to-emerald-600'
+                  }`}>
+                    {(workoutStats?.totalWeeksCompleted || 0) <= 4 ? (
+                      <span className="text-3xl font-bold text-white">1</span>
+                    ) : (
+                      <CheckCircle2 className="w-8 h-8 text-white" />
+                    )}
+                  </div>
+                </div>
+                
+                <div className="flex-1 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border-2 border-blue-200">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h4 className="text-xl font-bold text-gray-900 mb-1">
+                        Fase 1: Adaptação Anatômica
+                      </h4>
+                      <p className="text-sm text-gray-600">Semanas 1-4 • Duração: 4 semanas</p>
+                    </div>
+                    {(workoutStats?.totalWeeksCompleted || 0) <= 4 && (
+                      <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold">
+                        EM ANDAMENTO
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Objetivo */}
+                  <div className="mb-4">
+                    <p className="text-xs font-semibold text-blue-900 uppercase tracking-wide mb-2">
+                      🎯 Objetivo
+                    </p>
+                    <p className="text-sm text-gray-700 leading-relaxed">
+                      Preparar músculos, tendões e articulações para treinos mais intensos. 
+                      Foco em aprender os padrões de movimento corretos e criar uma base sólida.
+                    </p>
+                  </div>
+                  
+                  {/* Grid de parâmetros */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    <div className="bg-white/60 rounded-lg p-3">
+                      <p className="text-xs text-gray-600 mb-1">Séries x Reps</p>
+                      <p className="text-sm font-bold text-gray-900">3 x 12-15</p>
+                    </div>
+                    <div className="bg-white/60 rounded-lg p-3">
+                      <p className="text-xs text-gray-600 mb-1">Descanso</p>
+                      <p className="text-sm font-bold text-gray-900">60s</p>
+                    </div>
+                    <div className="bg-white/60 rounded-lg p-3">
+                      <p className="text-xs text-gray-600 mb-1">RPE Alvo</p>
+                      <p className="text-sm font-bold text-gray-900">4-6</p>
+                    </div>
+                    <div className="bg-white/60 rounded-lg p-3">
+                      <p className="text-xs text-gray-600 mb-1">Intensidade</p>
+                      <p className="text-sm font-bold text-gray-900">50-60% 1RM</p>
+                    </div>
+                  </div>
+                  
+                  {/* Cardio pós-treino */}
+                  <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-4 border border-orange-200 mb-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <TrendingUp className="w-5 h-5 text-orange-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-gray-900 mb-1">
+                          🔥 Cardio Pós-Treino
+                        </p>
+                        <p className="text-sm text-gray-700 mb-2">
+                          <span className="font-semibold">10min</span> • Leve (RPE 3-4)
+                        </p>
+                        <p className="text-xs text-gray-600 italic">
+                          💡 Cardio leve para recovery ativo e adaptação cardiovascular inicial
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Alongamento dedicado */}
+                  <div className="bg-gradient-to-r from-green-50 to-teal-50 rounded-xl p-4 border border-green-200 mb-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <span className="text-xl">🧘</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-gray-900 mb-1">
+                          Alongamento Dedicado
+                        </p>
+                        <p className="text-sm text-gray-700 mb-2">
+                          <span className="font-semibold">1x por semana</span> • 30-40min • Sábado ou Domingo
+                        </p>
+                        <p className="text-xs text-gray-600 italic">
+                          💡 Essencial para recovery, flexibilidade e correção postural
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* O que esperar */}
+                  <div className="bg-white/80 rounded-lg p-4 border border-gray-200">
+                    <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                      💪 O que esperar
+                    </p>
+                    <ul className="space-y-2 text-sm text-gray-700">
+                      <li className="flex items-start gap-2">
+                        <span className="text-blue-600 mt-0.5 flex-shrink-0">•</span>
+                        <span>Exercícios com peso corporal e resistência leve</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-blue-600 mt-0.5 flex-shrink-0">•</span>
+                        <span>Foco em técnica perfeita e consciência corporal</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-blue-600 mt-0.5 flex-shrink-0">•</span>
+                        <span>Pode sentir leve fadiga muscular (normal!)</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-blue-600 mt-0.5 flex-shrink-0">•</span>
+                        <span>Base sólida para próximas fases</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Linha conectora */}
+              <div className="absolute left-8 top-20 w-0.5 h-16 bg-gradient-to-b from-blue-300 to-purple-300"></div>
+            </div>
+
+            {/* ========== FASE 2: HIPERTROFIA FUNCIONAL ========== */}
+            <div className="relative">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0">
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg ${
+                    (workoutStats?.totalWeeksCompleted || 0) > 4 && (workoutStats?.totalWeeksCompleted || 0) <= 8
+                      ? 'bg-gradient-to-br from-purple-500 to-pink-600' 
+                      : (workoutStats?.totalWeeksCompleted || 0) > 8
+                      ? 'bg-gradient-to-br from-green-500 to-emerald-600'
+                      : 'bg-gray-200'
+                  }`}>
+                    {(workoutStats?.totalWeeksCompleted || 0) > 8 ? (
+                      <CheckCircle2 className="w-8 h-8 text-white" />
+                    ) : (
+                      <span className={`text-3xl font-bold ${
+                        (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'text-white' : 'text-gray-400'
+                      }`}>2</span>
+                    )}
+                  </div>
+                </div>
+                
+                <div className={`flex-1 rounded-2xl p-6 border-2 ${
+                  (workoutStats?.totalWeeksCompleted || 0) > 4 && (workoutStats?.totalWeeksCompleted || 0) <= 8
+                    ? 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200'
+                    : 'bg-gray-50 border-gray-200'
+                }`}>
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h4 className={`text-xl font-bold mb-1 ${
+                        (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'text-gray-900' : 'text-gray-500'
+                      }`}>
+                        Fase 2: Hipertrofia Funcional
+                      </h4>
+                      <p className={`text-sm ${
+                        (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'text-gray-600' : 'text-gray-400'
+                      }`}>
+                        Semanas 5-8 • Duração: 4 semanas
+                      </p>
+                    </div>
+                    {(workoutStats?.totalWeeksCompleted || 0) > 4 && (workoutStats?.totalWeeksCompleted || 0) <= 8 && (
+                      <span className="bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-bold">
+                        EM ANDAMENTO
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Objetivo */}
+                  <div className="mb-4">
+                    <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${
+                      (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'text-purple-900' : 'text-gray-400'
+                    }`}>
+                      🎯 Objetivo
+                    </p>
+                    <p className={`text-sm leading-relaxed ${
+                      (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'text-gray-700' : 'text-gray-400'
+                    }`}>
+                      Construir massa muscular funcional para suportar correções posturais. 
+                      Aumento gradual de intensidade e volume de treino.
+                    </p>
+                  </div>
+                  
+                  {/* Grid de parâmetros */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    <div className={`rounded-lg p-3 ${
+                      (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'bg-white/60' : 'bg-gray-100'
+                    }`}>
+                      <p className={`text-xs mb-1 ${
+                        (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'text-gray-600' : 'text-gray-400'
+                      }`}>Séries x Reps</p>
+                      <p className={`text-sm font-bold ${
+                        (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'text-gray-900' : 'text-gray-400'
+                      }`}>4 x 8-10</p>
+                    </div>
+                    <div className={`rounded-lg p-3 ${
+                      (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'bg-white/60' : 'bg-gray-100'
+                    }`}>
+                      <p className={`text-xs mb-1 ${
+                        (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'text-gray-600' : 'text-gray-400'
+                      }`}>Descanso</p>
+                      <p className={`text-sm font-bold ${
+                        (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'text-gray-900' : 'text-gray-400'
+                      }`}>90s</p>
+                    </div>
+                    <div className={`rounded-lg p-3 ${
+                      (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'bg-white/60' : 'bg-gray-100'
+                    }`}>
+                      <p className={`text-xs mb-1 ${
+                        (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'text-gray-600' : 'text-gray-400'
+                      }`}>RPE Alvo</p>
+                      <p className={`text-sm font-bold ${
+                        (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'text-gray-900' : 'text-gray-400'
+                      }`}>7-8</p>
+                    </div>
+                    <div className={`rounded-lg p-3 ${
+                      (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'bg-white/60' : 'bg-gray-100'
+                    }`}>
+                      <p className={`text-xs mb-1 ${
+                        (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'text-gray-600' : 'text-gray-400'
+                      }`}>Intensidade</p>
+                      <p className={`text-sm font-bold ${
+                        (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'text-gray-900' : 'text-gray-400'
+                      }`}>65-75% 1RM</p>
+                    </div>
+                  </div>
+                  
+                  {/* Cardio */}
+                  {(workoutStats?.totalWeeksCompleted || 0) > 4 && (
+                    <>
+                      <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-4 border border-orange-200 mb-4">
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <TrendingUp className="w-5 h-5 text-orange-600" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-bold text-gray-900 mb-1">
+                              🔥 Cardio Pós-Treino
+                            </p>
+                            <p className="text-sm text-gray-700 mb-2">
+                              <span className="font-semibold">15min</span> • Moderado (RPE 5-6)
+                            </p>
+                            <p className="text-xs text-gray-600 italic">
+                              💡 Cardio moderado para manter condicionamento sem prejudicar hipertrofia
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-gradient-to-r from-green-50 to-teal-50 rounded-xl p-4 border border-green-200 mb-4">
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <span className="text-xl">🧘</span>
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-bold text-gray-900 mb-1">
+                              Alongamento Dedicado
+                            </p>
+                            <p className="text-sm text-gray-700 mb-2">
+                              <span className="font-semibold">1x por semana</span> • 30-40min • Sábado ou Domingo
+                            </p>
+                            <p className="text-xs text-gray-600 italic">
+                              💡 Mantém flexibilidade e acelera recovery muscular
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  
+                  {/* O que esperar */}
+                  <div className={`rounded-lg p-4 border ${
+                    (workoutStats?.totalWeeksCompleted || 0) > 4 
+                      ? 'bg-white/80 border-gray-200' 
+                      : 'bg-gray-100 border-gray-200'
+                  }`}>
+                    <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${
+                      (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'text-gray-700' : 'text-gray-400'
+                    }`}>
+                      💪 O que esperar
+                    </p>
+                    <ul className={`space-y-2 text-sm ${
+                      (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'text-gray-700' : 'text-gray-400'
+                    }`}>
+                      <li className="flex items-start gap-2">
+                        <span className={`mt-0.5 flex-shrink-0 ${
+                          (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'text-purple-600' : 'text-gray-400'
+                        }`}>•</span>
+                        <span>Aumento de carga e resistência progressiva</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className={`mt-0.5 flex-shrink-0 ${
+                          (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'text-purple-600' : 'text-gray-400'
+                        }`}>•</span>
+                        <span>Ganhos visíveis de força e definição muscular</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className={`mt-0.5 flex-shrink-0 ${
+                          (workoutStats?.totalWeeksCompleted || 0) > 4 ? 'text-purple-600' : 'text-gray-400'
+                        }`}>•</span>
+                        <span>Melhora significativa na postura no dia a dia</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Linha conectora */}
+              <div className="absolute left-8 top-20 w-0.5 h-16 bg-gradient-to-b from-purple-300 to-green-300"></div>
+            </div>
+
+            {/* ========== FASE 3: FORÇA E CONSOLIDAÇÃO ========== */}
+            <div className="relative">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0">
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg ${
+                    (workoutStats?.totalWeeksCompleted || 0) > 8
+                      ? 'bg-gradient-to-br from-green-500 to-emerald-600' 
+                      : 'bg-gray-200'
+                  }`}>
+                    <span className={`text-3xl font-bold ${
+                      (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-white' : 'text-gray-400'
+                    }`}>3</span>
+                  </div>
+                </div>
+                
+                <div className={`flex-1 rounded-2xl p-6 border-2 ${
+                  (workoutStats?.totalWeeksCompleted || 0) > 8
+                    ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-200'
+                    : 'bg-gray-50 border-gray-200'
+                }`}>
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h4 className={`text-xl font-bold mb-1 ${
+                        (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-900' : 'text-gray-500'
+                      }`}>
+                        Fase 3: Força e Consolidação
+                      </h4>
+                      <p className={`text-sm ${
+                        (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-600' : 'text-gray-400'
+                      }`}>
+                        Semanas 9-12 • Duração: 4 semanas
+                      </p>
+                    </div>
+                    {(workoutStats?.totalWeeksCompleted || 0) > 8 && (
+                      <span className="bg-green-600 text-white px-3 py-1 rounded-full text-xs font-bold">
+                        EM ANDAMENTO
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Objetivo */}
+                  <div className="mb-4">
+                    <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${
+                      (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-green-900' : 'text-gray-400'
+                    }`}>
+                      🎯 Objetivo
+                    </p>
+                    <p className={`text-sm leading-relaxed ${
+                      (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-700' : 'text-gray-400'
+                    }`}>
+                      Maximizar força e consolidar todas as correções posturais. 
+                      Preparar o corpo para manter os resultados a longo prazo.
+                    </p>
+                  </div>
+                  
+                  {/* Grid de parâmetros */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    <div className={`rounded-lg p-3 ${
+                      (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'bg-white/60' : 'bg-gray-100'
+                    }`}>
+                      <p className={`text-xs mb-1 ${
+                        (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-600' : 'text-gray-400'
+                      }`}>Séries x Reps</p>
+                      <p className={`text-sm font-bold ${
+                        (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-900' : 'text-gray-400'
+                      }`}>5 x 6-8</p>
+                    </div>
+                    <div className={`rounded-lg p-3 ${
+                      (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'bg-white/60' : 'bg-gray-100'
+                    }`}>
+                      <p className={`text-xs mb-1 ${
+                        (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-600' : 'text-gray-400'
+                      }`}>Descanso</p>
+                      <p className={`text-sm font-bold ${
+                        (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-900' : 'text-gray-400'
+                      }`}>120s</p>
+                    </div>
+                    <div className={`rounded-lg p-3 ${
+                      (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'bg-white/60' : 'bg-gray-100'
+                    }`}>
+                      <p className={`text-xs mb-1 ${
+                        (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-600' : 'text-gray-400'
+                      }`}>RPE Alvo</p>
+                      <p className={`text-sm font-bold ${
+                        (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-900' : 'text-gray-400'
+                      }`}>8-9</p>
+                    </div>
+                    <div className={`rounded-lg p-3 ${
+                      (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'bg-white/60' : 'bg-gray-100'
+                    }`}>
+                      <p className={`text-xs mb-1 ${
+                        (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-600' : 'text-gray-400'
+                      }`}>Intensidade</p>
+                      <p className={`text-sm font-bold ${
+                        (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-900' : 'text-gray-400'
+                      }`}>75-85% 1RM</p>
+                    </div>
+                  </div>
+                  
+                  {/* Cardio */}
+                  {(workoutStats?.totalWeeksCompleted || 0) > 8 && (
+                    <>
+                      <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-4 border border-orange-200 mb-4">
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <TrendingUp className="w-5 h-5 text-orange-600" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-bold text-gray-900 mb-1">
+                              🔥 Cardio Pós-Treino
+                            </p>
+                            <p className="text-sm text-gray-700 mb-2">
+                              <span className="font-semibold">10min</span> • Leve (RPE 3-4)
+                            </p>
+                            <p className="text-xs text-gray-600 italic">
+                              💡 Cardio mínimo para não interferir nos ganhos de força máxima
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-gradient-to-r from-green-50 to-teal-50 rounded-xl p-4 border border-green-200 mb-4">
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <span className="text-xl">🧘</span>
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-bold text-gray-900 mb-1">
+                              Alongamento Dedicado
+                            </p>
+                            <p className="text-sm text-gray-700 mb-2">
+                              <span className="font-semibold">1x por semana</span> • 30-40min • Sábado ou Domingo
+                            </p>
+                            <p className="text-xs text-gray-600 italic">
+                              💡 Crucial para manter mobilidade com cargas pesadas
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  
+                  {/* O que esperar */}
+                  <div className={`rounded-lg p-4 border ${
+                    (workoutStats?.totalWeeksCompleted || 0) > 8 
+                      ? 'bg-white/80 border-gray-200' 
+                      : 'bg-gray-100 border-gray-200'
+                  }`}>
+                    <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${
+                      (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-700' : 'text-gray-400'
+                    }`}>
+                      💪 O que esperar
+                    </p>
+                    <ul className={`space-y-2 text-sm ${
+                      (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-700' : 'text-gray-400'
+                    }`}>
+                      <li className="flex items-start gap-2">
+                        <span className={`mt-0.5 flex-shrink-0 ${
+                          (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-green-600' : 'text-gray-400'
+                        }`}>•</span>
+                        <span>Cargas mais pesadas com séries de 6-8 repetições</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className={`mt-0.5 flex-shrink-0 ${
+                          (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-green-600' : 'text-gray-400'
+                        }`}>•</span>
+                        <span>Pico de força e resistência muscular</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className={`mt-0.5 flex-shrink-0 ${
+                          (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-green-600' : 'text-gray-400'
+                        }`}>•</span>
+                        <span>Postura corrigida e automatizada no cotidiano</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className={`mt-0.5 flex-shrink-0 ${
+                          (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-green-600' : 'text-gray-400'
+                        }`}>•</span>
+                        <span>Corpo preparado para manutenção dos resultados</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+        
+        {/* ============= SEÇÃO: CALENDÁRIO SEMANAL ============= */}
+        <section className="mb-8">
+          <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <Calendar className="w-6 h-6 text-indigo-600" />
+            Seu Calendário Semanal
+          </h3>
+          
+          <div className="bg-white rounded-2xl p-6 border-2 border-gray-200">
+            <div className="grid grid-cols-7 gap-2">
+              {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((day, index) => {
+                const workouts = ["A", "Rest", "B", "Rest", "C", "Stretch", "Rest"];
+                const workout = workouts[index];
+                const isWorkout = ["A", "B", "C"].includes(workout);
+                const isStretch = workout === "Stretch";
+                const isRest = workout === "Rest";
+                
+                return (
+                  <div key={day} className="text-center">
+                    <p className="text-xs font-semibold text-gray-600 mb-2">{day}</p>
+                    <div className={`rounded-xl p-3 ${
+                      isWorkout ? "bg-gradient-to-br from-blue-500 to-indigo-600 text-white" :
+                      isStretch ? "bg-gradient-to-br from-green-500 to-teal-600 text-white" :
+                      "bg-gray-100 text-gray-500"
+                    }`}>
+                      {isWorkout && (
+                        <>
+                          <p className="text-2xl font-bold">{workout}</p>
+                          <p className="text-xs mt-1">60min</p>
+                        </>
+                      )}
+                      {isStretch && (
+                        <>
+                          <p className="text-xl">🧘</p>
+                          <p className="text-xs mt-1 font-semibold">Alongamento</p>
+                        </>
+                      )}
+                      {isRest && (
+                        <>
+                          <p className="text-xl">😴</p>
+                          <p className="text-xs mt-1">Descanso</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            
+            <div className="mt-6 bg-blue-50 rounded-xl p-4 border border-blue-200">
+              <p className="text-sm text-gray-700">
+                <span className="font-bold">💡 Dica:</span> O alongamento dedicado de 30-40min é essencial para sua recuperação e melhora postural. Não pule essa sessão!
+              </p>
+            </div>
+          </div>
+        </section>
+        
+        {/* ============= SEÇÃO: CRITÉRIOS DE PROGRESSÃO ============= */}
+        <section>
+          <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <TrendingUp className="w-6 h-6 text-indigo-600" />
+            Como Progredir
+          </h3>
+          
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-6 border-2 border-amber-200">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <span className="text-2xl">📈</span>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-gray-900 mb-2">Critério de Progressão</p>
+                <p className="text-sm text-gray-700 leading-relaxed mb-4">
+                  Quando conseguir completar todas as séries no limite superior do range de reps 
+                  (ex: 4x10 em vez de 4x8) com RPE menor que o alvo da fase, 
+                  <strong> aumente a carga em 2,5-5kg</strong> e volte para o limite inferior do range.
+                </p>
+                <div className="bg-white/60 rounded-lg p-4">
+                  <p className="text-xs font-semibold text-gray-700 mb-2">Exemplo prático:</p>
+                  <ul className="space-y-1 text-xs text-gray-600">
+                    <li>• Semana 1: 4x8 com 50kg (RPE 8)</li>
+                    <li>• Semana 2: 4x9 com 50kg (RPE 7)</li>
+                    <li>• Semana 3: 4x10 com 50kg (RPE 6) → <strong className="text-green-600">AUMENTAR CARGA!</strong></li>
+                    <li>• Semana 4: 4x8 com 52,5kg (RPE 8) → <strong>Ciclo reinicia</strong></li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+        
       </div>
     </div>
   </div>
-</div>
-</div>
-</div>
-  );
+)}
+
+{/* ✅ MODAL: ESCALA DE BORG */}
+{showBorgModal && (
+  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
+      <div className="text-center mb-6">
+        <div className="mx-auto w-16 h-16 bg-gradient-to-r from-orange-400 to-red-500 rounded-full flex items-center justify-center mb-4">
+          <span className="text-3xl">💪</span>
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          Como foi o treino?
+        </h2>
+        <p className="text-sm text-gray-600">
+          Avalie a dificuldade de 1 (muito fácil) a 10 (máximo esforço)
+        </p>
+      </div>
+
+      {/* ESCALA VISUAL */}
+      <div className="grid grid-cols-5 gap-2 mb-6">
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((score) => (
+          <button
+            key={score}
+            onClick={() => setBorgScore(score)}
+            className={`h-16 rounded-xl font-bold text-lg transition-all ${
+              borgScore === score
+                ? score <= 3
+                  ? 'bg-green-500 text-white shadow-lg scale-110'
+                  : score <= 6
+                  ? 'bg-yellow-500 text-white shadow-lg scale-110'
+                  : score <= 8
+                  ? 'bg-orange-500 text-white shadow-lg scale-110'
+                  : 'bg-red-500 text-white shadow-lg scale-110'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {score}
+          </button>
+        ))}
+      </div>
+
+      {/* LEGENDA */}
+      <div className="bg-gray-50 rounded-xl p-4 mb-6 text-xs text-gray-600 space-y-1">
+        <p><span className="font-bold text-green-600">1-3:</span> Muito fácil, pode aumentar carga</p>
+        <p><span className="font-bold text-yellow-600">4-6:</span> Moderado, bom para técnica</p>
+        <p><span className="font-bold text-orange-600">7-8:</span> Intenso, ideal para hipertrofia</p>
+        <p><span className="font-bold text-red-600">9-10:</span> Máximo esforço, risco de overtraining</p>
+      </div>
+
+      {/* BOTÃO CONTINUAR */}
+      <button
+        onClick={() => {
+          if (!borgScore) {
+            toast.warning('Selecione uma nota de 1 a 10');
+            return;
+          }
+          
+          // Salvar RPE no último treino
+          const history = getWorkoutHistory(userProfile?.id || 'guest');
+          if (history.length > 0) {
+            const lastWorkout = history[history.length - 1];
+            lastWorkout.averageRPE = borgScore;
+            
+            // Atualizar no localStorage
+            const allHistory = JSON.parse(localStorage.getItem('workoutHistory') || '{}');
+            allHistory[userProfile?.id || 'guest'] = history;
+            localStorage.setItem('workoutHistory', JSON.stringify(allHistory));
+          }
+          
+          setShowBorgModal(false);
+          setShowCompletionModal(true); // Agora sim mostra conclusão
+        }}
+        disabled={!borgScore}
+        className={`w-full py-4 rounded-xl font-bold transition-all ${
+          borgScore
+            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700'
+            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+        }`}
+      >
+        {borgScore ? 'Continuar' : 'Selecione uma nota'}
+      </button>
+    </div>
+  </div>
+)}
+
+    {/* ✅ MODAL DE CONCLUSÃO (MANTÉM) */}
+    {showCompletionModal && (() => {
+      const lastSession = getWorkoutHistory(userProfile?.id || 'guest').slice(-1)[0];
+      
+      return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
+            <div className="text-center">
+              <div className="mx-auto w-20 h-20 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full flex items-center justify-center mb-4">
+                <CheckCircle2 className="w-12 h-12 text-white" />
+              </div>
+              
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">🎉 Parabéns!</h2>
+              <p className="text-xl text-gray-700 mb-4">
+                <span className="font-bold text-blue-600">{completedPhaseName}</span> concluído!
+              </p>
+              
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 mb-6">
+                <p className="text-sm text-gray-600 mb-1">Tempo de Treino</p>
+                <p className="text-3xl font-bold text-gray-900">{formatTime(workoutTimer)}</p>
+              </div>
+              
+              {lastSession && (
+                <div className="grid grid-cols-2 gap-3 mb-6">
+                  <div className="bg-green-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-600">Exercícios</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      {lastSession.exercises.filter(e => e.completed).length}
+                    </p>
+                  </div>
+                  <div className="bg-blue-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-600">Séries</p>
+                    <p className="text-2xl font-bold text-blue-600">{lastSession.totalSets || 0}</p>
+                  </div>
+                  <div className="bg-purple-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-600">Repetições</p>
+                    <p className="text-2xl font-bold text-purple-600">{lastSession.totalReps || 0}</p>
+                  </div>
+                  <div className="bg-orange-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-600">Calorias</p>
+                    <p className="text-2xl font-bold text-orange-600">~{lastSession.estimatedCalories || 0}</p>
+                  </div>
+                </div>
+              )}
+              
+              <p className="text-sm text-gray-600 mb-6">
+                Continue assim! Cada treino te aproxima dos seus objetivos.
+              </p>
+              
+              <button
+                onClick={() => setShowCompletionModal(false)}
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 transition"
+              >
+                Continuar
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    })()}
+  </div>
+);
 }

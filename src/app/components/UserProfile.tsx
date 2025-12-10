@@ -39,13 +39,6 @@ export default function UserProfile({ profile, onBack, onLogout }: UserProfilePr
       {/* Header */}
       <header className="bg-gradient-to-r from-pink-500 to-purple-600 p-6 shadow-xl">
         <div className="max-w-4xl mx-auto">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-2 text-white hover:text-pink-100 transition-colors mb-4"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span className="font-medium">Voltar</span>
-          </button>
           <h1 className="text-2xl font-bold text-white">Meu Perfil</h1>
         </div>
       </header>

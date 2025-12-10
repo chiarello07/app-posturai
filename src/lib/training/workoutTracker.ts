@@ -7,13 +7,13 @@ export interface WorkoutSession {
   date: string;
   startTime: string;
   endTime: string;
-  duration: number; // segundos
+  duration: number;
   exercises: ExerciseLog[];
   totalSets: number;
   totalReps: number;
-  totalVolume: number; // kg levantados (futuro)
+  totalVolume: number;
   estimatedCalories: number;
-  completionRate: number; // 0-100%
+  completionRate: number;
 }
 
 export interface ExerciseLog {
@@ -43,13 +43,36 @@ export function calculateWorkoutMetrics(
   const completedExercises = exercises.filter(ex => ex.completed);
   
   const totalSets = completedExercises.reduce((sum, ex) => sum + ex.sets, 0);
-  const totalReps = completedExercises.reduce((sum, ex) => sum + (ex.reps || 0), 0);
   
-  // Estimativa de calorias (fórmula simplificada)
-  // ~5 calorias por minuto de treino de força moderado
-  const estimatedCalories = Math.round((duration / 60) * 5);
+  // ✅ CORRIGIDO DEFINITIVAMENTE: Converter TUDO para número ANTES de somar
+  const totalReps = completedExercises.reduce((sum, ex) => {
+    // Se não tem reps, retorna 0
+    if (!ex.reps && ex.reps !== 0) return sum;
+    
+    // Converter para string primeiro para verificar
+    const repsStr = String(ex.reps);
+    
+    // Se contém "seg", "min", "s" → ignorar (é duração, não reps)
+    if (/seg|min|s$/i.test(repsStr)) return sum;
+    
+    // Remover TUDO que não é número
+    const cleanReps = repsStr.replace(/\D/g, '');
+    
+    // Converter para número (ou 0 se vazio)
+    const repsNum = cleanReps ? parseInt(cleanReps, 10) : 0;
+    
+    // Somar NÚMERO (não string!)
+    return sum + repsNum;
+  }, 0);
   
-  const completionRate = Math.round((completedExercises.length / exercises.length) * 100);
+  const durationMinutes = duration / 60;
+  const estimatedCalories = Math.max(20, Math.round(durationMinutes * 6));
+  
+  const completionRate = exercises.length > 0 
+    ? Math.round((completedExercises.length / exercises.length) * 100)
+    : 0;
+  
+  console.log('🧮 [METRICS] totalReps calculado:', totalReps, typeof totalReps);
   
   return {
     totalSets,
@@ -59,21 +82,35 @@ export function calculateWorkoutMetrics(
   };
 }
 
+// ✅ CORRIGIDO: Converter reps ANTES de salvar
 export function saveWorkoutSession(session: WorkoutSession): void {
   try {
-    // Buscar histórico existente
+    console.log('💾 [SAVE] Iniciando salvamento...', session);
+    
+    // 1. Salvar no localStorage
     const history = localStorage.getItem('workoutHistory');
     const sessions: WorkoutSession[] = history ? JSON.parse(history) : [];
-    
-    // Adicionar nova sessão
     sessions.push(session);
-    
-    // Salvar
     localStorage.setItem('workoutHistory', JSON.stringify(sessions));
+    console.log('✅ [LOCAL] Treino salvo! Total:', sessions.length);
+    console.log('✅ [LOCAL] Último treino:', sessions[sessions.length - 1]);
     
-    console.log('✅ Treino salvo:', session);
+    // 2. Salvar no Supabase
+    if (typeof window !== 'undefined') {
+      import('@/lib/supabase').then(({ saveWorkoutToSupabase }) => {
+        saveWorkoutToSupabase(session).then(result => {
+          if (result.success) {
+            console.log('✅ [SUPABASE] Sincronizado!');
+          } else {
+            console.warn('⚠️ [SUPABASE] Falha, mas salvo localmente');
+          }
+        });
+      }).catch(err => {
+        console.warn('⚠️ [SUPABASE] Import falhou:', err);
+      });
+    }
   } catch (error) {
-    console.error('❌ Erro ao salvar treino:', error);
+    console.error('❌ [SAVE] Erro:', error);
   }
 }
 
@@ -81,7 +118,6 @@ export function getWorkoutHistory(userId: string): WorkoutSession[] {
   try {
     const history = localStorage.getItem('workoutHistory');
     if (!history) return [];
-    
     const sessions: WorkoutSession[] = JSON.parse(history);
     return sessions.filter(s => s.userId === userId);
   } catch (error) {
@@ -99,11 +135,8 @@ export function getWeeklyStats(userId: string): {
   averageCompletionRate: number;
 } {
   const sessions = getWorkoutHistory(userId);
-  
-  // Filtrar última semana
   const oneWeekAgo = new Date();
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-  
   const weekSessions = sessions.filter(s => new Date(s.date) >= oneWeekAgo);
   
   if (weekSessions.length === 0) {
@@ -131,11 +164,8 @@ export function getWeeklyStats(userId: string): {
 
 export function getMonthlyStats(userId: string) {
   const sessions = getWorkoutHistory(userId);
-  
-  // Filtrar último mês
   const oneMonthAgo = new Date();
   oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-  
   const monthSessions = sessions.filter(s => new Date(s.date) >= oneMonthAgo);
   
   if (monthSessions.length === 0) {
@@ -150,7 +180,6 @@ export function getMonthlyStats(userId: string) {
     };
   }
   
-  // Agrupar por semana
   const workoutsByWeek = Array.from({ length: 4 }, (_, i) => {
     const weekStart = new Date(oneMonthAgo);
     weekStart.setDate(weekStart.getDate() + (i * 7));

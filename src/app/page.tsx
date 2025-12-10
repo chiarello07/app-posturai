@@ -52,20 +52,6 @@ type Tab =
   | "profile"
   | "nutrition";
 
-const HOME_EQUIPMENT_OPTIONS = [
-  { id: 'none', name: 'Nenhum equipamento', icon: '🤷‍♂️', free: true },
-  { id: 'wall', name: 'Parede', icon: '🧱', free: true },
-  { id: 'yoga-mat', name: 'Tapete/Colchonete', icon: '🧘‍♀️', free: true },
-  { id: 'resistance-band', name: 'Elástico/Faixa', icon: '🎗️', cost: 'R$ 20-50' },
-  { id: 'broomstick', name: 'Cabo de vassoura', icon: '🧹', free: true },
-  { id: 'water-jug', name: 'Galão de água (5-10L)', icon: '🚰', free: true },
-  { id: 'pet-bottle', name: 'Garrafa PET (1-2L)', icon: '🍶', free: true },
-  { id: 'backpack', name: 'Mochila com peso', icon: '🎒', free: true },
-  { id: 'chair', name: 'Cadeira resistente', icon: '🪑', free: true },
-  { id: 'towel', name: 'Toalha', icon: '🧻', free: true },
-  { id: 'dumbbells', name: 'Halteres', icon: '🏋️', cost: 'R$ 50-200' },
-  { id: 'pull-up-bar', name: 'Barra fixa', icon: '💪', cost: 'R$ 80-150' },
-];
 
 export default function Home() {
   const [currentTab, setCurrentTab] = useState<Tab>("login");
@@ -85,8 +71,6 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [appLanguage, setAppLanguage] = useState<Language>("pt");
   const [showStartWorkoutModal, setShowStartWorkoutModal] = useState(false);
-  const [selectedEnvironment, setSelectedEnvironment] = useState<'casa' | 'academia' | null>(null);
-  const [selectedEquipment, setSelectedEquipment] = useState<string[]>(['none', 'wall']);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -546,11 +530,25 @@ const handleLogin = async (e: React.FormEvent) => {
           <HomePage
             userProfile={userProfile}
             onStartPosturalAnalysis={handleGoToPosturalAnalysis}
-            onStartWorkout={() => {
-              const stats = getWorkoutStats(userProfile.id);
-              console.log('🏋️ [START WORKOUT] Stats:', stats);
-              setShowStartWorkoutModal(true);
-            }}
+            onStartWorkout={(phaseIndex?: number) => {
+              // Se receber índice, vai DIRETO para o treino
+              if (phaseIndex !== undefined) {
+                setCurrentTab('training');
+                // Disparar evento para TrainingPlan abrir treino específico
+                setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent('startSpecificWorkout', { 
+                    detail: { phaseIndex } 
+                  }));
+                }, 100);
+              return;
+            }
+  
+  // Se não receber índice, mostra modal (comportamento antigo)
+  const stats = getWorkoutStats(userProfile.id);
+  console.log('🏋️ [START WORKOUT] Stats:', stats);
+  console.log('🔥 [DEBUG] Abrindo modal...'); 
+  setShowStartWorkoutModal(true);
+}}
             onNavigateToProfile={() => setCurrentTab("profile")}
             nextWorkoutPhase={getWorkoutStats(userProfile.id).nextPhase}
           />
@@ -607,117 +605,38 @@ const handleLogin = async (e: React.FormEvent) => {
         )}
       </main>
 
-      {/* MODAL: INICIAR TREINO */}
-      {showStartWorkoutModal && userProfile && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              🏋️ Iniciar Treino {getWorkoutStats(userProfile.id).nextPhase}
-            </h2>
-
-            {/* PASSO 1: ONDE VAI TREINAR */}
-            {!selectedEnvironment && (
-              <>
-                <p className="text-gray-600 mb-4">Onde você vai treinar hoje?</p>
-                <div className="space-y-3">
-                  <button
-                    onClick={() => setSelectedEnvironment('casa')}
-                    className="w-full bg-blue-50 hover:bg-blue-100 border-2 border-blue-500 text-gray-900 py-4 rounded-xl font-semibold transition flex items-center justify-center gap-3"
-                  >
-                    🏠 Em Casa
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSelectedEnvironment('academia');
-                      // Ir direto pro treino (academia tem tudo)
-                      localStorage.setItem('lastEnvironment', 'academia');
-                      setCurrentTab('training');
-                      setShowStartWorkoutModal(false);
-                      setSelectedEnvironment(null);
-                    }}
-                    className="w-full bg-indigo-50 hover:bg-indigo-100 border-2 border-indigo-500 text-gray-900 py-4 rounded-xl font-semibold transition flex items-center justify-center gap-3"
-                  >
-                    🏋️ Na Academia
-                  </button>
-                </div>
-                <button
-                  onClick={() => setShowStartWorkoutModal(false)}
-                  className="w-full mt-4 text-gray-600 hover:text-gray-900 py-2"
-                >
-                  Cancelar
-                </button>
-              </>
-            )}
-
-            {/* PASSO 2: EQUIPAMENTOS (SE CASA) */}
-            {selectedEnvironment === 'casa' && (
-              <>
-                <p className="text-gray-600 mb-4">Quais equipamentos você tem disponíveis hoje?</p>
-                
-                <div className="space-y-2 mb-6 max-h-64 overflow-y-auto">
-                  {HOME_EQUIPMENT_OPTIONS.map(eq => (
-                    <label
-                      key={eq.id}
-                      className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition ${
-                        selectedEquipment.includes(eq.id)
-                          ? 'border-green-500 bg-green-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedEquipment.includes(eq.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedEquipment([...selectedEquipment, eq.id]);
-                          } else {
-                            setSelectedEquipment(selectedEquipment.filter(id => id !== eq.id));
-                          }
-                        }}
-                        className="w-5 h-5"
-                      />
-                      <span className="text-2xl">{eq.icon}</span>
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900">{eq.name}</p>
-                        {eq.cost && (
-                          <p className="text-xs text-gray-500">{eq.cost}</p>
-                        )}
-                      </div>
-                    </label>
-                  ))}
-                </div>
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => {
-                      setSelectedEnvironment(null);
-                      setSelectedEquipment(['none', 'wall']);
-                    }}
-                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 py-3 rounded-xl font-semibold transition"
-                  >
-                    ← Voltar
-                  </button>
-                  <button
-                    onClick={() => {
-                      // Salvar preferências
-                      localStorage.setItem('lastEnvironment', 'casa');
-                      localStorage.setItem('lastEquipment', JSON.stringify(selectedEquipment));
-                      
-                      // Ir pro treino
-                      setCurrentTab('training');
-                      setShowStartWorkoutModal(false);
-                      setSelectedEnvironment(null);
-                    }}
-                    className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 rounded-xl font-semibold hover:from-green-600 hover:to-emerald-700 transition"
-                  >
-                    Começar! 💪
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+{/* MODAL: INICIAR TREINO */}
+{showStartWorkoutModal && userProfile && (
+  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6">
+      <h2 className="text-2xl font-bold text-gray-900 mb-4">
+        🏋️ Iniciar Treino {getWorkoutStats(userProfile.id).nextPhase}
+      </h2>
+      
+      <p className="text-gray-600 mb-6">Pronto para começar seu treino?</p>
+      
+      <div className="flex gap-3">
+        <button
+          onClick={() => setShowStartWorkoutModal(false)}
+          className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 py-3 rounded-xl font-semibold transition"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={() => {
+            // Ir direto pro treino
+            localStorage.setItem('lastEnvironment', 'gym');
+            setCurrentTab('training');
+            setShowStartWorkoutModal(false);
+          }}
+          className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 rounded-xl font-semibold hover:from-green-600 hover:to-emerald-700 transition"
+        >
+          Começar! 💪
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* NAVEGAÇÃO INFERIOR */}
       {userProfile &&

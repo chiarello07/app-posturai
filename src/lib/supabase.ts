@@ -205,40 +205,69 @@ export async function getCurrentUser() {
  * Obter perfil do usuário
  */
 export async function getProfile(userId: string) {
-  console.log("🔍 [getProfile] Buscando perfil para userId:", userId);
-  
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
+  try {
+    console.log("🔍 [getProfile] Buscando perfil para:", userId);
 
-  console.log("🔍 [getProfile] Resultado Supabase:", { data, error });
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
 
-  if (error) {
-    console.error("❌ [getProfile] Erro ao buscar perfil:", error);
+    if (error) {
+      console.error("❌ [getProfile] Erro ao buscar perfil:", error);
+      
+      // ✅ SE NÃO EXISTE, TENTAR CRIAR
+      if (error.code === 'PGRST116') { // Not found
+        console.log("🔧 [getProfile] Profile não existe, criando...");
+        
+        // Buscar email do usuário
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user?.email) {
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .insert({
+              id: userId,
+              email: user.email,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+          
+          if (createError) {
+            console.error("❌ [getProfile] Erro ao criar profile:", createError);
+            return { 
+              success: false, 
+              data: null, 
+              error: { message: "Erro ao criar perfil. Contate o suporte." }
+            };
+          }
+          
+          console.log("✅ [getProfile] Profile criado com sucesso!");
+          return { success: true, data: newProfile, error: null };
+        }
+      }
+      
+      return { 
+        success: false, 
+        data: null, 
+        error: { message: "Perfil não encontrado. Contate o suporte." }
+      };
+    }
+
+    console.log("✅ [getProfile] Perfil encontrado:", data);
+    return { success: true, data, error: null };
+
+  } catch (err) {
+    console.error("❌ [getProfile] Exceção:", err);
     return { 
       success: false, 
       data: null, 
-      error 
+      error: { message: "Erro ao buscar perfil" }
     };
   }
-
-  if (!data) {
-    console.warn("⚠️ [getProfile] Perfil não encontrado (data é null)");
-    return { 
-      success: false, 
-      data: null, 
-      error: new Error("Perfil não encontrado") 
-    };
-  }
-
-  console.log("✅ [getProfile] Perfil encontrado:", data);
-  return { 
-    success: true, 
-    data, 
-    error: null 
-  };
 }
 
 /**
@@ -657,4 +686,66 @@ export async function getWorkoutHistory(userId: string, limit: number = 10) {
   }
 
   return { success: true, data };
+}
+
+// ✅ SALVAR TREINO NO SUPABASE (workout_history existente)
+export async function saveWorkoutToSupabase(session: any) {
+  try {
+    // 1. Buscar ou criar workout no user_workouts
+    const { data: existingWorkout } = await supabase
+      .from('user_workouts')
+      .select('id')
+      .eq('user_id', session.userId)
+      .single();
+
+    let workoutId = existingWorkout?.id;
+
+    // Se não existe, criar
+    if (!workoutId) {
+      const { data: newWorkout, error: workoutError } = await supabase
+        .from('user_workouts')
+        .insert({
+          user_id: session.userId,
+          plan: { exercises: session.exercises },
+          phase: session.phaseName.match(/Treino ([A-Z])/)?.[1] || 'A'
+        })
+        .select('id')
+        .single();
+
+      if (workoutError) {
+        console.error('❌ [SUPABASE] Erro ao criar workout:', workoutError);
+        return { success: false, error: workoutError };
+      }
+
+      workoutId = newWorkout.id;
+    }
+
+    // 2. Salvar histórico
+    const { data, error } = await supabase
+      .from('workout_history')
+      .insert({
+        user_id: session.userId,
+        workout_id: workoutId,
+        completed_at: session.endTime,
+        duration_minutes: Math.floor(session.duration / 60),
+        notes: JSON.stringify({
+          totalSets: session.totalSets,
+          totalReps: session.totalReps,
+          estimatedCalories: session.estimatedCalories,
+          completionRate: session.completionRate,
+          exercises: session.exercises
+        })
+      });
+
+    if (error) {
+      console.error('❌ [SUPABASE] Erro ao salvar histórico:', error);
+      return { success: false, error };
+    }
+
+    console.log('✅ [SUPABASE] Treino salvo!');
+    return { success: true, data };
+  } catch (err) {
+    console.error('❌ [SUPABASE] Exceção:', err);
+    return { success: false, error: err };
+  }
 }

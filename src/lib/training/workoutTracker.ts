@@ -14,6 +14,7 @@ export interface WorkoutSession {
   totalVolume: number;
   estimatedCalories: number;
   completionRate: number;
+  averageRPE: nullmber | null;
 }
 
 export interface ExerciseLog {

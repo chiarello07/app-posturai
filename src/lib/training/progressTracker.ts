@@ -1,5 +1,3 @@
-
-
 export interface WorkoutProgress {
   userId: string;
   lastWorkoutPhase: string; // 'A', 'B', 'C'
@@ -114,27 +112,56 @@ function determinePeriodizationPhase(weeksCompleted: number): string {
   return 'manutencao'; // Após 12 semanas
 }
 
-export function getWorkoutStats(userId: string) {
-  const progress = loadWorkoutProgress(userId);
-  
-  if (!progress) {
-    return {
-      totalWorkouts: 0,
-      currentStreak: 0,
-      nextPhase: 'A',
-      lastWorkoutDate: null,
-      totalWeeksCompleted: 0,
-      currentPeriodizationPhase: 'adaptacao'
-    };
-  }
+function calculateAverageDuration(history: any[]) {
+  if (history.length === 0) return 0;
+  const total = history.reduce((sum, session) => sum + (session.duration || 0), 0);
+  return Math.round(total / history.length);
+}
 
+function calculateTotalVolume(history: any[]) {
+  return history.reduce((sum, session) => sum + (session.totalSets || 0) * (session.totalReps || 0), 0);
+}
+
+
+export function getWorkoutStats(userId: string) {
+  // ✅ LER HISTÓRICO DE TREINOS
+  const allHistory = JSON.parse(localStorage.getItem('workoutHistory') || '{}');
+  const userHistory = allHistory[userId] || [];
+  
+  // ✅ ENCONTRAR ÚLTIMO TREINO COMPLETADO
+  let lastCompletedPhase = null;
+  
+  if (userHistory.length > 0) {
+    const lastWorkout = userHistory[userHistory.length - 1];
+    // Extrair a letra do nome (ex: "Treino A" → "A")
+    const match = lastWorkout.phaseName?.match(/[A-C]/);
+    if (match) {
+      lastCompletedPhase = match[0]; // "A", "B" ou "C"
+    }
+  }
+  
+  // ✅ DETERMINAR PRÓXIMO TREINO
+  let nextPhase = 'A'; // Padrão
+  
+  if (lastCompletedPhase === 'A') {
+    nextPhase = 'B';
+  } else if (lastCompletedPhase === 'B') {
+    nextPhase = 'C';
+  } else if (lastCompletedPhase === 'C') {
+    nextPhase = 'A'; // Volta ao A
+  }
+  
+  console.log('🔄 [ROTATION] Último treino:', lastCompletedPhase);
+  console.log('🔄 [ROTATION] Próximo treino:', nextPhase);
+  
   return {
-    totalWorkouts: progress.completedWorkouts.length,
-    currentStreak: progress.currentStreak,
-    nextPhase: getNextWorkoutPhase(progress.lastWorkoutPhase, 3), // 3 fases (A, B, C)
-    lastWorkoutDate: progress.lastWorkoutDate,
-    totalWeeksCompleted: progress.totalWeeksCompleted,
-    currentPeriodizationPhase: progress.currentPeriodizationPhase
+    totalWorkouts: userHistory.length,
+    currentStreak: calculateStreak(userHistory),
+    nextPhase: nextPhase, // ✅ AGORA DINÂMICO!
+    lastWorkoutDate: userHistory.length > 0 ? userHistory[userHistory.length - 1].date : null,
+    totalWeeksCompleted: Math.floor(userHistory.length / 3), // 3 treinos = 1 semana
+    averageWorkoutDuration: calculateAverageDuration(userHistory),
+    totalVolume: calculateTotalVolume(userHistory)
   };
 }
 

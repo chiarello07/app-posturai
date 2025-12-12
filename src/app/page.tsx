@@ -623,16 +623,30 @@ const handleLogin = async (e: React.FormEvent) => {
           Cancelar
         </button>
         <button
-          onClick={() => {
-            // Ir direto pro treino
-            localStorage.setItem('lastEnvironment', 'gym');
-            setCurrentTab('training');
-            setShowStartWorkoutModal(false);
-          }}
-          className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 rounded-xl font-semibold hover:from-green-600 hover:to-emerald-700 transition"
-        >
-          Começar! 💪
-        </button>
+  onClick={() => {
+    console.log('🔥 [MODAL] Botão Começar clicado!');
+    
+    // ✅ LER qual treino foi solicitado
+    const requestedIndex = localStorage.getItem('requested_workout_index');
+    
+    if (requestedIndex !== null) {
+      console.log('🔥 [MODAL] Navegando para training com phase=' + requestedIndex);
+      
+      // ✅ SALVAR NO LOCALSTORAGE (TrainingPlan vai ler)
+      localStorage.setItem('startWorkoutPhase', requestedIndex);
+      
+      // ✅ MUDAR TAB (não redirecionar URL!)
+      setCurrentTab('training');
+      setShowStartWorkoutModal(false);
+    } else {
+      console.warn('⚠️ [MODAL] requestedIndex é NULL!');
+      alert('Erro ao iniciar treino. Tente novamente.');
+    }
+  }}
+  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 rounded-xl font-semibold hover:from-green-600 hover:to-emerald-700 transition"
+>
+  Começar! 💪
+</button>
       </div>
     </div>
   </div>

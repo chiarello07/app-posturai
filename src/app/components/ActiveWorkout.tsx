@@ -66,23 +66,17 @@ export default function ActiveWorkout({
   const [showCancelModal, setShowCancelModal] = useState(false);
 
   // Iniciar cronômetro
+  // ✅ FORÇAR SCROLL AO MONTAR COMPONENTE
   useEffect(() => {
-    const interval = setInterval(() => {
-      setWorkoutTimer(prev => prev + 1);
-    }, 1000);
-    setTimerInterval(interval);
-
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, []);
-
-  // ✅ FORÇAR SCROLL AO TOPO
-  useEffect(() => {
+    // Scroll imediato
     window.scrollTo(0, 0);
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
-    setTimeout(() => window.scrollTo(0, 0), 100);
+    
+    // Garantir após render
+    setTimeout(() => {
+      window.scrollTo(0, 0);
+    }, 100);
   }, []);
 
   const formatTime = (seconds: number) => {
@@ -230,19 +224,19 @@ export default function ActiveWorkout({
                         </div>
                       )}
 
-                      {exercise.reps && (
-                        <div className="flex items-center gap-1 text-gray-600">
-                          <TrendingUp className="w-4 h-4" />
-                          <span className="font-semibold">{exercise.reps}</span> reps
-                        </div>
-                      )}
+                      {exercise.reps && !exercise.duration && (
+  <div className="flex items-center gap-1 text-gray-600">
+    <TrendingUp className="w-4 h-4" />
+    <span className="font-semibold">{exercise.reps}</span> reps
+  </div>
+)}
 
-                      {exercise.duration && (
-                        <div className="flex items-center gap-1 text-gray-600">
-                          <Clock className="w-4 h-4" />
-                          <span className="font-semibold">{exercise.duration}s</span>
-                        </div>
-                      )}
+{exercise.duration && (
+  <div className="flex items-center gap-1 text-gray-600">
+    <Clock className="w-4 h-4" />
+    <span className="font-semibold">{exercise.duration}s</span> de duração
+  </div>
+)}
                     </div>
                   </div>
 

@@ -195,14 +195,6 @@ const totalMinutes = stats ? Math.floor((stats.totalDuration % 3600) / 60) : 0;
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-gray-100 to-slate-200 px-4 py-8 pb-24">
       <div className="max-w-4xl mx-auto">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 text-gray-600 hover:text-pink-500 transition-colors mb-6"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          <span className="font-medium">Voltar</span>
-        </button>
-
         <div className="text-center mb-8">
           <div className="w-20 h-20 bg-gradient-to-br from-pink-500 to-purple-600 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-lg">
             <TrendingUp className="w-10 h-10 text-white" />

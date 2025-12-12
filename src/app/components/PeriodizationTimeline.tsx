@@ -8,7 +8,7 @@ interface PeriodizationTimelineProps {
   weeksCompleted: number;
 }
 
-export function PeriodizationTimeline({ weeksCompleted }: PeriodizationTimelineProps) {
+export default function PeriodizationTimeline({ weeksCompleted }: PeriodizationTimelineProps) {
   const timeline = getPeriodizationTimeline(weeksCompleted);
 
   return (

@@ -671,13 +671,3 @@ function getFrequencyNumber(frequency: string): number {
   }
 }
 
-// ============================================================================
-// EXPORTS
-// ============================================================================
-
-export {
-  generatePersonalizedTrainingPlan,
-  analyzeUserContext,
-  determineOptimalStructure,
-  prescribeWorkoutPhases
-};

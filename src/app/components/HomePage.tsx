@@ -193,7 +193,7 @@ const getNextWorkout = () => {
 
 const nextWorkout = getNextWorkout();
 
-  const getMotivationalMessage = () => {
+const getMotivationalMessage = () => {
     const remaining = weekGoal - weekProgress;
     if (weekProgress === 0) return "Vamos começar forte";
     if (weekProgress >= weekGoal) return "Meta batida! Continue assim!";

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Play,
   ChevronDown,
@@ -18,7 +19,7 @@ import {
   Video
 } from "lucide-react";
 
-import { getUserWorkout } from "@/lib/supabase";
+import { getUserWorkout, getCurrentUser, supabase } from "@/lib/supabase";
 import { PeriodizationTimeline } from './PeriodizationTimeline';
 import { getWorkoutStats } from '@/lib/training/progressTracker';
 import { 
@@ -31,6 +32,8 @@ import {
 import ActiveWorkout from './ActiveWorkout';
 import { saveWorkoutProgress } from '@/lib/training/progressTracker';
 import {toast } from 'sonner';
+import { Activity } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 interface TrainingPlanProps {
   userProfile: any;
@@ -82,6 +85,8 @@ interface TrainingPlan {
 const TIME_PATTERN = /seg|min|s$/i;
 
 export default function TrainingPlan({ userProfile }: TrainingPlanProps) {
+  const router = useRouter();
+  
   const [trainingPlan, setTrainingPlan] = useState<TrainingPlan | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedPhase, setExpandedPhase] = useState<number | null>(0);
@@ -105,7 +110,7 @@ export default function TrainingPlan({ userProfile }: TrainingPlanProps) {
     if (userProfile?.id) {
       const stats = getWorkoutStats(userProfile.id);
       setWorkoutStats(stats);
-// ✅ Removido console.log (não precisa de toast aqui, é silencioso)
+      console.log('📊 [STATS] Carregado:', stats);
     }
   }, [userProfile]);
 
@@ -115,35 +120,70 @@ export default function TrainingPlan({ userProfile }: TrainingPlanProps) {
     }
   }, [userProfile]);
 
-  const loadTrainingPlan = async () => {
+// ✅ LER LOCALSTORAGE E ABRIR TREINO ESPECÍFICO
+useEffect(() => {
+  if (!trainingPlan) return; // Só executa se trainingPlan está carregado
+
+  const startPhase = localStorage.getItem('startWorkoutPhase');
+  
+  if (startPhase !== null && !isNaN(parseInt(startPhase))) {
+    const phaseIndex = parseInt(startPhase);
+    console.log('🎯 [TRAININGPLAN] localStorage encontrado! startWorkoutPhase=' + phaseIndex);
+    console.log('🎯 [TRAININGPLAN] Abrindo ActiveWorkout com phaseIndex:', phaseIndex);
+    
+    // ✅ ABRIR TREINO ESPECÍFICO
+    setShowActiveWorkout(phaseIndex);
+    
+    // ✅ LIMPAR LOCALSTORAGE
+    localStorage.removeItem('startWorkoutPhase');
+  }
+}, [trainingPlan]); // Depende de trainingPlan estar carregado
+
+const loadTrainingPlan = async () => {
+  try {
     setIsLoading(true);
+    console.log('📥 [TRAINING] Iniciando carregamento do plano...');
 
-    try {
-      if (userProfile?.id) {
-        const result = await getUserWorkout(userProfile.id);
-        
-        if (result.success && result.data) {
-          setTrainingPlan(result.data.plan);
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      const savedPlan = localStorage.getItem('currentTrainingPlan');
-      
-      if (savedPlan) {
-        const plan = JSON.parse(savedPlan);
-        setTrainingPlan(plan);
-        setIsLoading(false);
-        return;
-      }
-
-      setIsLoading(false);
-
-    } catch (error) {
-      setIsLoading(false);
+    const user = await getCurrentUser();
+    
+    if (!user) {
+      console.log('❌ [TRAINING] Usuário não autenticado. Redirecionando para login...');
+      router.push("/login");
+      return;
     }
-  };
+
+    console.log('✅ [TRAINING] Usuário encontrado:', user.id);
+
+    const { success, data, error } = await getUserWorkout(user.id);
+
+    // ✅ SE NÃO TEM WORKOUT, REDIRECIONAR PARA ANÁLISE POSTURAL
+    if (!success || !data || error) {
+      console.log("📸 [TRAINING] Nenhum treino encontrado. Redirecionando para Análise Postural...");
+      setIsLoading(false);
+
+      // Aguardar um pouco antes de redirecionar (para mostrar loading)
+      setTimeout(() => {
+        router.push("/analise-postural");
+      }, 500);
+      return;
+    }
+
+    // ✅ SE TEM WORKOUT, CARREGAR NORMALMENTE
+    if (data && data.plan) {
+      console.log("✅ [TRAINING] Treino carregado:", data.plan);
+      setTrainingPlan(data.plan); // ✅ SALVAR NO ESTADO
+    } else {
+      console.error("❌ [TRAINING] Workout encontrado, mas sem 'plan':", data);
+      toast.error('Erro: Treino sem dados. Contate o suporte.');
+    }
+
+    setIsLoading(false);
+  } catch (err) {
+    console.error("❌ [TRAINING] Erro ao carregar treino:", err);
+    setIsLoading(false);
+    toast.error('Erro ao carregar treino. Tente novamente.');
+  }
+};
 
   const togglePhase = (index: number) => {
     setExpandedPhase(expandedPhase === index ? null : index);
@@ -154,6 +194,7 @@ export default function TrainingPlan({ userProfile }: TrainingPlanProps) {
   };
 
 const startWorkout = (phaseIndex: number) => {
+  console.log('🏋️ [WORKOUT] Iniciando treino da fase:', phaseIndex);
   setShowActiveWorkout(phaseIndex);
 };
 
@@ -252,7 +293,7 @@ toast.success('Treino salvo com sucesso! 🎉');
     }
   };
 
-  const handleWorkoutComplete = (completedIds: string[], duration: number) => {
+const handleWorkoutComplete = (completedIds: string[], duration: number) => {
   if (!trainingPlan || showActiveWorkout === null) return;
   
   const phase = trainingPlan.phases[showActiveWorkout];
@@ -275,7 +316,7 @@ toast.success('Treino salvo com sucesso! 🎉');
   // ✅ CALCULAR MÉTRICAS
   const metrics = calculateWorkoutMetrics(exerciseLogs, duration);
   
-  // ✅ CRIAR SESSÃO DE TREINO
+  // ✅ CRIAR SESSÃO DE TREINO (SEM SALVAR AINDA)
   const session: WorkoutSession = {
     id: `workout-${Date.now()}`,
     userId: userProfile?.id || 'guest',
@@ -289,39 +330,28 @@ toast.success('Treino salvo com sucesso! 🎉');
     totalReps: metrics.totalReps,
     totalVolume: 0,
     estimatedCalories: metrics.estimatedCalories,
-    completionRate: metrics.completionRate
+    completionRate: metrics.completionRate,
+    averageRPE: null // ✅ ADICIONADO: RPE será preenchido depois
   };
   
-  // ✅ SALVAR NO HISTÓRICO (PROCESSADO!)
-  const processedSession = {
-    ...session,
-    exercises: session.exercises.map(ex => ({
-      ...ex,
-      reps: typeof ex.reps === 'string' 
-        ? (TIME_PATTERN.test(ex.reps) ? 0 : parseInt(ex.reps, 10) || 0)
-        : (ex.reps || 0)
-    }))
-  };
-  saveWorkoutSession(processedSession);
+  // ✅ SALVAR SESSÃO TEMPORARIAMENTE NO ESTADO
+  // (não salvamos no localStorage ainda, esperamos o Borg)
+  localStorage.setItem('tempWorkoutSession', JSON.stringify(session));
   
-  saveWorkoutProgress(
-    userProfile?.id || 'guest',
-    trainingPlan.phases[showActiveWorkout].name,
-    completedIds,
-    Math.floor(duration / 60)
-  );
-
-  // ✅ MOSTRAR MODAL
-  setCompletedPhaseName(phase.name);
-  setWorkoutTimer(duration);
+  // ✅ GUARDAR DADOS PARA USAR DEPOIS
   setCompletedExercises(new Set(completedIds));
-  setShowCompletionModal(true);
+  setWorkoutTimer(duration);
+  setCompletedPhaseName(phase.name);
   
   // ✅ VOLTAR PARA LISTA DE TREINOS
   setShowActiveWorkout(null);
   
-  console.log('📊 Treino finalizado:', session);
-  toast.success('Treino concluído! 💪');
+  // ✅ ABRIR MODAL BORG (NÃO COMPLETION MODAL!)
+  setShowBorgModal(true);
+  setBorgScore(null); // Reset score
+  
+  console.log('📊 Treino finalizado! Aguardando Borg Scale...');
+  toast.success('Treino concluído! Agora avalie a dificuldade 💪');
 };
 
   const formatTime = (seconds: number) => {
@@ -335,7 +365,7 @@ toast.success('Treino salvo com sucesso! 🎉');
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
+          <Activity className="w-16 h-16 text-blue-600 mx-auto mb-4 animate-spin" />
           <p className="text-gray-600 font-medium">Carregando seu plano de treino...</p>
         </div>
       </div>
@@ -347,19 +377,13 @@ toast.success('Treino salvo com sucesso! 🎉');
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
         <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md text-center">
-          <Dumbbell className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">
-            Nenhum Treino Encontrado
-          </h2>
-          <p className="text-gray-600 mb-6">
-            Complete sua análise postural para gerar um plano de treino personalizado.
+          <Activity className="w-16 h-16 text-pink-500 mx-auto mb-4 animate-spin" />
+          <h3 className="text-lg font-semibold text-gray-600 mb-2">
+            Carregando...
+          </h3>
+          <p className="text-gray-500 text-sm">
+            Você será redirecionado para a Análise Postural
           </p>
-          <button
-            onClick={() => window.location.reload()}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
-          >
-            Atualizar Página
-          </button>
         </div>
       </div>
     );
@@ -1465,12 +1489,12 @@ return (
       {/* LEGENDA */}
       <div className="bg-gray-50 rounded-xl p-4 mb-6 text-xs text-gray-600 space-y-1">
         <p><span className="font-bold text-green-600">1-3:</span> Muito fácil, pode aumentar carga</p>
-        <p><span className="font-bold text-yellow-600">4-6:</span> Moderado, bom para técnica</p>
-        <p><span className="font-bold text-orange-600">7-8:</span> Intenso, ideal para hipertrofia</p>
-        <p><span className="font-bold text-red-600">9-10:</span> Máximo esforço, risco de overtraining</p>
+        <p><span className="font-bold text-yellow-600">4-6:</span> Moderado - Perfeito para técnica</p>
+        <p><span className="font-bold text-orange-600">7-8:</span> Intenso - Ideal para ganhos</p>
+        <p><span className="font-bold text-red-600">9-10:</span> Máximo - Seu melhor esforço! 🔥</p>
       </div>
 
-      {/* BOTÃO CONTINUAR */}
+      {/* BOTÃO CONTINUAR - AGORA SALVA TUDO */}
       <button
         onClick={() => {
           if (!borgScore) {
@@ -1478,20 +1502,50 @@ return (
             return;
           }
           
-          // Salvar RPE no último treino
-          const history = getWorkoutHistory(userProfile?.id || 'guest');
-          if (history.length > 0) {
-            const lastWorkout = history[history.length - 1];
-            lastWorkout.averageRPE = borgScore;
+          console.log('🔥 [BORG] Usuário selecionou RPE:', borgScore);
+          
+          // ✅ RECUPERAR SESSÃO TEMPORÁRIA
+          const tempSession = localStorage.getItem('tempWorkoutSession');
+          if (tempSession) {
+            const session = JSON.parse(tempSession) as WorkoutSession;
             
-            // Atualizar no localStorage
-            const allHistory = JSON.parse(localStorage.getItem('workoutHistory') || '{}');
-            allHistory[userProfile?.id || 'guest'] = history;
-            localStorage.setItem('workoutHistory', JSON.stringify(allHistory));
+            // ✅ ADICIONAR RPE À SESSÃO
+            session.averageRPE = borgScore;
+            
+            // ✅ PROCESSAR EXERCÍCIOS
+            const processedSession = {
+              ...session,
+              exercises: session.exercises.map(ex => ({
+                ...ex,
+                reps: typeof ex.reps === 'string' 
+                  ? (TIME_PATTERN.test(ex.reps) ? 0 : parseInt(ex.reps, 10) || 0)
+                  : (ex.reps || 0)
+              }))
+            };
+            
+            // ✅ SALVAR NO HISTÓRICO
+            saveWorkoutSession(processedSession);
+            
+            // ✅ SALVAR PROGRESSO
+            saveWorkoutProgress(
+              userProfile?.id || 'guest',
+              session.phaseName,
+              session.exercises.filter(e => e.completed).map((e, idx) => `phase-${showActiveWorkout}-exercise-${idx}`),
+              Math.floor(session.duration / 60)
+            );
+            
+            // ✅ LIMPAR TEMPORÁRIO
+            localStorage.removeItem('tempWorkoutSession');
+            
+            console.log('✅ [BORG] Sessão salva com RPE:', borgScore);
+            console.log('✅ [BORG] Sessão completa:', processedSession);
+            
+            toast.success(`Treino salvo! RPE: ${borgScore}/10 🎉`);
           }
           
+          // ✅ FECHAR BORG E ABRIR COMPLETION MODAL
           setShowBorgModal(false);
-          setShowCompletionModal(true); // Agora sim mostra conclusão
+          setShowCompletionModal(true);
         }}
         disabled={!borgScore}
         className={`w-full py-4 rounded-xl font-bold transition-all ${
@@ -1500,7 +1554,7 @@ return (
             : 'bg-gray-300 text-gray-500 cursor-not-allowed'
         }`}
       >
-        {borgScore ? 'Continuar' : 'Selecione uma nota'}
+        {borgScore ? `Salvar RPE ${borgScore} e Continuar` : 'Selecione uma nota'}
       </button>
     </div>
   </div>

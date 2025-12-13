@@ -21,7 +21,6 @@ import CompleteAnalysisReport from "./components/CompleteAnalysisReport";
 import BoostPosturAI from "./components/BoostPosturAI";
 import { generatePersonalizedTrainingPlan } from "@/lib/training/trainingGenerator";
 import { getWorkoutStats } from '@/lib/training/progressTracker';
-import { runTest } from '@/lib/training/testGenerator';
 
 import {
   createUser,
@@ -296,126 +295,269 @@ const handleLogin = async (e: React.FormEvent) => {
     }
   };
 
-  const handleTestClick = () => {
-    console.clear(); // Limpa o console antes de rodar
-    runTest();
-  };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Seu conteúdo da homepage aqui */}
-        <h1 className="text-4xl font-bold text-white mb-8">PosturAI</h1>
-        
-        <p className="text-gray-300 mb-8">
-          Bem-vindo ao PosturAI - Seu assistente de treino personalizado baseado em IA.
-        </p>
+const handleAnalysisComplete = async (analysisData: any) => {
+  if (!userProfile) return;
 
-        {/* BOTÃO DE TESTE */}
-        <button
-          onClick={handleTestClick}
-          className="w-full p-4 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl mt-4 transition-all duration-200 transform hover:scale-105"
-        >
-          🧪 EXECUTAR TESTE DO GERADOR DE TREINO
-        </button>
-
-        {/* Instruções */}
-        <div className="mt-8 p-6 bg-slate-700 rounded-lg text-gray-200">
-          <h2 className="text-xl font-bold mb-4">📋 Instruções:</h2>
-          <ol className="list-decimal list-inside space-y-2">
-            <li>Clique no botão acima</li>
-            <li>Abra o Console do navegador (F12 ou Cmd+Option+I)</li>
-            <li>Veja o plano de treino gerado em tempo real</li>
-            <li>Verifique se o JSON está correto e completo</li>
-          </ol>
-        </div>
-      </div>
-    </div>
-  );
+  console.log("🎉 [ANALYSIS COMPLETE] Análise recebida!", analysisData);
   
-  const handleAnalysisComplete = async (analysisData: any) => {
-    if (!userProfile) return;
+  setIsLoading(true);
 
-    console.log("🎉 [ANALYSIS COMPLETE] Análise recebida!");
-    
-    setIsLoading(true);
-
-    try {
-      // 1. SALVAR ANÁLISE NO SUPABASE
-      console.log("💾 [ANALYSIS] Salvando análise...");
-      const analysisResult = await saveAnalysis(userProfile.id, analysisData);
-
-      if (analysisResult.error) {
-        console.error("❌ [ANALYSIS] Erro ao salvar:", analysisResult.error);
-        alert("Erro ao salvar análise.");
-        setIsLoading(false);
-        return;
-      }
-
-      console.log("✅ [ANALYSIS] Análise salva com sucesso!");
-
-      // 2. GERAR TREINO PERSONALIZADO
-      console.log("🏋️ [TRAINING] Gerando treino personalizado...");
-      
-      // Preparar perfil para o generator
-      const profileForGenerator = {
-        name: userProfile.name || 'Usuário',
-        birth_date: userProfile.birth_date || '2000-01-01',
-        main_goals: userProfile.main_goals || ['postura'],
-        experience_level: userProfile.experience_level || 'iniciante',
-        gender: userProfile.gender || 'Prefiro não informar',
-        exercise_frequency: userProfile.exercise_frequency || '3-4',
-        dedication_hours: userProfile.dedication_hours?.toString() || '0.5',
-        weight: userProfile.weight || 70,
-        height: userProfile.height || 170,
-        pain_areas: userProfile.pain_areas || [],
-        training_environment: userProfile.training_environment || 'casa',
-        injuries: userProfile.injuries || 'Não',
-        injury_details: userProfile.injury_details || '',
-        heart_problems: userProfile.heart_problems || 'Não'
-      };
-
-      console.log("📊 [TRAINING] Perfil para generator:", profileForGenerator);
-
-      const trainingPlan = generatePersonalizedTrainingPlan(profileForGenerator, analysisData);
-      
-      console.log("✅ [TRAINING] Treino gerado:", trainingPlan);
-
-      // 3. SALVAR TREINO NO SUPABASE
-      console.log("💾 [TRAINING] Salvando treino no Supabase...");
-      
-      const workoutResult = await createUserWorkout(userProfile.id, trainingPlan);
-
-      if (workoutResult.success) {
-        console.log("✅ [TRAINING] Treino salvo no Supabase!");
-      } else {
-        console.warn("⚠️ [TRAINING] Erro ao salvar treino, mas continuando...");
-      }
-
-      // 4. SALVAR NO LOCALSTORAGE COMO BACKUP
-      localStorage.setItem('currentTrainingPlan', JSON.stringify(trainingPlan));
-
-      // 5. ATUALIZAR PERFIL DO USUÁRIO
-      const newProfile = { 
-        ...userProfile, 
-        has_analysis: true,
-        has_training: true 
-      };
-      setUserProfile(newProfile);
-      localStorage.setItem("userProfile", JSON.stringify(newProfile));
-
-      // 6. SALVAR ANÁLISE NO ESTADO
-      setAnalysis(analysisData);
-
-      console.log("🎉 [COMPLETE] Análise E Treino prontos!");
-      
-    } catch (error) {
-      console.error("❌ [ERROR] Erro ao processar:", error);
-      alert("Erro ao processar análise e treino: " + (error as Error).message);
-    } finally {
+  try {
+    // ✅ VERIFICAR SE TEM ANÁLISE DA IA NO FORMATO CORRETO
+    if (!analysisData?.aiAnalysis) {
+      console.error("❌ [ANALYSIS] Análise da IA não encontrada no formato correto!");
+      console.error("❌ [ANALYSIS] Dados recebidos:", analysisData);
+      alert("Erro: Análise postural inválida. Tente novamente.");
       setIsLoading(false);
+      return;
     }
-  };
+
+    console.log("✅ [ANALYSIS] Análise válida recebida:", {
+      confidence: analysisData.aiAnalysis.confidence,
+      deviations: analysisData.aiAnalysis.deviations?.length || 0
+    });
+
+    // 1. SALVAR ANÁLISE NO SUPABASE
+    console.log("💾 [ANALYSIS] Salvando análise...");
+    const analysisResult = await saveAnalysis(userProfile.id, analysisData);
+
+    if (analysisResult.error) {
+      console.error("❌ [ANALYSIS] Erro ao salvar:", analysisResult.error);
+      alert("Erro ao salvar análise.");
+      setIsLoading(false);
+      return;
+    }
+
+    console.log("✅ [ANALYSIS] Análise salva com sucesso!");
+
+    // 2. GERAR TREINO PERSONALIZADO
+    console.log("🏋️ [TRAINING] Gerando treino personalizado...");
+    
+    // Preparar perfil para o generator
+    const profileForGenerator = {
+      name: userProfile.name || 'Usuário',
+      birth_date: userProfile.birth_date || '2000-01-01',
+      main_goals: userProfile.main_goals || ['postura'],
+      experience_level: userProfile.experience_level || 'iniciante',
+      gender: userProfile.gender || 'Prefiro não informar',
+      exercise_frequency: userProfile.exercise_frequency || '3-4',
+      dedication_hours: userProfile.dedication_hours?.toString() || '0.5',
+      weight: userProfile.weight || 70,
+      height: userProfile.height || 170,
+      pain_areas: userProfile.pain_areas || [],
+      training_environment: userProfile.training_environment || 'casa',
+      injuries: userProfile.injuries || 'Não',
+      injury_details: userProfile.injury_details || '',
+      heart_problems: userProfile.heart_problems || 'Não'
+    };
+
+    console.log("📊 [TRAINING] Perfil para generator:", profileForGenerator);
+
+    // ✅ CRIAR FORMATO POSTURAL PARA O GENERATOR (FORMATO COMPLETO E CORRETO!)
+const posturalForGenerator = {
+  // ✅ AVALIAÇÃO DE RISCO (FORMATO ESPERADO PELO GENERATOR!)
+  riskAssessment: {
+    overallPosturalScore: analysisData.aiAnalysis.confidence || 85,
+    riskLevel: analysisData.aiAnalysis.confidence >= 80 ? 'low' : 
+               analysisData.aiAnalysis.confidence >= 60 ? 'moderate' : 'high',
+    requiresMedicalClearance: false,
+    clearanceReasons: []
+  },
+  
+  // ✅ DESVIOS DETECTADOS (FORMATO ESPERADO!)
+  deviations: {
+    forwardHead: analysisData.aiAnalysis.deviations?.some((d: any) => d.type === 'forward_head') 
+      ? (analysisData.aiAnalysis.deviations.find((d: any) => d.type === 'forward_head')?.severity || 'mild')
+      : 'none',
+    
+    thoracicKyphosis: analysisData.aiAnalysis.deviations?.some((d: any) => d.type === 'kyphosis')
+      ? 'hyperkyphosis'
+      : 'normal',
+    
+    lumbarLordosis: analysisData.aiAnalysis.deviations?.some((d: any) => d.type === 'hyperlordosis')
+      ? 'hyperlordosis'
+      : 'normal',
+    
+    scoliosis: {
+      present: false,
+      severity: 'none' as const,
+      curve: 'none' as const
+    },
+    
+    shoulderProtraction: analysisData.aiAnalysis.deviations?.some((d: any) => d.type === 'shoulder_asymmetry')
+      ? (analysisData.aiAnalysis.deviations.find((d: any) => d.type === 'shoulder_asymmetry')?.severity || 'mild')
+      : 'none',
+    
+    anteriorPelvicTilt: analysisData.aiAnalysis.deviations?.some((d: any) => d.type === 'hip_tilt')
+      ? (analysisData.aiAnalysis.deviations.find((d: any) => d.type === 'hip_tilt')?.severity || 'mild')
+      : 'none',
+    
+    kneeValgus: analysisData.aiAnalysis.deviations?.some((d: any) => d.type === 'knee_valgus')
+      ? (analysisData.aiAnalysis.deviations.find((d: any) => d.type === 'knee_valgus')?.severity || 'mild')
+      : 'none',
+    
+    kneeVarus: analysisData.aiAnalysis.deviations?.some((d: any) => d.type === 'knee_varus')
+      ? (analysisData.aiAnalysis.deviations.find((d: any) => d.type === 'knee_varus')?.severity || 'mild')
+      : 'none',
+    
+    flatFeet: 'none' as const,
+    
+    notes: analysisData.aiAnalysis.deviations?.map((d: any) => d.description).join('; ') || ''
+  },
+  
+  // ✅ DESEQUILÍBRIOS MUSCULARES
+  muscularImbalances: {
+    upperCrossedSyndrome: analysisData.aiAnalysis.deviations?.some((d: any) => 
+      d.type === 'forward_head' || d.type === 'kyphosis'
+    ) || false,
+    
+    lowerCrossedSyndrome: analysisData.aiAnalysis.deviations?.some((d: any) => 
+      d.type === 'hyperlordosis' || d.type === 'hip_tilt'
+    ) || false,
+    
+    lateralImbalances: analysisData.aiAnalysis.deviations?.some((d: any) => 
+      d.side === 'left' || d.side === 'right'
+    ) || false,
+    
+    notes: ''
+  },
+  
+  // ✅ RECOMENDAÇÕES DE TREINO
+  trainingRecommendations: {
+    prioritizeExercises: analysisData.aiAnalysis.deviations?.flatMap((d: any) => 
+      d.correctiveExerciseIds || []
+    ) || [],
+    
+    avoidExercises: [],
+    
+    intensityModifier: analysisData.aiAnalysis.confidence >= 80 ? 1.0 : 0.85,
+    
+    volumeModifier: (analysisData.aiAnalysis.deviations?.length || 0) > 3 ? 0.8 : 1.0,
+    
+    focusAreas: analysisData.aiAnalysis.deviations?.map((d: any) => {
+      const typeMap: Record<string, string> = {
+        forward_head: 'cervical',
+        kyphosis: 'thoracic',
+        hyperlordosis: 'lumbar',
+        shoulder_asymmetry: 'shoulder',
+        hip_tilt: 'hip',
+        knee_valgus: 'knee',
+        knee_varus: 'knee'
+      };
+      return typeMap[d.type] || 'core';
+    }) || ['core'],
+    
+    specialConsiderations: analysisData.aiAnalysis.summary?.riskFactors || []
+  },
+  
+  // ✅ ANÁLISE DE MOVIMENTO FUNCIONAL
+  functionalMovementScreen: {
+    overheadSquat: { score: 2, notes: '' },
+    hurdleStep: { score: 2, notes: '' },
+    inlineLunge: { score: 2, notes: '' },
+    shoulderMobility: { score: 2, notes: '' },
+    activeStraightLegRaise: { score: 2, notes: '' },
+    trunkStabilityPushup: { score: 2, notes: '' },
+    rotaryStability: { score: 2, notes: '' },
+    totalScore: 14,
+    asymmetries: []
+  }
+};
+
+    console.log("📊 [TRAINING] Dados posturais para generator:", {
+      deviations: posturalForGenerator.deviations.length,
+      confidence: posturalForGenerator.confidence
+    });
+
+    // ✅ GERAR TREINO COM DADOS CORRETOS
+    const trainingPlan = generatePersonalizedTrainingPlan(
+      profileForGenerator, 
+      posturalForGenerator
+    );
+    
+    console.log("✅ [TRAINING] Treino gerado:", trainingPlan);
+
+    // ✅ VALIDAR TREINO ANTES DE SALVAR
+    console.log("🔍 [TRAINING] Validando treino...");
+    console.log("🔍 [TRAINING] trainingPlan.name:", trainingPlan?.name);
+    console.log("🔍 [TRAINING] trainingPlan.phases:", trainingPlan?.phases);
+    console.log("🔍 [TRAINING] trainingPlan.phases.length:", trainingPlan?.phases?.length);
+    
+    if (!trainingPlan || !trainingPlan.phases || trainingPlan.phases.length === 0) {
+      console.error("❌ [TRAINING] TrainingPlan inválido ou vazio!");
+      alert("Erro: Treino gerado está vazio. Tente novamente.");
+      setIsLoading(false);
+      return;
+    }
+    
+    console.log("✅ [TRAINING] Validação OK! Treino tem", trainingPlan.phases.length, "fases");
+
+    // 3. SALVAR TREINO NO SUPABASE
+    console.log("💾 [TRAINING] Salvando treino no Supabase...");
+    console.log("💾 [TRAINING] userId:", userProfile.id);
+    console.log("💾 [TRAINING] Tipo do userId:", typeof userProfile.id);
+    console.log("💾 [TRAINING] trainingPlan (resumo):", {
+      name: trainingPlan.name,
+      duration_weeks: trainingPlan.duration_weeks,
+      frequency_per_week: trainingPlan.frequency_per_week,
+      phases_count: trainingPlan.phases.length
+    });
+    
+    const workoutResult = await createUserWorkout(userProfile.id, trainingPlan);
+
+    console.log("💾 [TRAINING] Resultado do save:", workoutResult);
+    console.log("💾 [TRAINING] workoutResult.success:", workoutResult.success);
+    console.log("💾 [TRAINING] workoutResult.error:", workoutResult.error);
+    console.log("💾 [TRAINING] workoutResult.data:", workoutResult.data);
+
+    if (workoutResult.success) {
+      console.log("✅ [TRAINING] Treino salvo no Supabase com sucesso!");
+    } else {
+      console.warn("⚠️ [TRAINING] Erro ao salvar treino no Supabase:", workoutResult.error);
+      console.warn("⚠️ [TRAINING] Continuando... (treino salvo localmente)");
+    }
+
+    // 4. SALVAR NO LOCALSTORAGE COMO BACKUP
+    console.log("💾 [TRAINING] Salvando no localStorage...");
+    localStorage.setItem('currentTrainingPlan', JSON.stringify(trainingPlan));
+    console.log("✅ [TRAINING] Salvo no localStorage!");
+
+    // 5. ATUALIZAR PERFIL DO USUÁRIO
+    console.log("👤 [PROFILE] Atualizando perfil do usuário...");
+    const newProfile = { 
+      ...userProfile, 
+      has_analysis: true,
+      has_training: true,
+      training_plan: trainingPlan
+    };
+    setUserProfile(newProfile);
+    localStorage.setItem("userProfile", JSON.stringify(newProfile));
+    console.log("✅ [PROFILE] Perfil atualizado!");
+
+    // 6. SALVAR ANÁLISE NO ESTADO
+    setAnalysis(analysisData);
+
+    console.log("🎉 [COMPLETE] ===== PROCESSO COMPLETO! =====");
+    console.log("🎉 [COMPLETE] Análise salva:", !!analysisData);
+    console.log("🎉 [COMPLETE] Treino gerado:", !!trainingPlan);
+    console.log("🎉 [COMPLETE] Treino no Supabase:", workoutResult.success);
+    console.log("🎉 [COMPLETE] Treino no localStorage:", !!localStorage.getItem('currentTrainingPlan'));
+    
+    // ✅ REDIRECIONAR PARA RELATÓRIO
+    console.log("🎉 [COMPLETE] Redirecionando para relatório completo...");
+    setCurrentTab('complete-analysis');
+    
+  } catch (error) {
+    console.error("❌ [ERROR] ===== ERRO NO PROCESSO =====");
+    console.error("❌ [ERROR] Tipo:", error);
+    console.error("❌ [ERROR] Mensagem:", (error as Error).message);
+    console.error("❌ [ERROR] Stack:", (error as Error).stack);
+    alert("Erro ao processar análise e treino: " + (error as Error).message);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleLogout = async () => {
     await logoutUser();
@@ -600,24 +742,116 @@ const handleLogin = async (e: React.FormEvent) => {
           />
         )}
 
-        {currentTab === "complete-analysis" && userProfile && (
-          <CompleteAnalysisReport
-            userProfile={userProfile}
-            photos={{
-              photoFrontal: null,
-              photoLateralEsquerdo: null,
-              photoLateralDireito: null,
-              photoCostas: null
-            }}
-            onBack={() => setCurrentTab("home")}
-            onRedoAnalysis={() => {
+{currentTab === "complete-analysis" && userProfile && (() => {
+  // ✅ LER ANÁLISE DO LOCALSTORAGE
+  const storedAnalysisString = localStorage.getItem('completeAnalysis');
+  
+  console.log("🔍 [RENDER] Renderizando CompleteAnalysisReport");
+  console.log("🔍 [RENDER] storedAnalysisString existe?", !!storedAnalysisString);
+  
+  if (!storedAnalysisString) {
+    console.warn("⚠️ [RENDER] Nenhuma análise encontrada no localStorage!");
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md text-center">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-3xl">📸</span>
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 mb-2">
+            Nenhuma análise encontrada
+          </h3>
+          <p className="text-gray-600 mb-6">
+            Faça sua análise postural primeiro para visualizar o relatório completo.
+          </p>
+          <button
+            onClick={() => setCurrentTab("analysis")}
+            className="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-pink-600 hover:to-purple-700 transition-all"
+          >
+            Fazer Análise Postural
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  let analysisToShow = null;
+  
+  try {
+    const parsed = JSON.parse(storedAnalysisString);
+    console.log("🔍 [RENDER] Análise parseada:", parsed);
+    console.log("🔍 [RENDER] Tem .legacy?", !!parsed?.legacy);
+    console.log("🔍 [RENDER] Tem .postural?", !!parsed?.postural);
+    
+    // ✅ Se tem formato {legacy, postural}, pega o legacy
+    // ✅ Se é o formato antigo direto, usa ele
+    if (parsed?.legacy) {
+      analysisToShow = parsed.legacy;
+      console.log("✅ [RENDER] Usando formato legacy");
+    } else if (parsed?.posturalAnalysis) {
+      analysisToShow = parsed;
+      console.log("✅ [RENDER] Usando formato direto (antigo)");
+    } else {
+      console.error("❌ [RENDER] Formato de análise desconhecido:", parsed);
+    }
+  } catch (err) {
+    console.error("❌ [RENDER] Erro ao parsear análise:", err);
+  }
+  
+  // ✅ SE NÃO CONSEGUIU EXTRAIR, MOSTRAR ERRO
+  if (!analysisToShow || !analysisToShow.posturalAnalysis) {
+    console.error("❌ [RENDER] analysisToShow inválido ou sem posturalAnalysis");
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-3xl">⚠️</span>
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 mb-2">
+            Erro ao carregar análise
+          </h3>
+          <p className="text-gray-600 mb-6">
+            A análise salva está em um formato inválido. Por favor, refaça a análise.
+          </p>
+          <button
+            onClick={() => {
+              // Limpar análise corrompida
+              localStorage.removeItem('completeAnalysis');
               const updated = { ...userProfile, has_analysis: false };
               setUserProfile(updated);
               localStorage.setItem("userProfile", JSON.stringify(updated));
               setCurrentTab("analysis");
             }}
-          />
-        )}
+            className="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-pink-600 hover:to-purple-700 transition-all"
+          >
+            Refazer Análise Postural
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  console.log("✅ [RENDER] Renderizando CompleteAnalysisReport com análise válida");
+  
+  return (
+    <CompleteAnalysisReport
+      userProfile={userProfile}
+      analysis={analysisToShow} // ✅ PASSA A ANÁLISE NO FORMATO CORRETO!
+      photos={{
+        photoFrontal: null,
+        photoLateralEsquerdo: null,
+        photoLateralDireito: null,
+        photoCostas: null
+      }}
+      onBack={() => setCurrentTab("home")}
+      onRedoAnalysis={() => {
+        const updated = { ...userProfile, has_analysis: false };
+        setUserProfile(updated);
+        localStorage.setItem("userProfile", JSON.stringify(updated));
+        setCurrentTab("analysis");
+      }}
+    />
+  );
+})()}
 
         {currentTab === "training" && userProfile && (
           <TrainingPlan userProfile={userProfile} />

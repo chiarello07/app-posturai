@@ -574,43 +574,164 @@ export async function getLatestTrainingPrescription(userId: string) {
 /**
  * Criar workout do usuário
  */
-export async function createUserWorkout(userId: string, plan: TrainingPlan, phase: string = 'A') {
-  const { data, error } = await supabase
-    .from('user_workouts')
-    .insert({
-      user_id: userId,
-      plan: plan,
-      phase: phase
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error("❌ [SUPABASE] Erro ao criar workout:", error);
-    return { success: false, error };
+export async function createUserWorkout(userId: string, plan: any, phase: string = 'A') {
+  console.log("💾 [createUserWorkout] ===== INÍCIO =====");
+  console.log("💾 [createUserWorkout] userId:", userId);
+  console.log("💾 [createUserWorkout] phase:", phase);
+  console.log("💾 [createUserWorkout] plan (resumo):", {
+    name: plan?.name || plan?.programName,
+    phases: plan?.phases?.length || 0,
+    duration_weeks: plan?.duration_weeks
+  });
+  
+  // ✅ VALIDAR DADOS ANTES DE INSERIR
+  if (!userId || typeof userId !== 'string') {
+    console.error("❌ [createUserWorkout] userId inválido:", userId);
+    return { success: false, error: { message: "userId inválido" } };
   }
+  
+  if (!plan || typeof plan !== 'object') {
+    console.error("❌ [createUserWorkout] plan inválido:", plan);
+    return { success: false, error: { message: "plan inválido" } };
+  }
+  
+  // ✅ PREPARAR PAYLOAD
+  const payload = {
+    user_id: userId,
+    plan: plan,
+    phase: phase,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  
+  console.log("💾 [createUserWorkout] Payload.user_id:", payload.user_id);
+  console.log("💾 [createUserWorkout] Payload.phase:", payload.phase);
+  console.log("💾 [createUserWorkout] Payload.plan (primeiros 200 chars):", JSON.stringify(payload.plan).substring(0, 200) + "...");
+  
+  try {
+    // ✅ VERIFICAR SESSÃO ANTES DE SALVAR
+    const { data: { session } } = await supabase.auth.getSession();
+    console.log("💾 [createUserWorkout] Sessão ativa?", !!session);
+    console.log("💾 [createUserWorkout] Session user_id:", session?.user?.id);
 
-  return { success: true, data };
+    if (!session) {
+      console.error("❌ [createUserWorkout] SEM SESSÃO! Usuário não está autenticado!");
+      return { success: false, error: { message: "Usuário não autenticado" } };
+    }
+    
+    console.log("💾 [createUserWorkout] ===== TENTANDO UPSERT =====");
+    
+    // ✅ TENTAR UPSERT (atualiza se já existe, cria se não existe)
+    const { data, error } = await supabase
+      .from('user_workouts')
+      .upsert(payload, {
+        onConflict: 'user_id' // ⚠️ SÓ FUNCIONA SE TIVER UNIQUE(user_id)!
+      })
+      .select()
+      .single();
+    
+    if (error) {
+      console.error("❌ [createUserWorkout] Erro ao salvar:", error);
+      console.error("❌ [createUserWorkout] Erro.message:", error?.message);
+      console.error("❌ [createUserWorkout] Erro.code:", error?.code);
+      console.error("❌ [createUserWorkout] Erro.details:", error?.details);
+      console.error("❌ [createUserWorkout] Erro.hint:", error?.hint);
+      
+      // ✅ TRATAMENTO DE ERROS ESPECÍFICOS
+      if (error.code === '42P01') {
+        return { success: false, error: { message: "Tabela user_workouts não existe" } };
+      }
+      
+      if (error.code === '23505') {
+        console.warn("⚠️ [createUserWorkout] Duplicate key - tentando UPDATE direto...");
+        
+        // ✅ FALLBACK: Fazer UPDATE manualmente
+        const { data: updateData, error: updateError } = await supabase
+          .from('user_workouts')
+          .update({
+            plan: payload.plan,
+            phase: payload.phase,
+            updated_at: payload.updated_at
+          })
+          .eq('user_id', userId)
+          .select()
+          .single();
+        
+        if (updateError) {
+          console.error("❌ [createUserWorkout] Erro no UPDATE:", updateError);
+          return { success: false, error: updateError };
+        }
+        
+        console.log("✅ [createUserWorkout] Workout atualizado via UPDATE!");
+        return { success: true, data: updateData };
+      }
+      
+      return { success: false, error };
+    }
+    
+    console.log("✅ [createUserWorkout] Workout salvo com sucesso!");
+    console.log("✅ [createUserWorkout] data.id:", data?.id);
+    return { success: true, data };
+    
+  } catch (err: any) {
+    console.error("❌ [createUserWorkout] Exceção:", err);
+    console.error("❌ [createUserWorkout] Exceção.message:", err.message);
+    return { success: false, error: { message: err.message } };
+  }
 }
 
 /**
  * Obter workout atual do usuário
  */
 export async function getUserWorkout(userId: string) {
-  const { data, error } = await supabase
-    .from('user_workouts')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-
-  if (error) {
-    console.error("❌ [SUPABASE] Erro ao buscar workout:", error);
-    return { success: false, error };
+  console.log("🔍 [getUserWorkout] Buscando workout para userId:", userId);
+  
+  if (!userId) {
+    console.error("❌ [getUserWorkout] userId inválido");
+    return { success: false, error: { message: "userId inválido" } };
   }
+  
+  try {
+    const { data, error } = await supabase
+      .from('user_workouts')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
 
-  return { success: true, data };
+    if (error) {
+      console.error("❌ [getUserWorkout] Erro ao buscar:", error);
+      console.error("❌ [getUserWorkout] Erro detalhes:", {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
+      
+      // Se não encontrou (código PGRST116), não é erro fatal
+      if (error.code === 'PGRST116') {
+        console.log("⚠️ [getUserWorkout] Nenhum workout encontrado (normal para novos usuários)");
+        return { success: false, error: { message: "Nenhum workout encontrado", code: 'NOT_FOUND' } };
+      }
+      
+      return { success: false, error };
+    }
+
+    console.log("✅ [getUserWorkout] Workout encontrado!");
+    console.log("✅ [getUserWorkout] data (resumo):", {
+      id: data?.id,
+      phase: data?.phase,
+      has_plan: !!data?.plan,
+      plan_phases: data?.plan?.phases?.length || 0
+    });
+    
+    return { success: true, data };
+    
+  } catch (err: any) {
+    console.error("❌ [getUserWorkout] Exceção:", err);
+    return { success: false, error: { message: err.message } };
+  }
 }
 
 /**

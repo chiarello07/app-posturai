@@ -74,23 +74,28 @@ React.useEffect(() => {
   return () => window.removeEventListener('workoutCompleted', handleWorkoutCompleted);
 }, []);
   
-  // ✅ LER META DO PERFIL DO USUÁRIO
-  const getWeekGoalFromFrequency = (frequency: string): number => {
-    if (!frequency) return 4;
-    
-    const mapping: { [key: string]: number } = {
-      "1-2": 2,
-      "3-4": 4,
-      "5-6": 6,
-      "todos": 7,
-    };
-    
-    return mapping[frequency] || 4;
+/// ✅ LER META DO PERFIL DO USUÁRIO (VERSÃO CORRIGIDA)
+const getWeekGoalFromFrequency = (frequency: string): number => {
+  if (!frequency) return 3;
+  
+  // ✅ Se for número direto (ex: "6")
+  const num = parseInt(frequency);
+  if (!isNaN(num) && num > 0) return num;
+  
+  // ✅ Mapping antigo
+  const map: { [key: string]: number } = {
+    "1-2": 2,
+    "3-4": 4,
+    "5-6": 6,
+    "todos": 7,
   };
+  
+  return map[frequency] || 3;
+};
 
-  const weekGoal = getWeekGoalFromFrequency(userProfile?.exercise_frequency);
-  const weekProgress = weekHistory.filter(day => day).length;
-  const progressPercentage = (weekProgress / weekGoal) * 100;
+const weekGoal = getWeekGoalFromFrequency(userProfile?.exercise_frequency || userProfile?.trainingFrequency || "3");
+const weekProgress = weekHistory.filter(day => day).length;
+const progressPercentage = (weekProgress / weekGoal) * 100;
   
   const days = [
     { label: "D", full: "DOM", value: 0 },
@@ -158,31 +163,33 @@ const getNextWorkout = () => {
     return { letter: 'A', index: 0 };
   }
   
-  const today = new Date().toISOString().split('T')[0];
-  const todayWorkouts = userHistory.filter((s: any) => s.date === today);
-  
-  console.log('🔄 [ROTATION] Treinos hoje:', todayWorkouts.length);
-  
-  if (todayWorkouts.length > 0) {
-    console.log('🔄 [ROTATION] Já treinou hoje!');
-    return { letter: 'A', index: 0, alreadyTrainedToday: true };
-  }
-  
+  // ✅ PEGAR O ÚLTIMO TREINO (NÃO IMPORTA A DATA!)
   const lastWorkout = userHistory[userHistory.length - 1];
   const lastPhaseName = lastWorkout.phaseName || '';
   
   console.log('🔄 [ROTATION] Último treino:', lastPhaseName);
+  console.log('🔄 [ROTATION] Data do último treino:', lastWorkout.date);
   
+  // ✅ EXTRAIR LETRA DO ÚLTIMO TREINO
   const match = lastPhaseName.match(/Treino ([A-Z])/);
   if (match) {
     const lastLetter = match[1];
-    const lastIndex = lastLetter.charCodeAt(0) - 65;
+    const lastIndex = lastLetter.charCodeAt(0) - 65; // A=0, B=1, C=2
     const totalWorkouts = 3; // A, B, C
     const nextIndex = (lastIndex + 1) % totalWorkouts;
     const nextLetter = String.fromCharCode(65 + nextIndex);
     
     console.log('🔄 [ROTATION] Último:', lastLetter, '(index:', lastIndex, ')');
     console.log('🔄 [ROTATION] Próximo:', nextLetter, '(index:', nextIndex, ')');
+    
+    // ✅ VERIFICAR SE JÁ TREINOU HOJE (PARA MOSTRAR "CONCLUÍDO")
+    const today = new Date().toISOString().split('T')[0];
+    const todayWorkouts = userHistory.filter((s: any) => s.date === today);
+    
+    if (todayWorkouts.length > 0) {
+      console.log('🔄 [ROTATION] Já treinou hoje! Próximo será:', nextLetter);
+      return { letter: nextLetter, index: nextIndex, alreadyTrainedToday: true };
+    }
     
     return { letter: nextLetter, index: nextIndex };
   }

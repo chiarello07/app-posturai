@@ -181,35 +181,35 @@ export default function OnboardingFlow({ onComplete, onBack, initialStep = 1 }: 
   };
 
   const isStepValid = () => {
-    switch (step) {
-      case 1:
-        return formData.gender !== "" && formData.agreeToTerms;
-      case 2:
-        return formData.mainGoal !== "";
-      case 3:
-        return formData.motivation !== "";
-      case 4:
-        return formData.focusAreas.length > 0;
-      case 5:
-        return formData.experienceLevel !== "";
-      case 6:
-        return formData.activityLevel !== "";
-      case 7:
-        return formData.height !== "" && formData.age !== "" && formData.weight !== "";
-      case 8:
-        return formData.targetWeight !== "";
-      case 9:
-        return formData.healthProblems.length > 0;
-      case 10:
-        return formData.trainingFrequency !== "";
-      case 11:
-        return formData.trainingDays.length > 0 && parseInt(formData.trainingDays.length) <= parseInt(formData.trainingFrequency);
-      case 12:
-        return formData.name.trim() !== "";
-      default:
-        return false;
-    }
-  };
+  switch (step) {
+    case 1:
+      return formData.gender !== ""; // ✅ REMOVIDO && formData.agreeToTerms
+    case 2:
+      return formData.mainGoal !== "";
+    case 3:
+      return formData.motivation !== "";
+    case 4:
+      return formData.focusAreas.length > 0;
+    case 5:
+      return formData.experienceLevel !== "";
+    case 6:
+      return formData.activityLevel !== "";
+    case 7:
+      return formData.height !== "" && formData.age !== "" && formData.weight !== "";
+    case 8:
+      return formData.targetWeight !== "";
+    case 9:
+      return formData.healthProblems.length > 0;
+    case 10:
+      return formData.trainingFrequency !== "";
+    case 11:
+      return formData.trainingDays.length > 0 && parseInt(formData.trainingDays.length) <= parseInt(formData.trainingFrequency);
+    case 12:
+      return formData.name.trim() !== "" && formData.agreeToTerms; // ✅ TERMO VALIDADO AQUI!
+    default:
+      return false;
+  }
+};
 
   // ========== MODAL TCLE ==========
   if (showTermsModal) {
@@ -364,74 +364,57 @@ export default function OnboardingFlow({ onComplete, onBack, initialStep = 1 }: 
         {/* Card Principal */}
         <div className="bg-white rounded-3xl shadow-2xl p-8 border border-gray-200">
           
-          {/* STEP 1: Gênero + Termo */}
-          {step === 1 && (
-            <div className="space-y-6">
-              <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-gradient-to-br from-pink-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <User className="w-8 h-8 text-white" />
-                </div>
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                  Informações Pessoais
-                </h2>
-                <p className="text-gray-600">
-                  Vamos começar com alguns dados básicos
-                </p>
-              </div>
+          {/* STEP 1: Gênero */}
+{step === 1 && (
+  <div className="space-y-6">
+    <div className="text-center mb-8">
+      <div className="w-16 h-16 bg-gradient-to-br from-pink-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <User className="w-8 h-8 text-white" />
+      </div>
+      <h2 className="text-3xl font-bold text-gray-900 mb-2">
+        Informações Pessoais
+      </h2>
+      <p className="text-gray-600">
+        Vamos começar com alguns dados básicos
+      </p>
+    </div>
 
-              {/* Gênero */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-3">
-                  Gênero
-                </label>
-                <div className="space-y-2">
-                  {[
-                    { value: "male", label: "Homem" },
-                    { value: "female", label: "Mulher" },
-                    { value: "other", label: "Outro" },
-                  ].map((option) => (
-                    <label key={option.value} className="flex items-center gap-3 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-pink-500 transition">
-                      <input
-                        type="radio"
-                        name="gender"
-                        value={option.value}
-                        checked={formData.gender === option.value}
-                        onChange={(e) => handleInputChange("gender", e.target.value)}
-                      />
-                      <span className="font-semibold text-gray-700">
-                        {option.label}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Termo de Consentimento */}
-              <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
-                <p className="text-sm text-gray-700 mb-3">
-                  Para continuar, você precisa aceitar nosso Termo de Consentimento Livre e Esclarecido (TCLE).
-                </p>
-                <button
-                  onClick={() => setShowTermsModal(true)}
-                  className="w-full px-4 py-3 rounded-xl border-2 border-blue-500 text-blue-600 font-semibold hover:bg-blue-50 transition mb-3"
-                >
-                  📄 Ler Termo de Consentimento
-                </button>
-                
-                <label className="flex items-start gap-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.agreeToTerms}
-                    onChange={(e) => handleInputChange("agreeToTerms", e.target.checked)}
-                    className="mt-1"
-                  />
-                  <span className="text-xs text-gray-700">
-                    Eu li e concordo com o Termo de Consentimento Livre e Esclarecido
-                  </span>
-                </label>
-              </div>
-            </div>
-          )}
+    {/* Gênero */}
+    <div>
+      <label className="block text-sm font-semibold text-gray-700 mb-3">
+        Gênero
+      </label>
+      <div className="space-y-2">
+        {[
+          { value: "male", label: "Homem" },
+          { value: "female", label: "Mulher" },
+          { value: "other", label: "Outro" },
+        ].map((option) => (
+          <label 
+            key={option.value} 
+            className={`flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition ${
+              formData.gender === option.value
+                ? "border-pink-500 bg-pink-50"
+                : "border-gray-200 hover:border-pink-300"
+            }`}
+          >
+            <input
+              type="radio"
+              name="gender"
+              value={option.value}
+              checked={formData.gender === option.value}
+              onChange={(e) => handleInputChange("gender", e.target.value)}
+              className="w-5 h-5 text-pink-600"
+            />
+            <span className="font-semibold text-gray-700">
+              {option.label}
+            </span>
+          </label>
+        ))}
+      </div>
+    </div>
+  </div>
+)}
 
           {/* STEP 2: Objetivo */}
           {step === 2 && (
@@ -914,69 +897,109 @@ export default function OnboardingFlow({ onComplete, onBack, initialStep = 1 }: 
 )}
 
           {/* STEP 12: Nome */}
-          {step === 12 && (
-            <div className="space-y-6">
-              <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-gradient-to-br from-pink-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <User className="w-8 h-8 text-white" />
-                </div>
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                  Seu Nome
-                </h2>
-                <p className="text-gray-600">
-                  Como você gostaria de ser chamado?
-                </p>
-              </div>
+{step === 12 && (
+  <div className="space-y-6">
+    <div className="text-center mb-8">
+      <div className="w-16 h-16 bg-gradient-to-br from-pink-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <User className="w-8 h-8 text-white" />
+      </div>
+      <h2 className="text-3xl font-bold text-gray-900 mb-2">
+        Seu Nome
+      </h2>
+      <p className="text-gray-600">
+        Como você gostaria de ser chamado?
+      </p>
+    </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Nome
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange("name", e.target.value)}
-                  placeholder="João"
-                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-pink-500 focus:outline-none transition-colors"
-                />
-              </div>
+    <div>
+      <label className="block text-sm font-semibold text-gray-700 mb-2">
+        Nome
+      </label>
+      <input
+        type="text"
+        value={formData.name}
+        onChange={(e) => handleInputChange("name", e.target.value)}
+        placeholder="João"
+        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-pink-500 focus:outline-none transition-colors"
+      />
+    </div>
 
-              {/* RESUMO */}
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border-2 border-blue-200">
-                <p className="text-sm font-semibold text-gray-900 mb-3">
-                  📋 Resumo do Seu Perfil:
-                </p>
-                <ul className="text-xs text-gray-700 space-y-1">
-                  <li>
-                    <span className="font-semibold">Objetivo:</span> { 
-  formData.mainGoal === "muscle" ? "Ganhar Massa Muscular" :
-  formData.mainGoal === "fat_loss" ? "Perder Gordura" :
-  formData.mainGoal === "health" ? "Saúde Geral" :
-  formData.mainGoal === "strength" ? "Aumentar Força" :
-  formData.mainGoal
-}
-                  </li>
-                  <li>
-                    <span className="font-semibold">Nível:</span> {
-  formData.experienceLevel === "iniciante" ? "Iniciante" :
-  formData.experienceLevel === "intermediario" ? "Intermediário" :
-  formData.experienceLevel === "avancado" ? "Avançado" :
-  formData.experienceLevel
-}
-                  </li>
-                  <li>
-                    <span className="font-semibold">Frequência:</span> {formData.trainingFrequency}x/semana
-                  </li>
-                  <li>
-                    <span className="font-semibold">Dias:</span> {formData.trainingDays.join(", ") || "Nenhum"}
-                  </li>
-                  <li>
-                    <span className="font-semibold">Peso:</span> {formData.weight} kg → {formData.targetWeight} kg
-                  </li>
-                </ul>
-              </div>
-            </div>
-          )}
+    {/* RESUMO */}
+    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border-2 border-blue-200">
+      <p className="text-sm font-semibold text-gray-900 mb-3">
+        📋 Resumo do Seu Perfil:
+      </p>
+      <ul className="text-xs text-gray-700 space-y-1">
+        <li>
+          <span className="font-semibold">Objetivo:</span> { 
+            formData.mainGoal === "muscle" ? "Ganhar Massa Muscular" :
+            formData.mainGoal === "fat_loss" ? "Perder Gordura" :
+            formData.mainGoal === "health" ? "Saúde Geral" :
+            formData.mainGoal === "strength" ? "Aumentar Força" :
+            formData.mainGoal
+        }
+        </li>
+        <li>
+          <span className="font-semibold">Nível:</span> {
+            formData.experienceLevel === "iniciante" ? "Iniciante" :
+            formData.experienceLevel === "intermediario" ? "Intermediário" :
+            formData.experienceLevel === "avancado" ? "Avançado" :
+            formData.experienceLevel
+        }
+        </li>
+        <li>
+          <span className="font-semibold">Frequência:</span> {formData.trainingFrequency}x/semana
+        </li>
+        <li>
+          <span className="font-semibold">Dias:</span> {formData.trainingDays.join(", ") || "Nenhum"}
+        </li>
+        <li>
+          <span className="font-semibold">Peso:</span> {formData.weight} kg → {formData.targetWeight} kg
+        </li>
+      </ul>
+    </div>
+    
+    {/* ✅ TERMO DE CONSENTIMENTO (FICA AQUI NO STEP 12!) */}
+    <div className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-300 rounded-xl p-4">
+      <h3 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
+        <Shield className="w-5 h-5 text-amber-600" />
+        Termo de Consentimento
+      </h3>
+      <p className="text-xs text-gray-700 mb-3">
+        Para finalizar, você precisa aceitar nosso Termo de Consentimento Livre e Esclarecido (TCLE).
+      </p>
+      
+      <button
+        type="button"
+        onClick={() => setShowTermsModal(true)}
+        className="w-full px-4 py-3 rounded-xl bg-white border-2 border-amber-400 text-amber-700 font-semibold hover:bg-amber-50 transition mb-3"
+      >
+        📄 Ler Termo de Consentimento
+      </button>
+      
+      <label className="flex items-start gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={formData.agreeToTerms}
+          onChange={(e) => handleInputChange("agreeToTerms", e.target.checked)}
+          className="mt-1 w-5 h-5 text-amber-600 rounded"
+        />
+        <span className="text-xs text-gray-700">
+          Eu li e concordo com o Termo de Consentimento Livre e Esclarecido
+        </span>
+      </label>
+      
+      {formData.agreeToTerms && (
+        <div className="mt-2 bg-green-50 border border-green-200 rounded-lg p-2">
+          <p className="text-xs text-green-700 font-semibold flex items-center gap-1">
+            <CheckCircle2 className="w-4 h-4" />
+            Termo aceito em {new Date(formData.termsAcceptedAt || Date.now()).toLocaleString('pt-BR')}
+          </p>
+        </div>
+      )}
+    </div>
+  </div>
+)}
 
           {/* BOTÕES DE NAVEGAÇÃO */}
           <div className="flex gap-3 mt-8">

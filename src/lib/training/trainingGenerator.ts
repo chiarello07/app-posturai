@@ -10,6 +10,7 @@ import {
   Equipment,
   PainArea
 } from './exerciseDatabase';
+import { PosturalAnalysisResult, calculatePosturalScore, requiresMedicalClearance } from '@/types/posturalAnalysis';
 
 interface UserProfile {
   name: string;
@@ -32,7 +33,11 @@ interface UserProfile {
 // GERADOR INTELIGENTE DE TREINO PERSONALIZADO
 // ============================================================================
 
-export function generatePersonalizedTrainingPlan(profile: UserProfile, analysis?: any): TrainingPlan {
+export function generatePersonalizedTrainingPlan(
+  profile: UserProfile, 
+  posturalAnalysis?: PosturalAnalysisResult // ✅ OPCIONAL (?)
+): TrainingPlan {
+  
   console.log("🏋️ [TRAINING GENERATOR] ===== INICIANDO GERAÇÃO INTELIGENTE =====");
   console.log("👤 [PERFIL]:", profile.name);
   console.log("🎯 [OBJETIVOS]:", profile.main_goals);
@@ -42,8 +47,23 @@ export function generatePersonalizedTrainingPlan(profile: UserProfile, analysis?
   console.log("🏠 [AMBIENTE]:", profile.training_environment);
   console.log("⚠️ [DORES]:", profile.pain_areas);
   
-  // 1. ANÁLISE CONTEXTUAL
-  const context = analyzeUserContext(profile, analysis);
+  // ✅ VERIFICAÇÃO: Se tem análise postural, usar. Se não, avisar mas continuar.
+  if (!posturalAnalysis) {
+    console.warn("⚠️ [AVISO] Análise postural não fornecida! Treino será genérico (não personalizado).");
+  } else {
+    console.log("📸 [ANÁLISE POSTURAL] Score:", posturalAnalysis.riskAssessment.overallPosturalScore);
+    console.log("⚠️ [DESVIOS]:", posturalAnalysis.deviations);
+    console.log("🎯 [RECOMENDAÇÕES]:", posturalAnalysis.trainingRecommendations);
+    
+    // ✅ VERIFICAÇÃO DE SEGURANÇA: Liberação médica necessária?
+    if (requiresMedicalClearance(posturalAnalysis)) {
+      console.warn("⚠️ [ALERTA] Usuário requer liberação médica!");
+      // Aqui você pode lançar um erro ou retornar um plano especial
+    }
+  }
+  
+  // 1. ANÁLISE CONTEXTUAL (AGORA COM DADOS POSTURAIS!)
+  const context = analyzeUserContext(profile, posturalAnalysis);
   console.log("🧠 [CONTEXTO ANALISADO]:", context);
   
   // 2. DETERMINAR ESTRUTURA DO TREINO (baseado em CIÊNCIA + CONTEXTO)
@@ -114,6 +134,7 @@ interface UserContext {
   
   // Análise postural (se disponível)
   posturalIssues?: string[];
+  posturalAnalysis?: PosturalAnalysisResult; // ✅ OPCIONAL
   
   // Fatores de progressão
   progressionType: 'linear' | 'ondulatory' | 'wave';
@@ -122,16 +143,34 @@ interface UserContext {
   volumeTolerance: 'low' | 'moderate' | 'high';
 }
 
-function analyzeUserContext(profile: UserProfile, analysis?: any): UserContext {
+function analyzeUserContext(
+  profile: UserProfile, 
+  posturalAnalysis?: PosturalAnalysisResult // ✅ OPCIONAL
+): UserContext {
+  
   // Calcular idade
   const birthDate = new Date(profile.birth_date);
   const age = new Date().getFullYear() - birthDate.getFullYear();
   
   // Mapear objetivos para necessidades
   const goals = profile.main_goals || [];
-  const needsPosturalWork = goals.some(g => 
+  
+  // ✅ EXTRAIR INFORMAÇÕES DA ANÁLISE POSTURAL (SE DISPONÍVEL)
+  let posturalIssues: string[] = [];
+  let intensityModifier = 1.0;
+  let volumeModifier = 1.0;
+  
+  if (posturalAnalysis) {
+    posturalIssues = extractPosturalIssues(posturalAnalysis);
+    intensityModifier = posturalAnalysis.trainingRecommendations?.intensityModifier || 1.0;
+    volumeModifier = posturalAnalysis.trainingRecommendations?.volumeModifier || 1.0;
+  }
+  
+  // Ajustar needsPosturalWork baseado em análise OU objetivos
+  const needsPosturalWork = posturalIssues.length > 0 || goals.some(g => 
     ['postura', 'dor', 'prevencao', 'reabilitacao'].includes(g)
   );
+  
   const needsMobility = goals.some(g => 
     ['flexibilidade', 'postura', 'prevencao', 'bem-estar'].includes(g)
   );
@@ -187,7 +226,8 @@ function analyzeUserContext(profile: UserProfile, analysis?: any): UserContext {
     painAreas: mapPainAreas(profile.pain_areas || []),
     hasInjuries: profile.injuries === 'Sim',
     hasMedicalConditions: profile.heart_problems === 'Sim',
-    posturalIssues: analysis?.issues || [],
+    posturalIssues, // ✅ AGORA SEMPRE DEFINIDO (array vazio se não houver análise)
+    posturalAnalysis, // ✅ PODE SER UNDEFINED
     progressionType,
     progressionWeeks,
     progressionMethod,
@@ -479,6 +519,23 @@ function prescribeWorkoutPhases(context: UserContext, structure: TrainingStructu
   return phases;
 }
 
+// ✅ NOVA FUNÇÃO: Extrair issues em formato legível
+function extractPosturalIssues(analysis: PosturalAnalysisResult): string[] {
+  const issues: string[] = [];
+  const { deviations } = analysis;
+  
+  if (deviations.forwardHead !== 'none') issues.push('Anteriorização da cabeça');
+  if (deviations.thoracicKyphosis === 'hyperkyphosis') issues.push('Hipercifose torácica');
+  if (deviations.lumbarLordosis === 'hyperlordosis') issues.push('Hiperlordose lombar');
+  if (deviations.scoliosis.present) issues.push(`Escoliose ${deviations.scoliosis.severity}`);
+  if (deviations.shoulderProtraction !== 'none') issues.push('Ombros protraídos');
+  if (deviations.anteriorPelvicTilt !== 'none') issues.push('Anteversão pélvica');
+  if (analysis.muscularImbalances.upperCrossedSyndrome) issues.push('Síndrome cruzada superior');
+  if (analysis.muscularImbalances.lowerCrossedSyndrome) issues.push('Síndrome cruzada inferior');
+  
+  return issues;
+}
+
 // ============================================================================
 // SELEÇÃO INTELIGENTE DE EXERCÍCIOS
 // ============================================================================
@@ -511,7 +568,17 @@ function selectExercisesByCategory(
   if (focusedCandidates.length >= targetCount) {
     candidates = focusedCandidates;
   }
-    // Filtrar por equipamento disponível
+
+  // ✅ FILTRAR EXERCÍCIOS CONTRAINDICADOS PELA ANÁLISE POSTURAL
+  if (context.posturalAnalysis?.trainingRecommendations?.avoidExercises) {
+    const avoidIds = context.posturalAnalysis.trainingRecommendations.avoidExercises;
+    if (avoidIds.length > 0) {
+      candidates = candidates.filter(ex => !avoidIds.includes(ex.id));
+      console.log(`🚫 [FILTRO POSTURAL] Removidos ${avoidIds.length} exercícios contraindicados`);
+    }
+  }
+  
+  // Filtrar por equipamento disponível
   candidates = filterByAvailableEquipment(candidates, context.availableEquipment);
   
   console.log(`📊 [SELECT] Candidatos após filtros: ${candidates.length}`);
@@ -540,13 +607,33 @@ function selectExercisesByCategory(
     );
   }
   
-  // Selecionar exercícios (priorizar variedade)
+  // ✅ DECLARAR `selected` ANTES DE USAR!
   const selected: DBExercise[] = [];
   const usedMuscleGroups = new Set<string>();
+  
+  // ✅ PRIORIZAR EXERCÍCIOS CORRETIVOS (AGORA NO LUGAR CERTO!)
+  if (context.posturalAnalysis?.trainingRecommendations?.prioritizeExercises) {
+    const priorityIds = context.posturalAnalysis.trainingRecommendations.prioritizeExercises;
+    const correctiveExercises = candidates.filter(ex => priorityIds.includes(ex.id));
+    
+    if (correctiveExercises.length > 0) {
+      console.log(`✅ [PRIORIDADE POSTURAL] ${correctiveExercises.length} exercícios corretivos encontrados`);
+      // Garantir que pelo menos 30% dos exercícios sejam corretivos
+      const correctiveCount = Math.ceil(targetCount * 0.3);
+      selected.push(...correctiveExercises.slice(0, correctiveCount));
+      // Marcar grupos musculares usados
+      correctiveExercises.slice(0, correctiveCount).forEach(ex => {
+        ex.muscleGroups.forEach(mg => usedMuscleGroups.add(mg));
+      });
+    }
+  }
   
   // Primeira passada: variedade de grupos musculares
   for (const ex of candidates) {
     if (selected.length >= targetCount) break;
+    
+    // Não adicionar duplicados
+    if (selected.includes(ex)) continue;
     
     const hasNewMuscleGroup = ex.muscleGroups.some(mg => !usedMuscleGroups.has(mg));
     if (hasNewMuscleGroup || selected.length === 0) {

@@ -1,23 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ArrowLeft, Camera, Activity, AlertCircle, CheckCircle, TrendingUp, FileText, User, AlertTriangle } from "lucide-react";
-import { saveAnalysis, getLatestAnalysis } from "@/lib/supabase";
+import { ArrowLeft, Camera, Activity, AlertCircle, TrendingUp, FileText, User, AlertTriangle, CheckCircle2, Target, Zap } from "lucide-react";
+import { getLatestAnalysis } from "@/lib/supabase";
+import { getCorrectiveExercises } from "@/lib/ai/deviationDetector";
+import { POSTURAL_REFERENCES, getScientificContext } from '@/lib/ai/scientificData';
 
 interface CompleteAnalysisReportProps {
   userProfile: any;
-  photos: {
-    photoFrontal: File | null;
-    photoLateralEsquerdo: File | null;
-    photoLateralDireito: File | null;
-    photoCostas: File | null;
-  };
+  analysis?: any;
+  photos: any;
   onBack: () => void;
   onRedoAnalysis: () => void;
 }
 
 export default function CompleteAnalysisReport({ 
   userProfile, 
+  analysis: propAnalysis,
   photos, 
   onBack, 
   onRedoAnalysis 
@@ -33,163 +32,75 @@ export default function CompleteAnalysisReport({
     setIsLoading(true);
     
     try {
+      // PRIORIDADE 1: Prop
+      if (propAnalysis) {
+        console.log("✅ [REPORT] Usando análise da prop");
+        setAnalysis(propAnalysis);
+        setIsLoading(false);
+        return;
+      }
+      
+      // PRIORIDADE 2: Supabase
       if (userProfile.id) {
         const result = await getLatestAnalysis(userProfile.id);
-        
-        if (result.success && result.data) {
+        if (result.data?.analysis_data) {
+          console.log("✅ [REPORT] Carregado do Supabase");
           setAnalysis(result.data.analysis_data);
-          localStorage.setItem('completeAnalysis', JSON.stringify(result.data.analysis_data));
           setIsLoading(false);
           return;
         }
       }
       
-      const savedAnalysis = localStorage.getItem('completeAnalysis');
-      if (savedAnalysis) {
-        setAnalysis(JSON.parse(savedAnalysis));
+      // PRIORIDADE 3: localStorage
+      const saved = localStorage.getItem('completeAnalysis');
+      if (saved) {
+        console.log("✅ [REPORT] Carregado do localStorage");
+        setAnalysis(JSON.parse(saved));
         setIsLoading(false);
         return;
       }
       
-      await generateNewAnalysis();
+      throw new Error("Nenhuma análise encontrada");
       
     } catch (error) {
-      const newAnalysis = generateCompleteAnalysis();
-      setAnalysis(newAnalysis);
-      localStorage.setItem('completeAnalysis', JSON.stringify(newAnalysis));
-    } finally {
+      console.error("❌ [REPORT] Erro:", error);
       setIsLoading(false);
     }
   };
 
-  const generateNewAnalysis = async () => {
-    try {
-      const newAnalysis = generateCompleteAnalysis();
-      
-      if (userProfile.id) {
-        await saveAnalysis(userProfile.id, newAnalysis);
-      }
-      
-      localStorage.setItem('completeAnalysis', JSON.stringify(newAnalysis));
-      setAnalysis(newAnalysis);
-    } catch (error) {
-      const newAnalysis = generateCompleteAnalysis();
-      setAnalysis(newAnalysis);
-      localStorage.setItem('completeAnalysis', JSON.stringify(newAnalysis));
-    }
+  // ✅ CALCULAR SCORE DE POSTURA (0-100)
+  const calculatePostureScore = () => {
+    if (!analysis?.aiAnalysis) return 75; // Fallback
+    
+    const { confidence, deviations } = analysis.aiAnalysis;
+    
+    // Score base = confiança da IA
+    let score = confidence || 75;
+    
+    // Penalizar por desvios
+    deviations?.forEach((d: any) => {
+      if (d.severity === 'grave') score -= 15;
+      else if (d.severity === 'moderada') score -= 10;
+      else score -= 5;
+    });
+    
+    return Math.max(0, Math.min(100, score));
   };
 
-  const generateCompleteAnalysis = () => {
-    const analysis = {
-      posturalAnalysis: {
-        frontal: {
-          title: "Vista Frontal",
-          findings: [
-            userProfile.painAreas?.includes("Ombros") && "Desalinhamento de ombros detectado - ombro direito mais elevado",
-            userProfile.painAreas?.includes("Pescoço") && "Inclinação cervical lateral à direita",
-            userProfile.workPosition === "Sentado" && "Protrusão da cabeça para frente (postura de escritório)",
-            "Leve rotação pélvica anterior",
-          ].filter(Boolean),
-          severity: userProfile.painAreas?.length > 2 ? "Moderada" : "Leve",
-          explanation: "A vista frontal nos mostra como seu corpo está alinhado quando você está de frente. Desalinhamentos aqui podem causar dores e desconfortos no dia a dia, especialmente se você passa muito tempo em uma mesma posição."
-        },
-        lateral: {
-          title: "Vista Lateral",
-          findings: [
-            userProfile.painAreas?.includes("Lombar") && "Hiperlordose lombar identificada",
-            userProfile.painAreas?.includes("Costas") && "Cifose torácica aumentada",
-            userProfile.workPosition === "Sentado" && "Anteriorização da cabeça (forward head posture)",
-            "Joelhos em leve hiperextensão",
-          ].filter(Boolean),
-          severity: userProfile.painAreas?.includes("Lombar") ? "Moderada" : "Leve",
-          explanation: "A vista lateral revela a curvatura natural da sua coluna. Quando essas curvas estão exageradas ou diminuídas, podem surgir dores nas costas, pescoço e até dores de cabeça. É como se sua coluna estivesse trabalhando mais do que deveria."
-        },
-        posterior: {
-          title: "Vista Posterior",
-          findings: [
-            userProfile.painAreas?.includes("Costas") && "Assimetria na altura das escápulas",
-            userProfile.painAreas?.includes("Lombar") && "Tensão muscular na região lombar",
-            "Leve escoliose funcional (não estrutural)",
-            userProfile.workPosition === "Em pé" && "Sobrecarga na musculatura paravertebral",
-          ].filter(Boolean),
-          severity: "Leve a Moderada",
-          explanation: "A vista de costas mostra se seus ombros e quadris estão nivelados. Desníveis podem indicar que um lado do corpo está trabalhando mais que o outro, causando tensões musculares e desconforto."
-        },
-      },
-
-      anamnesisCorrelation: {
-        lifestyle: [
-          userProfile.workPosition === "Sentado" && `Trabalha ${userProfile.workHours}h/dia sentado - principal fator de risco postural`,
-          userProfile.sleepHours === "Menos de 4h" && "Sono insuficiente prejudica recuperação muscular",
-          userProfile.smoker === "Sim" && "Tabagismo pode afetar circulação e oxigenação muscular",
-          userProfile.drinks === "Sim" && userProfile.drinkFrequency && "Consumo de álcool pode impactar inflamação muscular",
-        ].filter(Boolean),
-        physicalCondition: [
-          `IMC: ${calculateIMC(userProfile.weight, userProfile.height)} - ${getIMCCategory(calculateIMC(userProfile.weight, userProfile.height))}`,
-          userProfile.exerciseFrequency === "never" && "Sedentarismo contribui para fraqueza muscular",
-          userProfile.experienceLevel === "beginner" && "Nível iniciante - necessário progressão gradual",
-        ].filter(Boolean),
-        painHistory: userProfile.painAreas?.map((area: string) => 
-          `Dor em ${area} - correlacionada com desvios posturais identificados`
-        ) || [],
-      },
-
-      diagnosis: {
-        primary: getPrimaryDiagnosis(userProfile),
-        secondary: getSecondaryDiagnosis(userProfile),
-        riskFactors: getRiskFactors(userProfile),
-        whatThisMeans: "Esses diagnósticos indicam padrões posturais que podem estar causando suas dores e desconfortos. A boa notícia é que, com exercícios específicos e mudanças de hábitos, é possível melhorar significativamente sua postura e qualidade de vida."
-      },
-
-      recommendations: {
-        immediate: [
-          "Iniciar programa de fortalecimento do core (3x por semana)",
-          "Exercícios de mobilidade cervical diariamente",
-          userProfile.workPosition === "Sentado" && "Pausas ativas a cada 50 minutos de trabalho sentado",
-          "Alongamento da cadeia posterior (isquiotibiais, panturrilha)",
-        ].filter(Boolean),
-        shortTerm: [
-          "Fortalecer musculatura estabilizadora da escápula",
-          "Corrigir padrões de movimento compensatórios",
-          "Melhorar consciência corporal através de exercícios proprioceptivos",
-          userProfile.painAreas?.includes("Lombar") && "Fortalecimento específico de glúteos e abdômen",
-        ].filter(Boolean),
-        longTerm: [
-          "Manter rotina de exercícios 3-4x por semana",
-          "Avaliação postural trimestral para acompanhamento",
-          "Integrar práticas de mindfulness para redução de tensão muscular",
-          userProfile.mainGoals?.includes("Melhorar postura corporal") && "Progressão para exercícios funcionais complexos",
-        ].filter(Boolean),
-        whatThisMeans: "Essas recomendações são como um mapa para melhorar sua postura. As ações imediatas trazem alívio rápido, enquanto as de longo prazo garantem que você mantenha uma postura saudável para sempre."
-      },
-
-      exercisePlan: generateExercisePlan(userProfile),
-
-      prognosis: {
-        timeline: userProfile.dedicationHours >= "1" ? "3-6 meses" : "6-9 meses",
-        expectedResults: [
-          "Redução significativa de dores em 4-6 semanas",
-          "Melhora visível da postura em 8-12 semanas",
-          "Fortalecimento muscular progressivo",
-          "Aumento de mobilidade articular",
-        ],
-        successFactors: [
-          `Dedicação de ${userProfile.dedicationHours}h diárias aos exercícios`,
-          "Consistência na execução do plano",
-          "Correção de hábitos posturais no dia a dia",
-        ],
-        whatThisMeans: "Com dedicação e consistência, você verá melhorias reais em poucas semanas. O tempo estimado é baseado no seu perfil e disponibilidade. Lembre-se: pequenas mudanças diárias geram grandes resultados!"
-      },
-    };
-
-    return analysis;
+  // ✅ CALCULAR IMC
+  const calculateIMC = () => {
+    const w = parseFloat(userProfile.weight);
+    const h = parseFloat(userProfile.height) / 100;
+    if (!w || !h) return null;
+    return (w / (h * h)).toFixed(1);
   };
 
-  useEffect(() => {
-    if (analysis && typeof window !== 'undefined') {
-      localStorage.setItem('exercisePlan', JSON.stringify(analysis.exercisePlan));
-    }
-  }, [analysis]);
+  const getIMCCategory = (imc: number) => {
+    if (imc < 18.5) return { label: "Abaixo do peso", color: "text-blue-600" };
+    if (imc < 25) return { label: "Peso normal", color: "text-green-600" };
+    if (imc < 30) return { label: "Sobrepeso", color: "text-yellow-600" };
+    return { label: "Obesidade", color: "text-red-600" };
+  };
 
   if (isLoading) {
     return (
@@ -204,19 +115,33 @@ export default function CompleteAnalysisReport({
 
   if (!analysis) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-100 via-gray-100 to-slate-200 flex items-center justify-center">
-        <div className="text-center">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <p className="text-gray-600">Erro ao carregar análise</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-100 via-gray-100 to-slate-200 flex items-center justify-center px-4">
+        <div className="text-center max-w-md">
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Análise não encontrada</h2>
+          <p className="text-gray-600 mb-6">Não foi possível carregar sua análise postural.</p>
+          <button
+            onClick={onBack}
+            className="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-bold hover:shadow-lg transition"
+          >
+            Voltar
+          </button>
         </div>
       </div>
     );
   }
 
+  const postureScore = calculatePostureScore();
+  const imc = calculateIMC();
+  const imcCategory = imc ? getIMCCategory(parseFloat(imc)) : null;
+  const deviations = analysis?.aiAnalysis?.deviations || [];
+  const confidence = analysis?.aiAnalysis?.confidence || 0;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-gray-100 to-slate-200 px-4 py-8 pb-32">
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header com Botão Voltar */}
+        
+        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <button
             onClick={onBack}
@@ -227,474 +152,359 @@ export default function CompleteAnalysisReport({
           </button>
         </div>
 
-        {/* Título Principal */}
+        {/* Título */}
         <div className="text-center mb-8">
           <div className="w-20 h-20 bg-gradient-to-br from-pink-500 to-purple-600 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-lg">
             <FileText className="w-10 h-10 text-white" />
           </div>
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Análise Completa
+            Relatório de Avaliação Postural
           </h1>
           <p className="text-gray-600 text-lg">
-            Relatório Detalhado de Correção Postural
+            Análise por Inteligência Artificial
           </p>
-          <p className="text-sm text-gray-500 mt-2">
-            Paciente: {userProfile.name}
-          </p>
-        </div>
-
-        {/* Explicação Geral */}
-        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200 rounded-2xl p-6 shadow-lg">
-          <h2 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
-            <FileText className="w-6 h-6 text-blue-600" />
-            O que significa esta análise?
-          </h2>
-          <p className="text-gray-700 text-sm leading-relaxed">
-            Esta análise foi feita por inteligência artificial especializada em correção postural. Ela avaliou suas fotos e as informações que você forneceu para identificar padrões posturais que podem estar causando desconfortos. As informações aqui são um guia para você entender melhor seu corpo e como melhorá-lo através de exercícios específicos.
-          </p>
-        </div>
-
-        {/* Seção 1: Análise Postural por Ângulo */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-6 shadow-lg">
-          <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Camera className="w-6 h-6 text-pink-500" />
-            Análise Postural Detalhada
-          </h2>
-
-          {/* Vista Frontal */}
-          <div className="space-y-3">
-            <h3 className="text-lg font-semibold text-pink-600">
-              {analysis.posturalAnalysis.frontal.title}
-            </h3>
-            <p className="text-sm text-gray-600 italic mb-3">
-              {analysis.posturalAnalysis.frontal.explanation}
-            </p>
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
-              {analysis.posturalAnalysis.frontal.findings.map((finding: string, index: number) => (
-                <div key={index} className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-gray-700 text-sm">{finding}</p>
-                </div>
-              ))}
-              <div className="mt-3 pt-3 border-t border-gray-300">
-                <span className="text-xs text-gray-600">Severidade: </span>
-                <span className={`text-xs font-semibold ${
-                  analysis.posturalAnalysis.frontal.severity === "Moderada" 
-                    ? "text-yellow-600" 
-                    : "text-green-600"
-                }`}>
-                  {analysis.posturalAnalysis.frontal.severity}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Vista Lateral */}
-          <div className="space-y-3">
-            <h3 className="text-lg font-semibold text-pink-600">
-              {analysis.posturalAnalysis.lateral.title}
-            </h3>
-            <p className="text-sm text-gray-600 italic mb-3">
-              {analysis.posturalAnalysis.lateral.explanation}
-            </p>
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
-              {analysis.posturalAnalysis.lateral.findings.map((finding: string, index: number) => (
-                <div key={index} className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-gray-700 text-sm">{finding}</p>
-                </div>
-              ))}
-              <div className="mt-3 pt-3 border-t border-gray-300">
-                <span className="text-xs text-gray-600">Severidade: </span>
-                <span className={`text-xs font-semibold ${
-                  analysis.posturalAnalysis.lateral.severity === "Moderada" 
-                    ? "text-yellow-600" 
-                    : "text-green-600"
-                }`}>
-                  {analysis.posturalAnalysis.lateral.severity}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Vista Posterior */}
-          <div className="space-y-3">
-            <h3 className="text-lg font-semibold text-pink-600">
-              {analysis.posturalAnalysis.posterior.title}
-            </h3>
-            <p className="text-sm text-gray-600 italic mb-3">
-              {analysis.posturalAnalysis.posterior.explanation}
-            </p>
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
-              {analysis.posturalAnalysis.posterior.findings.map((finding: string, index: number) => (
-                <div key={index} className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-gray-700 text-sm">{finding}</p>
-                </div>
-              ))}
-              <div className="mt-3 pt-3 border-t border-gray-300">
-                <span className="text-xs text-gray-600">Severidade: </span>
-                <span className="text-xs font-semibold text-yellow-600">
-                  {analysis.posturalAnalysis.posterior.severity}
-                </span>
-              </div>
-            </div>
+          <div className="flex items-center justify-center gap-4 mt-4 text-sm text-gray-500">
+            <span>Paciente: <strong>{userProfile.name}</strong></span>
+            <span>•</span>
+            <span>Data: <strong>{new Date().toLocaleDateString('pt-BR')}</strong></span>
           </div>
         </div>
 
-        {/* Seção 2: Correlação com Anamnese */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4 shadow-lg">
-          <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+        {/* 📊 SCORE DE POSTURA */}
+        <div className="bg-gradient-to-br from-purple-600 via-purple-500 to-pink-500 rounded-3xl p-8 shadow-2xl text-white">
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold mb-2">Score de Postura</h2>
+            <p className="text-white/80 text-sm">Baseado em análise por IA com {confidence}% de confiança</p>
+          </div>
+          
+          {/* Gauge Visual */}
+          <div className="relative w-48 h-48 mx-auto mb-6">
+            <svg className="transform -rotate-90" width="192" height="192">
+              {/* Background circle */}
+              <circle
+                cx="96"
+                cy="96"
+                r="80"
+                stroke="rgba(255,255,255,0.2)"
+                strokeWidth="16"
+                fill="none"
+              />
+              {/* Progress circle */}
+              <circle
+                cx="96"
+                cy="96"
+                r="80"
+                stroke="white"
+                strokeWidth="16"
+                fill="none"
+                strokeDasharray={`${(postureScore / 100) * 502.4} 502.4`}
+                strokeLinecap="round"
+                className="transition-all duration-1000"
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-6xl font-bold">{postureScore}</span>
+              <span className="text-sm opacity-80">de 100</span>
+            </div>
+          </div>
+
+          {/* Interpretação */}
+          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 text-center">
+            <p className="font-semibold text-lg mb-1">
+              {postureScore >= 80 && "Excelente Postura! 🎉"}
+              {postureScore >= 60 && postureScore < 80 && "Boa Postura 👍"}
+              {postureScore >= 40 && postureScore < 60 && "Postura Regular ⚠️"}
+              {postureScore < 40 && "Postura Necessita Atenção 🚨"}
+            </p>
+            <p className="text-sm text-white/80">
+              {postureScore >= 80 && "Continue com os cuidados posturais!"}
+              {postureScore >= 60 && postureScore < 80 && "Alguns ajustes podem trazer grandes melhorias"}
+              {postureScore >= 40 && postureScore < 60 && "Exercícios corretivos são recomendados"}
+              {postureScore < 40 && "Recomenda-se avaliação com fisioterapeuta"}
+            </p>
+          </div>
+        </div>
+
+        {/* 📐 DADOS ANTROPOMÉTRICOS */}
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-lg">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
             <User className="w-6 h-6 text-pink-500" />
-            Correlação com Dados da Anamnese
+            Dados Antropométricos
           </h2>
 
-          <p className="text-sm text-gray-600 italic">
-            Aqui conectamos os achados posturais com seu estilo de vida e histórico de saúde. Isso nos ajuda a entender as causas dos problemas posturais.
-          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* Altura */}
+            <div className="bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200 rounded-xl p-4 text-center">
+              <p className="text-sm text-gray-600 mb-1">Altura</p>
+              <p className="text-2xl font-bold text-gray-900">{userProfile.height}</p>
+              <p className="text-xs text-gray-500">cm</p>
+            </div>
 
-          <div className="space-y-4">
-            {/* Estilo de Vida */}
-            {analysis.anamnesisCorrelation.lifestyle.length > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold text-pink-600 mb-2">Estilo de Vida</h3>
-                <div className="space-y-2">
-                  {analysis.anamnesisCorrelation.lifestyle.map((item: string, index: number) => (
-                    <div key={index} className="flex items-start gap-2 text-gray-700 text-sm">
-                      <span className="text-pink-500 mt-1">•</span>
-                      <span>{item}</span>
+            {/* Peso */}
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4 text-center">
+              <p className="text-sm text-gray-600 mb-1">Peso</p>
+              <p className="text-2xl font-bold text-gray-900">{userProfile.weight}</p>
+              <p className="text-xs text-gray-500">kg</p>
+            </div>
+
+            {/* IMC */}
+            {imc && (
+              <div className="bg-gradient-to-br from-yellow-50 to-amber-50 border border-yellow-200 rounded-xl p-4 text-center">
+                <p className="text-sm text-gray-600 mb-1">IMC</p>
+                <p className="text-2xl font-bold text-gray-900">{imc}</p>
+                <p className={`text-xs font-semibold ${imcCategory?.color}`}>{imcCategory?.label}</p>
+              </div>
+            )}
+
+            {/* Confiança IA */}
+            <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-4 text-center">
+              <p className="text-sm text-gray-600 mb-1">Confiança IA</p>
+              <p className="text-2xl font-bold text-gray-900">{confidence}%</p>
+              <p className="text-xs text-gray-500">Precisão</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 🎯 DESVIOS DETECTADOS */}
+        {deviations.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-lg">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+              <Target className="w-6 h-6 text-pink-500" />
+              Desvios Posturais Detectados
+            </h2>
+
+            <div className="space-y-4">
+              {deviations.map((deviation: any, index: number) => {
+                const severityColors = {
+                  leve: { bg: 'from-green-50 to-emerald-50', border: 'border-green-300', text: 'text-green-700', badge: 'bg-green-500' },
+                  moderada: { bg: 'from-yellow-50 to-amber-50', border: 'border-yellow-300', text: 'text-yellow-700', badge: 'bg-yellow-500' },
+                  grave: { bg: 'from-red-50 to-rose-50', border: 'border-red-300', text: 'text-red-700', badge: 'bg-red-500' }
+                };
+                
+                const colors = severityColors[deviation.severity as keyof typeof severityColors];
+                
+                const typeNames: Record<string, string> = {
+                  shoulder_asymmetry: 'Assimetria de Ombros',
+                  hip_tilt: 'Inclinação Pélvica',
+                  forward_head: 'Anteriorização da Cabeça',
+                  hyperlordosis: 'Hiperlordose Lombar',
+                  kyphosis: 'Cifose Torácica',
+                  knee_valgus: 'Joelhos em Valgo',
+                  knee_varus: 'Joelhos em Varo'
+                };
+
+                return (
+                  <div key={index} className={`bg-gradient-to-br ${colors.bg} border-2 ${colors.border} rounded-xl p-5`}>
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h3 className="text-lg font-bold text-gray-900">
+                            {typeNames[deviation.type] || deviation.type}
+                          </h3>
+                          <span className={`px-3 py-1 ${colors.badge} text-white text-xs font-bold rounded-full`}>
+                            {deviation.severity.toUpperCase()}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 mb-3">
+                          {deviation.description}
+                        </p>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
-            {/* Condição Física */}
-            {analysis.anamnesisCorrelation.physicalCondition.length > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold text-pink-600 mb-2">Condição Física</h3>
-                <div className="space-y-2">
-                  {analysis.anamnesisCorrelation.physicalCondition.map((item: string, index: number) => (
-                    <div key={index} className="flex items-start gap-2 text-gray-700 text-sm">
-                      <span className="text-pink-500 mt-1">•</span>
-                      <span>{item}</span>
+                    {/* Dados Técnicos */}
+                    <div className="bg-white/50 rounded-lg p-3 space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Ângulo Medido:</span>
+                        <span className="font-bold text-gray-900">{deviation.angle}°</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Faixa Normal:</span>
+                        <span className="font-bold text-gray-900">
+                          {deviation.normalRange.min}° - {deviation.normalRange.max}°
+                        </span>
+                      </div>
+                      {deviation.side && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">Lado Afetado:</span>
+                          <span className="font-bold text-gray-900 capitalize">{deviation.side === 'left' ? 'Esquerdo' : 'Direito'}</span>
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
-            {/* Histórico de Dor */}
-            {analysis.anamnesisCorrelation.painHistory.length > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold text-pink-600 mb-2">Histórico de Dor</h3>
-                <div className="space-y-2">
-                  {analysis.anamnesisCorrelation.painHistory.map((item: string, index: number) => (
-                    <div key={index} className="flex items-start gap-2 text-gray-700 text-sm">
-                      <span className="text-pink-500 mt-1">•</span>
-                      <span>{item}</span>
+                    {/* Exercícios Corretivos */}
+                    <div className="mt-4 pt-4 border-t border-gray-300">
+                      <p className="text-xs text-gray-600 mb-2 flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-pink-500" />
+                        <span className="font-semibold">Exercícios corretivos disponíveis na aba "Treino"</span>
+                      </p>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Seção 3: Diagnóstico */}
-        <div className="bg-gradient-to-br from-pink-50 to-purple-50 border border-pink-200 rounded-2xl p-6 space-y-4 shadow-lg">
-          <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        <Activity className="w-6 h-6 text-pink-500" />
-            Diagnóstico Postural Integrado
-          </h2>
-
-          <p className="text-sm text-gray-600 italic">
-            {analysis.diagnosis.whatThisMeans}
-          </p>
-
-          <div className="space-y-3">
-            <div>
-              <h3 className="text-sm font-semibold text-pink-600 mb-2">Diagnóstico Principal</h3>
-              <p className="text-gray-900 font-medium">{analysis.diagnosis.primary}</p>
-            </div>
-
-            {analysis.diagnosis.secondary && (
-              <div>
-                <h3 className="text-sm font-semibold text-pink-600 mb-2">Diagnóstico Secundário</h3>
-                <p className="text-gray-700">{analysis.diagnosis.secondary}</p>
-              </div>
-            )}
-
-            <div>
-              <h3 className="text-sm font-semibold text-pink-600 mb-2">Fatores de Risco</h3>
-              <div className="space-y-1">
-                {analysis.diagnosis.riskFactors.map((factor: string, index: number) => (
-                  <div key={index} className="flex items-start gap-2 text-gray-700 text-sm">
-                    <AlertTriangle className="w-4 h-4 text-yellow-600 flex-shrink-0 mt-0.5" />
-                    <span>{factor}</span>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Seção 4: Recomendações */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4 shadow-lg">
-          <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <CheckCircle className="w-6 h-6 text-green-500" />
-            Recomendações Personalizadas
-          </h2>
+        {/* 📚 CONTEXTO CIENTÍFICO */}
+{deviations.length > 0 && (
+  <div className="bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200 rounded-2xl p-6 shadow-lg">
+    <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+      <FileText className="w-6 h-6 text-blue-600" />
+      Contexto Científico dos Desvios
+    </h2>
 
-          <p className="text-sm text-gray-600 italic">
-            {analysis.recommendations.whatThisMeans}
-          </p>
+    {deviations.slice(0, 2).map((deviation: any, index: number) => {
+      const context = getScientificContext(deviation.type);
+      if (!context) return null;
 
-          <div className="space-y-4">
-            {/* Imediatas */}
-            <div>
-              <h3 className="text-sm font-semibold text-green-600 mb-2">Ações Imediatas (Iniciar agora)</h3>
-              <div className="space-y-2">
-                {analysis.recommendations.immediate.map((rec: string, index: number) => (
-                  <div key={index} className="flex items-start gap-2 text-gray-700 text-sm">
-                    <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                    <span>{rec}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Curto Prazo */}
-            <div>
-              <h3 className="text-sm font-semibold text-blue-600 mb-2">Curto Prazo (1-3 meses)</h3>
-              <div className="space-y-2">
-                {analysis.recommendations.shortTerm.map((rec: string, index: number) => (
-                  <div key={index} className="flex items-start gap-2 text-gray-700 text-sm">
-                    <CheckCircle className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
-                    <span>{rec}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Longo Prazo */}
-            <div>
-              <h3 className="text-sm font-semibold text-purple-600 mb-2">Longo Prazo (3-6 meses)</h3>
-              <div className="space-y-2">
-                {analysis.recommendations.longTerm.map((rec: string, index: number) => (
-                  <div key={index} className="flex items-start gap-2 text-gray-700 text-sm">
-                    <CheckCircle className="w-4 h-4 text-purple-500 flex-shrink-0 mt-0.5" />
-                    <span>{rec}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Seção 5: Prognóstico */}
-        <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-6 space-y-4 shadow-lg">
-          <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <TrendingUp className="w-6 h-6 text-green-500" />
-            Prognóstico e Expectativas
-          </h2>
-
-          <p className="text-sm text-gray-600 italic">
-            {analysis.prognosis.whatThisMeans}
-          </p>
-
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-sm font-semibold text-green-600 mb-2">Tempo Estimado de Recuperação</h3>
-              <p className="text-gray-900 font-medium text-lg">{analysis.prognosis.timeline}</p>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-green-600 mb-2">Resultados Esperados</h3>
-              <div className="space-y-2">
-                {analysis.prognosis.expectedResults.map((result: string, index: number) => (
-                  <div key={index} className="flex items-start gap-2 text-gray-700 text-sm">
-                    <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                    <span>{result}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-green-600 mb-2">Fatores de Sucesso</h3>
-              <div className="space-y-2">
-                {analysis.prognosis.successFactors.map((factor: string, index: number) => (
-                  <div key={index} className="flex items-start gap-2 text-gray-700 text-sm">
-                    <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                    <span>{factor}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Nota sobre Plano de Exercícios */}
-        <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-2xl p-6 shadow-lg">
-          <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-purple-600" />
-            Seu Plano de Exercícios Personalizado
+      return (
+        <div key={index} className="mb-6 last:mb-0">
+          <h3 className="text-lg font-bold text-blue-700 mb-3">
+            {deviation.type.replace('_', ' ').toUpperCase()}
           </h3>
-          <p className="text-gray-700 text-sm mb-3">
-            Com base na sua análise postural, criamos um plano de exercícios específico para suas necessidades. 
+
+          <div className="grid md:grid-cols-2 gap-4">
+            {/* Prevalência */}
+            <div className="bg-white rounded-xl p-4">
+              <p className="text-xs text-gray-600 mb-1 font-semibold">Prevalência</p>
+              <p className="text-sm text-gray-900">{context.prevalence}</p>
+            </div>
+
+            {/* Biomecânica */}
+            <div className="bg-white rounded-xl p-4">
+              <p className="text-xs text-gray-600 mb-1 font-semibold">Biomecânica</p>
+              <p className="text-sm text-gray-900">{context.biomechanics}</p>
+            </div>
+          </div>
+
+          {/* Músculos Afetados */}
+          <div className="mt-4 bg-white rounded-xl p-4">
+            <p className="text-xs text-gray-600 mb-2 font-semibold">Músculos Afetados</p>
+            <div className="grid md:grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs text-red-600 font-semibold mb-1">Fracos:</p>
+                <ul className="text-xs text-gray-700 space-y-1">
+                  {context.musclesAffected.weak.map((m: string, i: number) => (
+                    <li key={i}>• {m}</li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <p className="text-xs text-yellow-600 font-semibold mb-1">Encurtados:</p>
+                <ul className="text-xs text-gray-700 space-y-1">
+                  {context.musclesAffected.tight.map((m: string, i: number) => (
+                    <li key={i}>• {m}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+)}
+
+        {/* ⚠️ FATORES DE RISCO */}
+        {analysis?.aiAnalysis?.summary?.riskFactors && (
+          <div className="bg-gradient-to-br from-orange-50 to-red-50 border border-orange-200 rounded-2xl p-6 shadow-lg">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <AlertTriangle className="w-6 h-6 text-orange-600" />
+              Fatores de Risco Identificados
+            </h2>
+
+            <div className="space-y-3">
+              {analysis.aiAnalysis.summary.riskFactors.map((factor: string, index: number) => (
+                <div key={index} className="flex items-start gap-3 bg-white/50 rounded-lg p-3">
+                  <AlertTriangle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-gray-700">{factor}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 🔮 PROGNÓSTICO */}
+        <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-6 shadow-lg">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <TrendingUp className="w-6 h-6 text-green-600" />
+            Prognóstico de Evolução
+          </h2>
+
+          <p className="text-sm text-gray-700 mb-6">
+            {analysis?.prognosis?.whatThisMeans || "Com dedicação e exercícios específicos, você verá melhorias significativas."}
           </p>
-          <p className="text-pink-600 text-sm font-semibold flex items-center gap-2">
-            <FileText className="w-4 h-4" />
-            Acesse a aba "Treino" no menu inferior para ver todos os exercícios detalhados!
-          </p>
+
+          {/* Timeline Visual */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-white rounded-xl p-4 text-center border-2 border-green-300">
+              <p className="text-2xl font-bold text-green-600 mb-1">4-6</p>
+              <p className="text-xs text-gray-600 mb-2">semanas</p>
+              <p className="text-xs text-gray-700 font-semibold">Redução de dores</p>
+            </div>
+            <div className="bg-white rounded-xl p-4 text-center border-2 border-green-400">
+              <p className="text-2xl font-bold text-green-600 mb-1">8-12</p>
+              <p className="text-xs text-gray-600 mb-2">semanas</p>
+              <p className="text-xs text-gray-700 font-semibold">Melhora visível</p>
+            </div>
+            <div className="bg-white rounded-xl p-4 text-center border-2 border-green-500">
+              <p className="text-2xl font-bold text-green-600 mb-1">3-6</p>
+              <p className="text-xs text-gray-600 mb-2">meses</p>
+              <p className="text-xs text-gray-700 font-semibold">Resultado completo</p>
+            </div>
+          </div>
         </div>
 
-        {/* Botão Refazer Análise */}
-        <div className="flex gap-4 pt-6">
+        {/* 💡 PRÓXIMOS PASSOS */}
+        <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-2xl p-6 shadow-lg">
+          <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <CheckCircle2 className="w-6 h-6 text-purple-600" />
+            Próximos Passos
+          </h3>
+          
+          <div className="space-y-3">
+            <div className="flex items-start gap-3 bg-white/50 rounded-lg p-3">
+              <span className="w-6 h-6 bg-purple-500 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">1</span>
+              <div>
+                <p className="font-semibold text-gray-900 text-sm">Acesse a aba "Treino"</p>
+                <p className="text-xs text-gray-600">Seu plano personalizado com exercícios corretivos está pronto</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-3 bg-white/50 rounded-lg p-3">
+              <span className="w-6 h-6 bg-purple-500 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">2</span>
+              <div>
+                <p className="font-semibold text-gray-900 text-sm">Execute os exercícios 3-4x por semana</p>
+                <p className="text-xs text-gray-600">Consistência é a chave para resultados duradouros</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-3 bg-white/50 rounded-lg p-3">
+              <span className="w-6 h-6 bg-purple-500 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">3</span>
+              <div>
+                <p className="font-semibold text-gray-900 text-sm">Refaça a análise em 3 meses</p>
+                <p className="text-xs text-gray-600">Acompanhe sua evolução postural</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Botões de Ação */}
+        <div className="flex gap-4">
           <button
             onClick={onRedoAnalysis}
-            className="flex-1 px-8 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-full font-bold hover:shadow-lg hover:shadow-pink-500/50 hover:scale-105 transition-all"
+            className="flex-1 px-6 py-4 bg-white border-2 border-gray-300 text-gray-700 rounded-2xl font-bold hover:border-pink-500 hover:text-pink-500 transition"
           >
             Refazer Análise
+          </button>
+          <button
+            onClick={onBack}
+            className="flex-1 px-6 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-2xl font-bold hover:shadow-xl hover:scale-[1.02] transition"
+          >
+            Ir para Treino
           </button>
         </div>
       </div>
     </div>
   );
-}
-
-// Funções auxiliares
-function calculateIMC(weight: string, height: string): string {
-  const w = parseFloat(weight);
-  const h = parseFloat(height) / 100;
-  if (!w || !h) return "N/A";
-  return (w / (h * h)).toFixed(1);
-}
-
-function getIMCCategory(imc: string): string {
-  const value = parseFloat(imc);
-  if (isNaN(value)) return "N/A";
-  if (value < 18.5) return "Abaixo do peso";
-  if (value < 25) return "Peso normal";
-  if (value < 30) return "Sobrepeso";
-  return "Obesidade";
-}
-
-function getPrimaryDiagnosis(profile: any): string {
-  if (profile.painAreas?.includes("Lombar") && profile.workPosition === "Sentado") {
-    return "Síndrome Postural Lombar associada a postura sentada prolongada";
-  }
-  if (profile.painAreas?.includes("Pescoço") || profile.painAreas?.includes("Ombros")) {
-    return "Síndrome Cruzada Superior (Upper Crossed Syndrome)";
-  }
-  if (profile.painAreas?.includes("Costas")) {
-    return "Disfunção Postural da Coluna Torácica";
-  }
-  return "Desvio Postural Multifatorial";
-}
-
-function getSecondaryDiagnosis(profile: any): string | null {
-  if (profile.painAreas?.length > 2) {
-    return "Padrão de compensação muscular generalizado";
-  }
-  if (profile.exerciseFrequency === "never") {
-    return "Fraqueza muscular por descondicionamento físico";
-  }
-  return null;
-}
-
-function getRiskFactors(profile: any): string[] {
-  const factors = [];
-  
-  if (profile.workPosition === "Sentado" && parseInt(profile.workHours) > 6) {
-    factors.push("Postura sentada prolongada (>6h/dia)");
-  }
-  if (profile.exerciseFrequency === "never" || profile.exerciseFrequency === "rarely") {
-    factors.push("Sedentarismo");
-  }
-  if (profile.sleepHours === "Menos de 4h" || profile.sleepHours === "5-6h") {
-    factors.push("Sono insuficiente");
-  }
-  if (profile.smoker === "Sim") {
-    factors.push("Tabagismo");
-  }
-  if (profile.injuries === "Sim") {
-    factors.push("Histórico de lesões prévias");
-  }
-  
-  return factors.length > 0 ? factors : ["Nenhum fator de risco significativo identificado"];
-}
-
-function generateExercisePlan(profile: any): any[] {
-  const exercises = [];
-
-  if (profile.painAreas?.includes("Lombar")) {
-    exercises.push({
-      name: "Ponte de Glúteos",
-      sets: "3x15 repetições",
-      focus: "Fortalecimento lombar e glúteos",
-      instructions: "Deitado de costas, joelhos flexionados, eleve o quadril mantendo abdômen contraído. Segure 2s no topo.",
-      duration: "2 min"
-    });
-    exercises.push({
-      name: "Bird Dog",
-      sets: "3x12 repetições (cada lado)",
-      focus: "Estabilização do core e lombar",
-      instructions: "Em 4 apoios, estenda braço e perna oposta simultaneamente. Mantenha coluna neutra.",
-      duration: "3 min"
-    });
-  }
-
-  if (profile.painAreas?.includes("Pescoço") || profile.painAreas?.includes("Ombros")) {
-    exercises.push({
-      name: "Retração Cervical (Chin Tucks)",
-      sets: "3x15 repetições",
-      focus: "Correção da anteriorização da cabeça",
-      instructions: "Sentado, faça movimento de 'queixo duplo' levando cabeça para trás sem inclinar. Segure 5s.",
-      duration: "2 min"
-    });
-    exercises.push({
-      name: "Remada com Elástico",
-      sets: "3x12 repetições",
-      focus: "Fortalecimento de romboides e trapézio médio",
-      instructions: "Com elástico fixo, puxe cotovelos para trás aproximando escápulas. Mantenha ombros baixos.",
-      duration: "3 min"
-    });
-  }
-
-  if (profile.painAreas?.includes("Costas")) {
-    exercises.push({
-      name: "Gato-Camelo",
-      sets: "3x10 repetições",
-      focus: "Mobilidade da coluna torácica",
-      instructions: "Em 4 apoios, alterne entre arquear e arredondar a coluna lentamente.",
-      duration: "2 min"
-    });
-    exercises.push({
-      name: "Prancha Frontal",
-      sets: "3x30-45 segundos",
-      focus: "Fortalecimento do core",
-      instructions: "Apoio nos antebraços e pés, corpo alinhado, abdômen contraído. Não deixe quadril cair.",
-      duration: "2 min"
-    });
-  }
-
-  exercises.push({
-    name: "Alongamento de Isquiotibiais",
-    sets: "3x30 segundos (cada perna)",
-    focus: "Flexibilidade da cadeia posterior",
-    instructions: "Sentado, estenda uma perna e incline tronco para frente mantendo coluna reta.",
-    duration: "3 min"
-  });
-
-  exercises.push({
-    name: "Rotação Torácica",
-    sets: "3x10 repetições (cada lado)",
-    focus: "Mobilidade da coluna torácica",
-    instructions: "Em 4 apoios, coloque mão atrás da cabeça e rode tronco abrindo cotovelo para cima.",
-    duration: "2 min"
-  });
-
-  return exercises;
 }

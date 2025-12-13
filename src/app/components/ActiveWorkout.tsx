@@ -79,6 +79,31 @@ export default function ActiveWorkout({
     }, 100);
   }, []);
 
+  // ✅ INICIAR CRONÔMETRO QUANDO COMPONENTE MONTAR
+useEffect(() => {
+  console.log("⏱️ [TIMER] Iniciando cronômetro...");
+  
+  const interval = setInterval(() => {
+    setWorkoutTimer(prev => {
+      const newTime = prev + 1;
+      // Log a cada 10 segundos para debug
+      if (newTime % 10 === 0) {
+        console.log(`⏱️ [TIMER] ${newTime}s decorridos`);
+      }
+      return newTime;
+    });
+  }, 1000);
+  
+  setTimerInterval(interval);
+  console.log("✅ [TIMER] Cronômetro iniciado!");
+  
+  // Cleanup: parar cronômetro quando componente desmontar
+  return () => {
+    console.log("🛑 [TIMER] Parando cronômetro...");
+    clearInterval(interval);
+  };
+}, []); // Array vazio = executa só uma vez ao montar
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;

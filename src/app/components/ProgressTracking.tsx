@@ -175,13 +175,31 @@ const getMotivationalMessage = () => {
 };
 
 const getWeekGoalFromFrequency = (frequency: string): number => {
+  console.log("🎯 [PROGRESS GOAL] Frequência recebida:", frequency, "Tipo:", typeof frequency);
+  
+  if (!frequency) {
+    console.warn("⚠️ [PROGRESS GOAL] Frequência vazia! Usando padrão 3");
+    return 3;
+  }
+  
+  // ✅ Se for número direto (ex: "6"), usar ele
+  const numericFreq = parseInt(frequency);
+  if (!isNaN(numericFreq) && numericFreq > 0) {
+    console.log("✅ [PROGRESS GOAL] Frequência numérica:", numericFreq);
+    return numericFreq;
+  }
+  
+  // ✅ Mapping para strings antigas
   const mapping: { [key: string]: number } = {
     "1-2": 2,
     "3-4": 4,
     "5-6": 6,
     "todos": 7,
   };
-  return mapping[frequency] || 3;
+  
+  const result = mapping[frequency] || 3;
+  console.log("✅ [PROGRESS GOAL] Usando mapping:", result);
+  return result;
 };
 
 // ✅ CALCULAR VALORES (COM USEMEMO)

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import {
   Play,
   ChevronDown,
@@ -85,8 +84,6 @@ interface TrainingPlan {
 const TIME_PATTERN = /seg|min|s$/i;
 
 export default function TrainingPlan({ userProfile }: TrainingPlanProps) {
-  const router = useRouter();
-  
   const [trainingPlan, setTrainingPlan] = useState<TrainingPlan | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedPhase, setExpandedPhase] = useState<number | null>(0);
@@ -147,8 +144,9 @@ const loadTrainingPlan = async () => {
     const user = await getCurrentUser();
     
     if (!user) {
-      console.log('❌ [TRAINING] Usuário não autenticado. Redirecionando para login...');
-      router.push("/login");
+      console.log('❌ [TRAINING] Usuário não autenticado.');
+      toast.error('Faça login para ver seu treino');
+      setIsLoading(false);
       return;
     }
 
@@ -156,22 +154,32 @@ const loadTrainingPlan = async () => {
 
     const { success, data, error } = await getUserWorkout(user.id);
 
-    // ✅ SE NÃO TEM WORKOUT, REDIRECIONAR PARA ANÁLISE POSTURAL
+    // ✅ SE NÃO TEM WORKOUT, MOSTRAR MENSAGEM AMIGÁVEL (NÃO REDIRECIONAR!)
     if (!success || !data || error) {
-      console.log("📸 [TRAINING] Nenhum treino encontrado. Redirecionando para Análise Postural...");
+      console.log("⚠️ [TRAINING] Nenhum treino encontrado no Supabase");
+      
+      // ✅ TENTAR CARREGAR DO LOCALSTORAGE (BACKUP)
+      const localPlan = localStorage.getItem('currentTrainingPlan');
+      if (localPlan) {
+        console.log("✅ [TRAINING] Treino encontrado no localStorage!");
+        const plan = JSON.parse(localPlan);
+        setTrainingPlan(plan);
+        setIsLoading(false);
+        return;
+      }
+      
+      // ✅ SE NÃO TEM EM NENHUM LUGAR, MOSTRAR UI DE ERRO (NÃO REDIRECIONAR!)
+      console.warn("⚠️ [TRAINING] Nenhum treino disponível (Supabase e localStorage)");
+      setTrainingPlan(null);
       setIsLoading(false);
-
-      // Aguardar um pouco antes de redirecionar (para mostrar loading)
-      setTimeout(() => {
-        router.push("/analise-postural");
-      }, 500);
+      toast.error('Nenhum treino encontrado. Complete sua análise postural primeiro!');
       return;
     }
 
     // ✅ SE TEM WORKOUT, CARREGAR NORMALMENTE
     if (data && data.plan) {
-      console.log("✅ [TRAINING] Treino carregado:", data.plan);
-      setTrainingPlan(data.plan); // ✅ SALVAR NO ESTADO
+      console.log("✅ [TRAINING] Treino carregado do Supabase:", data.plan);
+      setTrainingPlan(data.plan);
     } else {
       console.error("❌ [TRAINING] Workout encontrado, mas sem 'plan':", data);
       toast.error('Erro: Treino sem dados. Contate o suporte.');

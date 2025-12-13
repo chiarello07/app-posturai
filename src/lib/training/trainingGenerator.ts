@@ -611,25 +611,31 @@ function mapPainAreas(painAreas: string[]): PainArea[] {
 }
 
 function convertDBExerciseToTraining(dbEx: DBExercise): TrainingExercise {
+  // Lógica de segurança para garantir que não quebre se um campo estiver faltando
+  const repsValue = dbEx.reps ? `${dbEx.reps}` : (dbEx.duration ? `${dbEx.duration}s` : '10');
+  const restValue = dbEx.rest || 60;
+  const tempoValue = dbEx.tempo ? `${dbEx.tempo.concentric}-${dbEx.tempo.isometric}-${dbEx.tempo.eccentric}` : '2-0-2';
+
   return {
     id: dbEx.id,
     name: dbEx.name,
     category: mapCategoryToTraining(dbEx.category),
-    muscle_group: dbEx.muscleGroups[0] || 'core',
-    equipment: mapEquipmentToTraining(dbEx.equipment[0]),
-    sets: dbEx.sets,
-    reps: dbEx.reps ? `${dbEx.reps}` : dbEx.duration ? `${dbEx.duration}seg` : '10-12',
-    rest_seconds: dbEx.rest,
-    tempo: '2-0-2-0',
-    instructions: dbEx.description,
+    muscle_group: dbEx.muscleGroups[0] || 'core', // Pega o primeiro grupo muscular como principal
+    equipment: mapEquipmentToTraining(dbEx.equipment[0] || 'none'),
+    sets: dbEx.sets || 3, // Valor padrão de 3 séries se não for definido
+    reps: repsValue,
+    rest_seconds: restValue,
+    tempo: tempoValue,
+    instructions: dbEx.description || 'Siga as instruções do vídeo.',
     gif_url: dbEx.gifUrl,
     video_url: dbEx.videoUrl,
     variations: {
+      // Busca na própria base de dados pelo nome da regressão/progressão
       easier: dbEx.regression ? EXERCISE_DATABASE.find(e => e.id === dbEx.regression)?.name : undefined,
       harder: dbEx.progression ? EXERCISE_DATABASE.find(e => e.id === dbEx.progression)?.name : undefined
     },
-    postural_notes: dbEx.cues.join(' | '),
-    contraindications: dbEx.avoidIfPain
+    postural_notes: dbEx.cues ? dbEx.cues.join(' | ') : 'Mantenha a boa postura.',
+    contraindications: dbEx.avoidIfPain || []
   };
 }
 

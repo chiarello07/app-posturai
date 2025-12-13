@@ -21,6 +21,7 @@ import CompleteAnalysisReport from "./components/CompleteAnalysisReport";
 import BoostPosturAI from "./components/BoostPosturAI";
 import { generatePersonalizedTrainingPlan } from "@/lib/training/trainingGenerator";
 import { getWorkoutStats } from '@/lib/training/progressTracker';
+import { runTest } from '@/lib/training/testGenerator';
 
 import {
   createUser,
@@ -295,6 +296,43 @@ const handleLogin = async (e: React.FormEvent) => {
     }
   };
 
+  const handleTestClick = () => {
+    console.clear(); // Limpa o console antes de rodar
+    runTest();
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-8">
+      <div className="max-w-4xl mx-auto">
+        {/* Seu conteúdo da homepage aqui */}
+        <h1 className="text-4xl font-bold text-white mb-8">PosturAI</h1>
+        
+        <p className="text-gray-300 mb-8">
+          Bem-vindo ao PosturAI - Seu assistente de treino personalizado baseado em IA.
+        </p>
+
+        {/* BOTÃO DE TESTE */}
+        <button
+          onClick={handleTestClick}
+          className="w-full p-4 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl mt-4 transition-all duration-200 transform hover:scale-105"
+        >
+          🧪 EXECUTAR TESTE DO GERADOR DE TREINO
+        </button>
+
+        {/* Instruções */}
+        <div className="mt-8 p-6 bg-slate-700 rounded-lg text-gray-200">
+          <h2 className="text-xl font-bold mb-4">📋 Instruções:</h2>
+          <ol className="list-decimal list-inside space-y-2">
+            <li>Clique no botão acima</li>
+            <li>Abra o Console do navegador (F12 ou Cmd+Option+I)</li>
+            <li>Veja o plano de treino gerado em tempo real</li>
+            <li>Verifique se o JSON está correto e completo</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  );
+  
   const handleAnalysisComplete = async (analysisData: any) => {
     if (!userProfile) return;
 

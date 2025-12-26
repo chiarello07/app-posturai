@@ -85,7 +85,7 @@ export const EXERCISE_DATABASE: Exercise[] = [
     gifUrl: '/gifs/exercises/dead-bug.gif'
   },
   {
-    id: 'ex004', name: 'Ponte de Glúteos', nameEN: 'Glute Bridge', category: 'strength',
+    id: 'ex004', name: 'Elevação de Quadril Deitado no Chão', nameEN: 'Glute Bridge', category: 'strength',
     muscleGroups: ['gluteos', 'posterior-chain', 'core'], equipment: ['none'], difficulty: 'beginner',
     sets: 3, reps: 15, rest: 60, tempo: { concentric: 2, isometric: 2, eccentric: 2 },
     description: 'Deitado, eleve o quadril contraindo os glúteos até formar uma linha reta dos joelhos aos ombros.',
@@ -189,7 +189,7 @@ export const EXERCISE_DATABASE: Exercise[] = [
     targetPosturalIssues: [], alternatives: ['barbell-row'], gifUrl: '/gifs/exercises/dumbbell-row.gif'
   },
   {
-    id: 'ex014', name: 'Remada Sentada na Polia', nameEN: 'Seated Cable Row', category: 'strength',
+    id: 'ex014', name: 'Remada Baixa com Triângulo', nameEN: 'Seated Cable Row', category: 'strength',
     muscleGroups: ['costas', 'biceps'], equipment: ['gym-machine', 'cable'], difficulty: 'beginner',
     sets: 3, reps: 12, rest: 60, tempo: { concentric: 2, isometric: 1, eccentric: 3 },
     description: 'Sentado com os pés apoiados, puxe o pegador em direção ao abdômen, mantendo as costas retas.',
@@ -221,7 +221,7 @@ export const EXERCISE_DATABASE: Exercise[] = [
     targetPosturalIssues: [], alternatives: ['goblet-squat', 'leg-press-45'], gifUrl: '/gifs/exercises/squat.gif'
   },
   {
-    id: 'ex017', name: 'Agachamento Taça (Goblet Squat)', nameEN: 'Goblet Squat', category: 'strength',
+    id: 'ex017', name: 'Agachamento Goblet (Goblet Squat)', nameEN: 'Goblet Squat', category: 'strength',
     muscleGroups: ['quadriceps', 'gluteos', 'core'], equipment: ['dumbbells', 'kettlebell'], difficulty: 'beginner',
     sets: 3, reps: 12, rest: 75, tempo: { concentric: 2, isometric: 1, eccentric: 3 },
     description: 'Segure um halter ou kettlebell na frente do peito e agache, mantendo o tronco ereto.',
@@ -283,7 +283,7 @@ export const EXERCISE_DATABASE: Exercise[] = [
     targetPosturalIssues: [], alternatives: ['seated-leg-curl'], gifUrl: '/gifs/exercises/leg-curl.gif'
   },
   {
-    id: 'ex023', name: 'Elevação Pélvica (Hip Thrust)', nameEN: 'Barbell Hip Thrust', category: 'strength',
+    id: 'ex023', name: 'Elevação de Quadril (Hip Thrust)', nameEN: 'Barbell Hip Thrust', category: 'strength',
     muscleGroups: ['gluteos', 'posterior-chain'], equipment: ['barbell', 'gym-machine'], difficulty: 'intermediate',
     sets: 4, reps: 12, rest: 90, tempo: { concentric: 1, isometric: 2, eccentric: 2 },
     description: 'Com as costas apoiadas em um banco, coloque uma barra sobre o quadril e eleve-o, contraindo os glúteos.',
@@ -355,7 +355,7 @@ export const EXERCISE_DATABASE: Exercise[] = [
     targetPosturalIssues: [], alternatives: ['cable-front-raise'], gifUrl: '/gifs/exercises/front-raise.gif'
   },
   {
-    id: 'ex030', name: 'Puxada para o Rosto (Face Pull)', nameEN: 'Face Pull', category: 'posture',
+    id: 'ex030', name: 'Face Pull', nameEN: 'Face Pull', category: 'posture',
     muscleGroups: ['ombro', 'costas'], equipment: ['cable', 'resistance-band'], difficulty: 'intermediate',
     sets: 3, reps: 15, rest: 60, tempo: { concentric: 2, isometric: 2, eccentric: 2 },
     description: 'Usando a polia alta com uma corda, puxe em direção ao rosto, separando as mãos e rotacionando os ombros.',
@@ -449,7 +449,7 @@ export const EXERCISE_DATABASE: Exercise[] = [
     targetPosturalIssues: [], alternatives: ['skull-crusher'], gifUrl: '/gifs/exercises/french-press.gif'
   },
   {
-    id: 'ex039', name: 'Mergulho no Banco', nameEN: 'Bench Dips', category: 'strength',
+    id: 'ex039', name: 'Tríceps no Banco', nameEN: 'Bench Dips', category: 'strength',
     muscleGroups: ['triceps', 'peito', 'ombro'], equipment: ['gym-machine'], difficulty: 'intermediate',
     sets: 3, reps: 15, rest: 60, tempo: { concentric: 2, isometric: 1, eccentric: 2 },
     description: 'Com as mãos apoiadas em um banco, desça o corpo flexionando os cotovelos e empurre de volta para cima.',
@@ -583,7 +583,7 @@ export const EXERCISE_DATABASE: Exercise[] = [
     targetPosturalIssues: [], alternatives: ['incline-cable-fly'], gifUrl: '/gifs/exercises/incline-fly.gif'
   },
   {
-    id: 'ex052', name: 'Pec Deck (Voador)', nameEN: 'Pec Deck Machine', category: 'strength',
+    id: 'ex052', name: 'Peck Deck (Voador)', nameEN: 'Pec Deck Machine', category: 'strength',
     muscleGroups: ['peito'], equipment: ['gym-machine'], difficulty: 'beginner',
     sets: 3, reps: 15, rest: 60, tempo: { concentric: 2, isometric: 1, eccentric: 2 },
     description: 'Sentado na máquina, junte os braços à sua frente, contraindo o peitoral.',
@@ -603,7 +603,7 @@ export const EXERCISE_DATABASE: Exercise[] = [
     targetPosturalIssues: [], alternatives: ['lateral-raise'], gifUrl: '/gifs/exercises/upright-row.gif'
   },
   {
-    id: 'ex054', name: 'Crucifixo Invertido na Máquina', nameEN: 'Reverse Pec Deck', category: 'strength',
+    id: 'ex054', name: 'Crucifixo Inverso na Máquina', nameEN: 'Reverse Pec Deck', category: 'strength',
     muscleGroups: ['ombro', 'costas'], equipment: ['gym-machine'], difficulty: 'beginner',
     sets: 3, reps: 15, rest: 60, tempo: { concentric: 2, isometric: 1, eccentric: 3 },
     description: 'Sentado de frente para a máquina, afaste os braços para trás, contraindo os músculos das costas e ombros.',
@@ -756,7 +756,7 @@ export const EXERCISE_DATABASE: Exercise[] = [
     id: 'ex069', name: 'Extensão de Tríceps Acima da Cabeça', nameEN: 'Overhead Triceps Extension', category: 'strength',
     muscleGroups: ['triceps'], equipment: ['dumbbells', 'cable'], difficulty: 'intermediate',
     sets: 3, reps: 12, rest: 60, tempo: { concentric: 2, isometric: 1, eccentric: 3 },
-    description: 'Sentado ou em pé, segure um halter com as duas mãos acima da cabeça e desça-o para trás, flexionando os cotovelos.',
+    description: 'Sentado ou em pé, segure um halter, ou uma barra, com as duas mãos acima da cabeça e desça-o para trás, flexionando os cotovelos.',
     cues: ['Mantenha os cotovelos apontados para cima', 'Sinta o alongamento do tríceps'],
     commonMistakes: ['Abrir demais os cotovelos', 'Arquear a lombar'],
     avoidIfPain: ['shoulders'], benefits: ['Foco na cabeça longa do tríceps', 'Grande amplitude de movimento'],
@@ -933,10 +933,10 @@ export const EXERCISE_DATABASE: Exercise[] = [
     targetPosturalIssues: [], alternatives: ['tuck-crunch'], gifUrl: '/gifs/exercises/v-up.gif'
   },
   {
-    id: 'ex087', name: 'Ponte de Glúteos Unilateral', nameEN: 'Single-Leg Glute Bridge', category: 'strength',
+    id: 'ex087', name: 'Elevação de Quadril Unilateral', nameEN: 'Single-Leg Glute Bridge', category: 'strength',
     muscleGroups: ['gluteos', 'posterior-chain'], equipment: ['none'], difficulty: 'intermediate',
     sets: 3, reps: 15, rest: 60, tempo: { concentric: 2, isometric: 2, eccentric: 2 },
-    description: 'Execute a ponte de glúteos com uma perna estendida, focando no lado que está apoiado.',
+    description: 'Execute a elevação de quadril com uma perna estendida, focando no lado que está apoiado.',
     cues: ['Mantenha os quadris nivelados', 'Não deixe a pélvis rotacionar'],
     commonMistakes: ['Deixar o quadril do lado suspenso cair'],
     avoidIfPain: ['lower-back'], benefits: ['Corrige desequilíbrios musculares entre os lados', 'Maior ativação do glúteo'],
@@ -993,7 +993,7 @@ export const EXERCISE_DATABASE: Exercise[] = [
     targetPosturalIssues: [], alternatives: ['seated-cable-row'], gifUrl: '/gifs/exercises/rope-row.gif'
   },
   {
-    id: 'ex093', name: 'Elevação de Panturrilha no Leg Press', nameEN: 'Calf Press on Leg Press', category: 'strength',
+    id: 'ex093', name: 'Panturrilha no Leg Press 45°', nameEN: 'Calf Press on Leg Press', category: 'strength',
     muscleGroups: ['posterior-chain'], equipment: ['gym-machine'], difficulty: 'intermediate',
     sets: 4, reps: 20, rest: 45, tempo: { concentric: 1, isometric: 1, eccentric: 2 },
     description: 'No Leg Press, posicione a ponta dos pés na plataforma e execute a flexão plantar.',
@@ -1324,7 +1324,7 @@ export const EXERCISE_DATABASE: Exercise[] = [
     targetPosturalIssues: ['rigidez-quadril'], alternatives: [], gifUrl: '/gifs/exercises/figure-four-stretch.gif'
   },
   {
-    id: 'ex126', name: 'Caminhada do Fazendeiro (Farmer\'s Walk)', nameEN: 'Farmer\'s Walk', category: 'strength',
+    id: 'ex126', name: 'Fazendeiro (Farmer\'s Walk)', nameEN: 'Farmer\'s Walk', category: 'strength',
     muscleGroups: ['core', 'upper-body', 'posterior-chain'], equipment: ['dumbbells', 'kettlebell'], difficulty: 'intermediate',
     sets: 3, duration: 45, rest: 75, tempo: { concentric: 0, isometric: 45, eccentric: 0 },
     description: 'Segure halteres ou kettlebells pesados ao lado do corpo e caminhe, mantendo a postura ereta.',
@@ -1447,7 +1447,7 @@ export const EXERCISE_DATABASE: Exercise[] = [
     id: 'ex138', name: 'Elevação de Quadril com Pernas na Parede', nameEN: 'Feet-on-Wall Glute Bridge', category: 'strength',
     muscleGroups: ['gluteos', 'posterior-chain'], equipment: ['none'], difficulty: 'beginner',
     sets: 3, reps: 20, rest: 60, tempo: { concentric: 2, isometric: 2, eccentric: 2 },
-    description: 'Deitado, apoie os pés na parede com os joelhos a 90 graus e execute a ponte de glúteos.',
+    description: 'Deitado, apoie os pés na parede com os joelhos a 90 graus e execute a elevação de quadril.',
     cues: ['Empurre a parede com os pés', 'Foco na contração dos glúteos'],
     commonMistakes: ['Deixar os pés escorregarem'],
     avoidIfPain: ['lower-back'], benefits: ['Maior ativação do posterior de coxa', 'Variação para a ponte tradicional'],
@@ -1548,7 +1548,7 @@ export const EXERCISE_DATABASE: Exercise[] = [
     muscleGroups: ['ombro', 'costas', 'posterior-chain'], equipment: ['barbell', 'kettlebell'], difficulty: 'advanced',
     sets: 4, reps: 8, rest: 75, tempo: { concentric: 1, isometric: 0, eccentric: 2 },
     description: 'Um movimento explosivo que começa como um levantamento terra e transita para uma remada alta.',
-    cues: ['Use a explosão do quadril para iniciar', 'Puxe a barra para cima, mantendo-a próxima ao corpo'],
+    cues: ['Use a explosão do quadril para iniciar', 'Puxe a barra para cima, mantendo-a próxima ao corpo na linha do peito', 'Finalizando o movimento com os cotovelos para cima, semelhante a uma remada alta'],
     commonMistakes: ['Puxar com os braços em vez de usar o quadril'],
     avoidIfPain: ['shoulders', 'lower-back'], benefits: ['Desenvolvimento de potência de corpo inteiro', 'Precursor para movimentos olímpicos'],
     targetPosturalIssues: [], alternatives: ['kettlebell-swing', 'upright-row'], gifUrl: '/gifs/exercises/high-pull.gif'
@@ -1615,7 +1615,7 @@ export const EXERCISE_DATABASE: Exercise[] = [
     targetPosturalIssues: [], alternatives: ['cable-crossover'], gifUrl: '/gifs/exercises/svend-press.gif'
   },
   {
-    id: 'ex155', name: 'Crucifixo Invertido Curvado com Halteres', nameEN: 'Bent-Over Dumbbell Reverse Fly', category: 'posture',
+    id: 'ex155', name: 'Crucifixo Inverso Curvado com Halteres', nameEN: 'Bent-Over Dumbbell Reverse Fly', category: 'posture',
     muscleGroups: ['ombro', 'costas'], equipment: ['dumbbells'], difficulty: 'intermediate',
     sets: 3, reps: 15, rest: 60, tempo: { concentric: 2, isometric: 1, eccentric: 3 },
     description: 'Inclinado para frente com as costas retas, levante os halteres para os lados, mantendo os braços quase retos.',
@@ -1675,10 +1675,10 @@ export const EXERCISE_DATABASE: Exercise[] = [
     targetPosturalIssues: ['rigidez-quadril'], alternatives: [], gifUrl: '/gifs/exercises/90-90-hip-switch.gif'
   },
   {
-    id: 'ex161', name: 'Ponte de Glúteos com Elástico', nameEN: 'Banded Glute Bridge', category: 'strength',
+    id: 'ex161', name: 'Elevação de Quadril com Elástico', nameEN: 'Banded Glute Bridge', category: 'strength',
     muscleGroups: ['gluteos'], equipment: ['resistance-band'], difficulty: 'beginner',
     sets: 3, reps: 20, rest: 60, tempo: { concentric: 2, isometric: 2, eccentric: 2 },
-    description: 'Coloque um elástico acima dos joelhos e execute a ponte de glúteos, forçando os joelhos para fora contra o elástico.',
+    description: 'Coloque um elástico acima dos joelhos e execute a elevação de quadril, forçando os joelhos para fora contra o elástico.',
     cues: ['Mantenha a tensão no elástico o tempo todo', 'Não deixe os joelhos cederem para dentro'],
     commonMistakes: ['Perder a tensão no elástico'],
     avoidIfPain: ['lower-back'], benefits: ['Ativa o glúteo médio e máximo simultaneamente', 'Melhora a estabilidade do joelho'],
@@ -1765,10 +1765,10 @@ export const EXERCISE_DATABASE: Exercise[] = [
     targetPosturalIssues: ['instabilidade-core'], alternatives: ['plank-shoulder-tap'], gifUrl: '/gifs/exercises/renegade-row.gif'
   },
   {
-    id: 'ex170', name: 'Ponte de Glúteos com Marcha', nameEN: 'Glute Bridge March', category: 'strength',
+    id: 'ex170', name: 'Elevação de Quadril com Marcha', nameEN: 'Glute Bridge March', category: 'strength',
     muscleGroups: ['gluteos', 'core'], equipment: ['none'], difficulty: 'intermediate',
     sets: 3, reps: 20, rest: 60, tempo: { concentric: 1, isometric: 0, eccentric: 1 },
-    description: 'Na posição de ponte de glúteos, levante um joelho de cada vez em direção ao peito, como se estivesse marchando.',
+    description: 'Na posição de elevação de quadril, levante um joelho de cada vez em direção ao peito, como se estivesse marchando.',
     cues: ['Mantenha o quadril alto e estável', 'Não deixe a pélvis cair ou rotacionar'],
     commonMistakes: ['Perder a altura do quadril'],
     avoidIfPain: ['lower-back'], benefits: ['Estabilidade pélvica e do core', 'Ativação de glúteos'],

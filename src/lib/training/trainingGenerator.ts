@@ -11,6 +11,7 @@ import {
   PainArea
 } from './exerciseDatabase';
 import { PosturalAnalysisResult, calculatePosturalScore, requiresMedicalClearance } from '@/types/posturalAnalysis';
+import { normalizeDeviationType, POSTURAL_ISSUE_TO_EXERCISE_MAPPING } from './posturalMappings';
 
 interface UserProfile {
   name: string;
@@ -49,22 +50,40 @@ export function generatePersonalizedTrainingPlan(
   
   // ✅ VERIFICAÇÃO: Se tem análise postural, usar. Se não, avisar mas continuar.
   if (!posturalAnalysis) {
-    console.warn("⚠️ [AVISO] Análise postural não fornecida! Treino será genérico (não personalizado).");
-  } else {
-    console.log("📸 [ANÁLISE POSTURAL] Score:", posturalAnalysis.riskAssessment.overallPosturalScore);
-    console.log("⚠️ [DESVIOS]:", posturalAnalysis.deviations);
-    console.log("🎯 [RECOMENDAÇÕES]:", posturalAnalysis.trainingRecommendations);
-    
-    // ✅ VERIFICAÇÃO DE SEGURANÇA: Liberação médica necessária?
-    if (requiresMedicalClearance(posturalAnalysis)) {
-      console.warn("⚠️ [ALERTA] Usuário requer liberação médica!");
-      // Aqui você pode lançar um erro ou retornar um plano especial
+  console.warn("⚠️ [AVISO] Análise postural não fornecida! Treino será genérico (não personalizado).");
+} else {
+  // ✅ ADAPTAR À ESTRUTURA REAL DOS DADOS
+  const score = posturalAnalysis.riskAssessment?.overallPosturalScore 
+    || posturalAnalysis.confidence 
+    || 85;
+  
+  console.log("📸 [ANÁLISE POSTURAL] Score:", score);
+  console.log("📸 [ANÁLISE POSTURAL] Estrutura recebida:", {
+    hasRiskAssessment: !!posturalAnalysis.riskAssessment,
+    hasDeviations: !!posturalAnalysis.deviations,
+    hasConfidence: !!posturalAnalysis.confidence,
+    hasSummary: !!posturalAnalysis.summary
+  });
+  console.log("⚠️ [DESVIOS]:", posturalAnalysis.deviations);
+  console.log("🎯 [RECOMENDAÇÕES]:", posturalAnalysis.trainingRecommendations);
+  
+  // ✅ VERIFICAÇÃO DE SEGURANÇA (OPCIONAL - só se a função existir)
+  if (typeof requiresMedicalClearance === 'function') {
+    try {
+      if (requiresMedicalClearance(posturalAnalysis)) {
+        console.warn("⚠️ [ALERTA] Usuário requer liberação médica!");
+      }
+    } catch (err) {
+      console.warn("⚠️ [AVISO] Não foi possível verificar liberação médica:", err);
     }
   }
+}
   
   // 1. ANÁLISE CONTEXTUAL (AGORA COM DADOS POSTURAIS!)
   const context = analyzeUserContext(profile, posturalAnalysis);
   console.log("🧠 [CONTEXTO ANALISADO]:", context);
+
+  
   
   // 2. DETERMINAR ESTRUTURA DO TREINO (baseado em CIÊNCIA + CONTEXTO)
   const trainingStructure = determineOptimalStructure(context);
@@ -161,10 +180,25 @@ function analyzeUserContext(
   let volumeModifier = 1.0;
   
   if (posturalAnalysis) {
-    posturalIssues = extractPosturalIssues(posturalAnalysis);
-    intensityModifier = posturalAnalysis.trainingRecommendations?.intensityModifier || 1.0;
-    volumeModifier = posturalAnalysis.trainingRecommendations?.volumeModifier || 1.0;
-  }
+  posturalIssues = extractPosturalIssues(posturalAnalysis);
+  
+  // ✅ ADAPTAR: Usar valores padrão se não existirem
+  // ✅ ADAPTAR: trainingRecommendations NÃO EXISTE na estrutura atual
+// Calcular modifiers baseado na severidade dos desvios
+intensityModifier = 1.0;
+volumeModifier = 1.0;
+
+if (posturalIssues.length > 0) {
+  // Se tem desvios, reduzir intensidade/volume proporcionalmente
+  const deviationCount = posturalIssues.length;
+  intensityModifier = Math.max(0.7, 1.0 - (deviationCount * 0.1)); // reduz 10% por desvio
+  volumeModifier = Math.max(0.8, 1.0 - (deviationCount * 0.05)); // reduz 5% por desvio
+}
+
+console.log("📊 [CONTEXT] Modifiers calculados:", { intensityModifier, volumeModifier, deviationCount: posturalIssues.length });
+  
+  console.log("📊 [CONTEXT] Modifiers:", { intensityModifier, volumeModifier });
+}
   
   // Ajustar needsPosturalWork baseado em análise OU objetivos
   const needsPosturalWork = posturalIssues.length > 0 || goals.some(g => 
@@ -235,6 +269,8 @@ function analyzeUserContext(
   };
 }
 
+
+
 // ============================================================================
 // DETERMINAR ESTRUTURA ÓTIMA DO TREINO
 // ============================================================================
@@ -261,151 +297,362 @@ interface PhaseConfig {
 }
 
 function determineOptimalStructure(context: UserContext): TrainingStructure {
-  console.log("🧠 [ESTRUTURA] Analisando melhor abordagem...");
+  console.log("🧠 [ESTRUTURA] ===== ANÁLISE INTELIGENTE INICIANDO =====");
+  console.log("🧠 [ESTRUTURA] Contexto completo:", {
+    experienceLevel: context.experienceLevel,
+    weeklyFrequency: context.weeklyFrequency,
+    activityLevel: context.volumeTolerance,
+    needsPosturalWork: context.needsPosturalWork,
+    needsMobility: context.needsMobility,
+    needsStrength: context.needsStrength,
+    needsCardio: context.needsCardio,
+    primaryGoals: context.primaryGoals,
+    posturalIssues: context.posturalIssues?.length || 0
+  });
   
-  // DECISÃO 1: Frequência → Split Type
-  let splitType = 'ABC';
-  let phasesCount = 3;
+  // ============================================
+  // ETAPA 1: DETERMINAR SPLIT TYPE DINÂMICO
+  // ============================================
   
+  let splitType = '';
+  let phasesCount = 0;
+  let splitRationale = '';
+  
+  // ✅ LÓGICA INTELIGENTE: Cruzar frequência + experiência + atividade
   if (context.weeklyFrequency <= 2) {
     splitType = 'full_body';
     phasesCount = 2;
-  } else if (context.weeklyFrequency >= 5) {
+    splitRationale = 'Full Body 2x/semana - Ideal para iniciantes ou baixa frequência';
+  } 
+  else if (context.weeklyFrequency === 3) {
+    // ✅ DECISÃO INTELIGENTE: 3x pode ser Full Body OU ABC
+    if (context.experienceLevel === 'iniciante' && context.volumeTolerance === 'low') {
+      splitType = 'full_body';
+      phasesCount = 3;
+      splitRationale = 'Full Body 3x/semana - Melhor para iniciantes com baixa tolerância';
+    } else {
+      splitType = 'ABC';
+      phasesCount = 3;
+      splitRationale = 'Split ABC - Permite maior volume por grupo muscular';
+    }
+  }
+  else if (context.weeklyFrequency === 4) {
+    // ✅ DECISÃO INTELIGENTE: 4x pode ser Upper/Lower OU ABCD
+    if (context.needsStrength && context.experienceLevel !== 'iniciante') {
+      splitType = 'upper_lower';
+      phasesCount = 4;
+      splitRationale = 'Upper/Lower 4x/semana - Otimiza ganho de força';
+    } else {
+      splitType = 'ABCD';
+      phasesCount = 4;
+      splitRationale = 'Split ABCD - Variedade e recuperação balanceada';
+    }
+  }
+  else if (context.weeklyFrequency === 5) {
+    // ✅ DECISÃO INTELIGENTE: 5x pode ser Push/Pull/Legs OU ABCDE
+    if (context.experienceLevel === 'avancado' && context.volumeTolerance === 'high') {
+      splitType = 'push_pull_legs';
+      phasesCount = 5; // PPL com repetição
+      splitRationale = 'Push/Pull/Legs 5x/semana - Alta frequência para avançados';
+    } else {
+      splitType = 'ABCDE';
+      phasesCount = 5;
+      splitRationale = 'Split ABCDE - Volume distribuído em 5 sessões';
+    }
+  }
+  else if (context.weeklyFrequency >= 6) {
     splitType = 'push_pull_legs';
-    phasesCount = 3;
+    phasesCount = 6;
+    splitRationale = 'Push/Pull/Legs 6x/semana - Máxima frequência';
   }
   
-  // DECISÃO 2: Objetivos → Composição
+  console.log(`🧠 [ESTRUTURA] Split escolhido: ${splitType} (${phasesCount} fases)`);
+  console.log(`🧠 [ESTRUTURA] Rationale: ${splitRationale}`);
+  
+  // ============================================
+  // ETAPA 2: GERAR FASES DINÂMICAS
+  // ============================================
+  
   const phasesConfig: PhaseConfig[] = [];
   
+  // ✅ FULL BODY (2-3x/semana)
   if (splitType === 'full_body') {
-    // Full Body: Mescla tudo em 2 treinos
+    for (let i = 0; i < phasesCount; i++) {
+      const phaseLetter = String.fromCharCode(65 + i); // A, B, C
+      
+      phasesConfig.push({
+        name: `Treino ${phaseLetter} - Corpo Completo`,
+        focus: generateDynamicFocus(context, 'full_body', i),
+        composition: calculateComposition(context, 'full_body'),
+        intensityLevel: calculateIntensity(context, i)
+      });
+    }
+  }
+  
+  // ✅ ABC (3x/semana)
+  else if (splitType === 'ABC') {
     phasesConfig.push({
-      name: 'Treino A - Corpo Completo',
-      focus: ['força', 'mobilidade', 'core'],
-      composition: {
-        warmup: 10,
-        strength: 60,
-        mobility: 20,
-        cardio: 0,
-        cooldown: 10
-      },
-      intensityLevel: context.experienceLevel === 'iniciante' ? 'moderate' : 'high'
+      name: 'Treino A - Upper Push & Core',
+      focus: generateDynamicFocus(context, 'upper_push', 0),
+      composition: calculateComposition(context, 'upper_push'),
+      intensityLevel: calculateIntensity(context, 0)
     });
     
     phasesConfig.push({
-      name: 'Treino B - Corpo Completo + Cardio',
-      focus: ['força', 'cardio', 'mobilidade'],
-      composition: {
-        warmup: 10,
-        strength: 50,
-        mobility: 15,
-        cardio: context.needsCardio ? 15 : 0,
-        cooldown: 10
-      },
+      name: 'Treino B - Pull & Posterior Chain',
+      focus: generateDynamicFocus(context, 'pull_posterior', 1),
+      composition: calculateComposition(context, 'pull_posterior'),
+      intensityLevel: calculateIntensity(context, 1)
+    });
+    
+    phasesConfig.push({
+      name: 'Treino C - Lower Body & Mobility',
+      focus: generateDynamicFocus(context, 'lower_mobility', 2),
+      composition: calculateComposition(context, 'lower_mobility'),
+      intensityLevel: calculateIntensity(context, 2)
+    });
+  }
+  
+  // ✅ UPPER/LOWER (4x/semana)
+  else if (splitType === 'upper_lower') {
+    phasesConfig.push({
+      name: 'Treino A - Upper Body Push',
+      focus: generateDynamicFocus(context, 'upper_push', 0),
+      composition: calculateComposition(context, 'upper_push'),
+      intensityLevel: 'high'
+    });
+    
+    phasesConfig.push({
+      name: 'Treino B - Lower Body',
+      focus: generateDynamicFocus(context, 'lower_body', 1),
+      composition: calculateComposition(context, 'lower_body'),
+      intensityLevel: 'high'
+    });
+    
+    phasesConfig.push({
+      name: 'Treino C - Upper Body Pull',
+      focus: generateDynamicFocus(context, 'upper_pull', 2),
+      composition: calculateComposition(context, 'upper_pull'),
+      intensityLevel: 'moderate'
+    });
+    
+    phasesConfig.push({
+      name: 'Treino D - Lower Body + Core',
+      focus: generateDynamicFocus(context, 'lower_core', 3),
+      composition: calculateComposition(context, 'lower_core'),
       intensityLevel: 'moderate'
     });
   }
   
-  if (splitType === 'ABC') {
-    // Treino A: Foco em Core + Upper (Push)
-    phasesConfig.push({
-      name: 'Treino A - Core & Upper Push',
-      focus: ['core', 'peito', 'ombros', 'postura'],
-      composition: {
-        warmup: context.needsPosturalWork ? 15 : 10,
-        strength: 60,
-        mobility: context.needsMobility ? 20 : 10,
-        cardio: 0,
-        cooldown: 10
-      },
-      intensityLevel: 'moderate'
-    });
+  // ✅ ABCD (4x/semana)
+  else if (splitType === 'ABCD') {
+    const focuses = ['upper_push', 'pull_posterior', 'lower_body', 'full_body'];
+    const names = [
+      'Treino A - Upper Push & Core',
+      'Treino B - Pull & Posterior',
+      'Treino C - Lower Body',
+      'Treino D - Corpo Completo Leve'
+    ];
     
-    // Treino B: Foco em Posterior Chain
-    phasesConfig.push({
-      name: 'Treino B - Cadeia Posterior & Pull',
-      focus: ['costas', 'glúteos', 'isquiotibiais', 'postura'],
-      composition: {
-        warmup: 10,
-        strength: 65,
-        mobility: 15,
-        cardio: context.needsCardio ? 10 : 0,
-        cooldown: 10
-      },
-      intensityLevel: context.experienceLevel === 'avancado' ? 'high' : 'moderate'
-    });
-    
-    // Treino C: Foco em Lower Body + Mobility
-    phasesConfig.push({
-      name: 'Treino C - Membros Inferiores & Mobilidade',
-      focus: ['pernas', 'quadril', 'core', 'flexibilidade'],
-      composition: {
-        warmup: 10,
-        strength: 55,
-        mobility: context.needsMobility ? 25 : 15,
-        cardio: 0,
-        cooldown: 10
-      },
-      intensityLevel: 'moderate'
-    });
+    for (let i = 0; i < 4; i++) {
+      phasesConfig.push({
+        name: names[i],
+        focus: generateDynamicFocus(context, focuses[i], i),
+        composition: calculateComposition(context, focuses[i]),
+        intensityLevel: calculateIntensity(context, i)
+      });
+    }
   }
   
-  if (splitType === 'push_pull_legs') {
-    // Push Day
-    phasesConfig.push({
-      name: 'Push - Peito, Ombros, Tríceps',
-      focus: ['peito', 'ombros', 'tríceps'],
-      composition: {
-        warmup: 10,
-        strength: 70,
-        mobility: 10,
-        cardio: 0,
-        cooldown: 10
-      },
-      intensityLevel: 'high'
-    });
+  // ✅ ABCDE (5x/semana)
+  else if (splitType === 'ABCDE') {
+    const focuses = ['upper_push', 'pull_posterior', 'lower_body', 'upper_full', 'mobility_core'];
+    const names = [
+      'Treino A - Upper Push',
+      'Treino B - Pull & Posterior',
+      'Treino C - Lower Body',
+      'Treino D - Upper Completo',
+      'Treino E - Mobility & Core'
+    ];
     
-    // Pull Day
-    phasesConfig.push({
-      name: 'Pull - Costas, Bíceps',
-      focus: ['costas', 'bíceps', 'posterior'],
-      composition: {
-        warmup: 10,
-        strength: 70,
-        mobility: 10,
-        cardio: 0,
-        cooldown: 10
-      },
-      intensityLevel: 'high'
-    });
-    
-    // Leg Day
-    phasesConfig.push({
-      name: 'Legs - Pernas & Glúteos',
-      focus: ['pernas', 'glúteos', 'core'],
-      composition: {
-        warmup: 15,
-        strength: 65,
-        mobility: 10,
-        cardio: context.needsCardio ? 10 : 0,
-        cooldown: 10
-      },
-      intensityLevel: 'high'
-    });
+    for (let i = 0; i < 5; i++) {
+      phasesConfig.push({
+        name: names[i],
+        focus: generateDynamicFocus(context, focuses[i], i),
+        composition: calculateComposition(context, focuses[i]),
+        intensityLevel: calculateIntensity(context, i)
+      });
+    }
   }
   
-  // DECISÃO 3: Nome e Rationale
+  // ✅ PUSH/PULL/LEGS (5-6x/semana)
+  else if (splitType === 'push_pull_legs') {
+    const cycles = Math.ceil(phasesCount / 3);
+    
+    for (let cycle = 0; cycle < cycles; cycle++) {
+      // Push
+      phasesConfig.push({
+        name: `Push ${cycle + 1} - Peito, Ombros, Tríceps`,
+        focus: generateDynamicFocus(context, 'push', cycle * 3),
+        composition: calculateComposition(context, 'push'),
+        intensityLevel: 'high'
+      });
+      
+      // Pull
+      if (phasesConfig.length < phasesCount) {
+        phasesConfig.push({
+          name: `Pull ${cycle + 1} - Costas, Bíceps`,
+          focus: generateDynamicFocus(context, 'pull', cycle * 3 + 1),
+          composition: calculateComposition(context, 'pull'),
+          intensityLevel: 'high'
+        });
+      }
+      
+      // Legs
+      if (phasesConfig.length < phasesCount) {
+        phasesConfig.push({
+          name: `Legs ${cycle + 1} - Pernas & Glúteos`,
+          focus: generateDynamicFocus(context, 'legs', cycle * 3 + 2),
+          composition: calculateComposition(context, 'legs'),
+          intensityLevel: 'high'
+        });
+      }
+    }
+  }
+  
+  // ============================================
+  // ETAPA 3: GERAR NOME E RATIONALE
+  // ============================================
+  
   const programName = generateProgramName(context);
-  const rationale = generateRationale(context, splitType);
+  const goalsText = context.primaryGoals && context.primaryGoals.length > 0 
+  ? context.primaryGoals.slice(0, 2).join(' e ')
+  : 'saúde e bem-estar';
+
+const experienceText = context.experienceLevel || 'iniciante';
+
+const rationale = `${splitRationale}. Personalizado para ${experienceText} com foco em ${goalsText}.`;
+  
+  console.log(`🧠 [ESTRUTURA] Programa: ${programName}`);
+  console.log(`🧠 [ESTRUTURA] ${phasesConfig.length} fases criadas`);
   
   return {
     programName,
     rationale,
     splitType,
-    durationWeeks: 4, // Ciclo padrão de adaptação
+    durationWeeks: 4,
     phasesConfig
   };
+}
+
+// ============================================
+// FUNÇÕES AUXILIARES DINÂMICAS
+// ============================================
+
+function generateDynamicFocus(context: UserContext, workoutType: string, phaseIndex: number): string[] {
+  const baseFocus: string[] = [];
+  
+  // ✅ ADICIONAR FOCO BASEADO NO TIPO DE TREINO
+  switch(workoutType) {
+    case 'full_body':
+      baseFocus.push('core', 'upper-body', 'lower-body');
+      break;
+    case 'upper_push':
+      baseFocus.push('peito', 'ombro', 'triceps', 'core');
+      break;
+    case 'upper_pull':
+    case 'pull_posterior':
+      baseFocus.push('costas', 'biceps', 'posterior-chain');
+      break;
+    case 'lower_body':
+    case 'lower_mobility':
+    case 'lower_core':
+      baseFocus.push('quadriceps', 'gluteos', 'lower-body');
+      break;
+    case 'push':
+      baseFocus.push('peito', 'ombro', 'triceps');
+      break;
+    case 'pull':
+      baseFocus.push('costas', 'biceps');
+      break;
+    case 'legs':
+      baseFocus.push('quadriceps', 'gluteos', 'posterior-chain');
+      break;
+    case 'mobility_core':
+      baseFocus.push('core', 'mobilidade', 'flexibilidade');
+      break;
+  }
+  
+  // ✅ ADICIONAR FOCO POSTURAL SE NECESSÁRIO
+  if (context.needsPosturalWork && context.posturalIssues && context.posturalIssues.length > 0) {
+    baseFocus.push('postura');
+    // Adicionar issues específicos
+    baseFocus.push(...context.posturalIssues.slice(0, 2));
+  }
+  
+  // ✅ ADICIONAR MOBILIDADE SE NECESSÁRIO
+  if (context.needsMobility && phaseIndex % 2 === 0) {
+    baseFocus.push('mobilidade');
+  }
+  
+  console.log(`🎯 [FOCUS] Treino ${phaseIndex + 1} (${workoutType}): ${baseFocus.join(', ')}`);
+  
+  return baseFocus;
+}
+
+function calculateComposition(context: UserContext, workoutType: string): PhaseConfig['composition'] {
+  const base = {
+    warmup: 10,
+    strength: 60,
+    mobility: 15,
+    cardio: 0,
+    cooldown: 10
+  };
+  
+  // ✅ AJUSTAR BASEADO NO TIPO DE TREINO
+  if (workoutType.includes('mobility') || workoutType.includes('core')) {
+    base.strength = 40;
+    base.mobility = 35;
+  }
+  
+  if (workoutType.includes('full_body')) {
+    base.strength = 55;
+    base.mobility = 20;
+  }
+  
+  // ✅ AJUSTAR BASEADO NO CONTEXTO
+  if (context.needsPosturalWork) {
+    base.warmup = 15;
+    base.mobility += 5;
+    base.strength -= 5;
+  }
+  
+  if (context.needsCardio && !workoutType.includes('mobility')) {
+    base.cardio = 10;
+    base.strength -= 10;
+  }
+  
+  if (context.experienceLevel === 'iniciante') {
+    base.warmup = 15;
+    base.cooldown = 15;
+  }
+  
+  return base;
+}
+
+function calculateIntensity(context: UserContext, phaseIndex: number): 'low' | 'moderate' | 'high' {
+  // ✅ INICIANTES: Sempre moderado ou baixo
+  if (context.experienceLevel === 'iniciante') {
+    return phaseIndex === 0 ? 'moderate' : 'low';
+  }
+  
+  // ✅ INTERMEDIÁRIOS: Variar entre moderado e alto
+  if (context.experienceLevel === 'intermediario') {
+    return phaseIndex % 2 === 0 ? 'high' : 'moderate';
+  }
+  
+  // ✅ AVANÇADOS: Sempre alto
+  return 'high';
 }
 
 function generateProgramName(context: UserContext): string {
@@ -519,19 +766,37 @@ function prescribeWorkoutPhases(context: UserContext, structure: TrainingStructu
   return phases;
 }
 
-// ✅ NOVA FUNÇÃO: Extrair issues em formato legível
-function extractPosturalIssues(analysis: PosturalAnalysisResult): string[] {
+// ✅ FUNÇÃO MELHORADA: Extrair issues e mapear para exercícios
+function extractPosturalIssues(analysis: any): string[] {
   const issues: string[] = [];
-  const { deviations } = analysis;
   
-  if (deviations.forwardHead !== 'none') issues.push('Anteriorização da cabeça');
-  if (deviations.thoracicKyphosis === 'hyperkyphosis') issues.push('Hipercifose torácica');
-  if (deviations.lumbarLordosis === 'hyperlordosis') issues.push('Hiperlordose lombar');
-  if (deviations.scoliosis.present) issues.push(`Escoliose ${deviations.scoliosis.severity}`);
-  if (deviations.shoulderProtraction !== 'none') issues.push('Ombros protraídos');
-  if (deviations.anteriorPelvicTilt !== 'none') issues.push('Anteversão pélvica');
-  if (analysis.muscularImbalances.upperCrossedSyndrome) issues.push('Síndrome cruzada superior');
-  if (analysis.muscularImbalances.lowerCrossedSyndrome) issues.push('Síndrome cruzada inferior');
+  console.log("🔍 [extractPosturalIssues] Estrutura recebida:", {
+    hasDeviations: !!analysis.deviations,
+    deviationsType: Array.isArray(analysis.deviations) ? 'array' : typeof analysis.deviations,
+    deviationsLength: Array.isArray(analysis.deviations) ? analysis.deviations.length : 'N/A'
+  });
+  
+  // ✅ ADAPTAR À ESTRUTURA REAL (array de deviations)
+  if (Array.isArray(analysis.deviations) && analysis.deviations.length > 0) {
+    analysis.deviations.forEach((deviation: any, index: number) => {
+      console.log(`🔍 [extractPosturalIssues] Processando deviation ${index}:`, deviation);
+      
+      // Tentar extrair o tipo do desvio de diferentes campos possíveis
+      const deviationType = deviation.type || deviation.description || deviation.name || '';
+      
+      if (deviationType) {
+        const normalized = normalizeDeviationType(deviationType);
+        issues.push(normalized);
+        console.log(`✅ [extractPosturalIssues] Desvio detectado: "${deviationType}" → normalizado: "${normalized}"`);
+      } else {
+        console.warn(`⚠️ [extractPosturalIssues] Deviation ${index} sem tipo identificável:`, deviation);
+      }
+    });
+  } else {
+    console.log("ℹ️ [extractPosturalIssues] Nenhum desvio no array ou array vazio");
+  }
+  
+  console.log(`✅ [extractPosturalIssues] ${issues.length} issues identificados:`, issues);
   
   return issues;
 }
@@ -540,6 +805,31 @@ function extractPosturalIssues(analysis: PosturalAnalysisResult): string[] {
 // SELEÇÃO INTELIGENTE DE EXERCÍCIOS
 // ============================================================================
 
+// ============================================================================
+// FUNÇÃO AUXILIAR: Buscar exercícios recomendados baseado em desvios
+// ============================================================================
+
+function getRecommendedExercisesForPosture(posturalIssues: string[]): string[] {
+  if (!posturalIssues || posturalIssues.length === 0) {
+    return [];
+  }
+
+  const recommendedIds: string[] = [];
+
+  for (const issue of posturalIssues) {
+    const normalized = normalizeDeviationType(issue);
+    const mapping = POSTURAL_ISSUE_TO_EXERCISE_MAPPING[normalized];
+
+    if (mapping && mapping.strengthen) {
+      recommendedIds.push(...mapping.strengthen);
+      console.log(`✅ [POSTURAL MAPPING] ${normalized} → Recomendar: ${mapping.strengthen.join(', ')}`);
+    }
+  }
+
+  // Remover duplicatas
+  return Array.from(new Set(recommendedIds));
+}
+
 function selectExercisesByCategory(
   category: 'strength' | 'mobility' | 'cardio' | 'flexibility' | 'posture',
   context: UserContext,
@@ -547,121 +837,154 @@ function selectExercisesByCategory(
   phaseFocus: string[]
 ): TrainingExercise[] {
   
-  console.log(`🔍 [SELECT] Categoria: ${category}, Target: ${targetCount}, Focus: ${phaseFocus.join(', ')}`);
+  console.log(`🔍 [SELECT] ===== INICIANDO SELEÇÃO =====`);
+  console.log(`🔍 [SELECT] Categoria: ${category}`);
+  console.log(`🔍 [SELECT] Target: ${targetCount} exercícios`);
+  console.log(`🔍 [SELECT] Focus da fase:`, phaseFocus);
   
-  // Buscar exercícios compatíveis
-  let candidates = searchExercises({
-    category: category as any,
-    equipment: context.availableEquipment,
-    avoidPain: context.painAreas,
-    difficulty: context.experienceLevel
-  });
+  // ✅ ETAPA 1: BUSCAR TODOS OS EXERCÍCIOS DA CATEGORIA
+  let allCandidates = EXERCISE_DATABASE.filter(ex => ex.category === category);
+  console.log(`📊 [SELECT] Total de exercícios da categoria '${category}': ${allCandidates.length}`);
   
-  // Filtrar por foco da fase (se possível)
-  const focusedCandidates = candidates.filter(ex =>
-    phaseFocus.some(focus => 
-      ex.muscleGroups.some(mg => mg.includes(focus)) ||
-      ex.targetPosturalIssues.some(issue => issue.includes(focus))
-    )
+  // ✅ ETAPA 2: FILTRAR POR EQUIPAMENTO
+  allCandidates = allCandidates.filter(ex =>
+    ex.equipment.every(eq => context.availableEquipment.includes(eq))
   );
+  console.log(`📊 [SELECT] Após filtro de equipamento: ${allCandidates.length}`);
   
-  if (focusedCandidates.length >= targetCount) {
-    candidates = focusedCandidates;
-  }
+  // ✅ ETAPA 3: FILTRAR POR DOR
+  allCandidates = allCandidates.filter(ex =>
+    !context.painAreas.some(pain => ex.avoidIfPain.includes(pain))
+  );
+  console.log(`📊 [SELECT] Após filtro de dor: ${allCandidates.length}`);
+  
+  // ✅ ETAPA 4: SEPARAR EXERCÍCIOS POR PRIORIDADE COM SCORING
+const priorityExercises: DBExercise[] = [];
+const focusedExercises: DBExercise[] = [];
+const otherExercises: DBExercise[] = [];
 
-  // ✅ FILTRAR EXERCÍCIOS CONTRAINDICADOS PELA ANÁLISE POSTURAL
-  if (context.posturalAnalysis?.trainingRecommendations?.avoidExercises) {
-    const avoidIds = context.posturalAnalysis.trainingRecommendations.avoidExercises;
-    if (avoidIds.length > 0) {
-      candidates = candidates.filter(ex => !avoidIds.includes(ex.id));
-      console.log(`🚫 [FILTRO POSTURAL] Removidos ${avoidIds.length} exercícios contraindicados`);
-    }
+// ✅ NOVO: Buscar exercícios recomendados baseado nos desvios posturais
+const recommendedExerciseIds = getRecommendedExercisesForPosture(context.posturalIssues || []);
+
+console.log(`🎯 [SELECT] Exercícios recomendados para desvios posturais:`, recommendedExerciseIds);
+
+for (const ex of allCandidates) {
+  // ✅ 1. PRIORIDADE MÁXIMA: Exercícios corretivos para desvios detectados
+  if (recommendedExerciseIds.includes(ex.id)) {
+    priorityExercises.push(ex);
+    console.log(`⭐ [SELECT] PRIORIDADE MÁXIMA: ${ex.name} (corrige desvio postural)`);
   }
-  
-  // Filtrar por equipamento disponível
-  candidates = filterByAvailableEquipment(candidates, context.availableEquipment);
-  
-  console.log(`📊 [SELECT] Candidatos após filtros: ${candidates.length}`);
-  
-  // Se não tem exercícios suficientes, relaxar critérios
-  if (candidates.length < targetCount) {
-    console.warn(`⚠️ [SELECT] Poucos exercícios (${candidates.length}), relaxando critérios...`);
-    
-    // Tentar sem filtro de dificuldade
-    candidates = searchExercises({
-      category: category as any,
-      equipment: context.availableEquipment,
-      avoidPain: context.painAreas
-    });
-    
-    candidates = filterByAvailableEquipment(candidates, context.availableEquipment);
-    console.log(`📊 [SELECT] Após relaxar: ${candidates.length}`);
+  // ✅ 2. PRIORIDADE ALTA: Exercícios que targetam issues posturais
+  else if (context.posturalIssues && context.posturalIssues.length > 0 &&
+           ex.targetPosturalIssues && ex.targetPosturalIssues.length > 0 &&
+           context.posturalIssues.some(issue => 
+             ex.targetPosturalIssues.some(target => 
+               target.toLowerCase().includes(issue.toLowerCase()) ||
+               issue.toLowerCase().includes(target.toLowerCase())
+             )
+           )) {
+    priorityExercises.push(ex);
+    console.log(`⭐ [SELECT] PRIORIDADE ALTA: ${ex.name} (target postural issue)`);
   }
-  
-  // Se AINDA não tem suficientes, usar todos disponíveis da categoria
-  if (candidates.length < targetCount) {
-    console.warn(`⚠️ [SELECT] Ainda insuficiente, usando todos da categoria`);
-    candidates = EXERCISE_DATABASE.filter(ex => 
-      ex.category === category &&
-      !context.painAreas.some(pain => ex.avoidIfPain.includes(pain))
-    );
+  // ✅ 3. PRIORIDADE MÉDIA: Exercícios que batem com o foco da fase
+  else if (phaseFocus.some(focus => 
+    ex.muscleGroups.some(mg => mg.toLowerCase().includes(focus.toLowerCase())) ||
+    ex.name.toLowerCase().includes(focus.toLowerCase())
+  )) {
+    focusedExercises.push(ex);
   }
+  // ✅ 4. PRIORIDADE BAIXA: Outros exercícios
+  else {
+    otherExercises.push(ex);
+  }
+}
   
-  // ✅ DECLARAR `selected` ANTES DE USAR!
+  console.log(`📊 [SELECT] Prioritários: ${priorityExercises.length}`);
+  console.log(`📊 [SELECT] Focados: ${focusedExercises.length}`);
+  console.log(`📊 [SELECT] Outros: ${otherExercises.length}`);
+  
+  // ✅ ETAPA 5: MONTAR LISTA FINAL COM VARIEDADE
   const selected: DBExercise[] = [];
+  const usedExerciseIds = new Set<string>();
   const usedMuscleGroups = new Set<string>();
   
-  // ✅ PRIORIZAR EXERCÍCIOS CORRETIVOS (AGORA NO LUGAR CERTO!)
-  if (context.posturalAnalysis?.trainingRecommendations?.prioritizeExercises) {
-    const priorityIds = context.posturalAnalysis.trainingRecommendations.prioritizeExercises;
-    const correctiveExercises = candidates.filter(ex => priorityIds.includes(ex.id));
+  // Função auxiliar para adicionar exercício
+  const addExercise = (ex: DBExercise): boolean => {
+    if (usedExerciseIds.has(ex.id)) return false;
+    if (selected.length >= targetCount) return false;
     
-    if (correctiveExercises.length > 0) {
-      console.log(`✅ [PRIORIDADE POSTURAL] ${correctiveExercises.length} exercícios corretivos encontrados`);
-      // Garantir que pelo menos 30% dos exercícios sejam corretivos
-      const correctiveCount = Math.ceil(targetCount * 0.3);
-      selected.push(...correctiveExercises.slice(0, correctiveCount));
-      // Marcar grupos musculares usados
-      correctiveExercises.slice(0, correctiveCount).forEach(ex => {
-        ex.muscleGroups.forEach(mg => usedMuscleGroups.add(mg));
-      });
+    selected.push(ex);
+    usedExerciseIds.add(ex.id);
+    ex.muscleGroups.forEach(mg => usedMuscleGroups.add(mg));
+    console.log(`✅ [SELECT] Adicionado: ${ex.name} (grupos: ${ex.muscleGroups.join(', ')})`);
+    return true;
+  };
+  
+  // 5.1: Adicionar exercícios prioritários (30% do total)
+  const priorityCount = Math.min(priorityExercises.length, Math.ceil(targetCount * 0.3));
+  for (let i = 0; i < priorityCount && i < priorityExercises.length; i++) {
+    addExercise(priorityExercises[i]);
+  }
+  
+  // 5.2: Adicionar exercícios focados (50% do total)
+  const focusCount = Math.ceil(targetCount * 0.5);
+  let focusAdded = 0;
+  
+  // Embaralhar para variedade
+  const shuffledFocused = focusedExercises.sort(() => Math.random() - 0.5);
+  
+  for (const ex of shuffledFocused) {
+    if (focusAdded >= focusCount) break;
+    
+    // Priorizar exercícios que trabalham grupos musculares ainda não usados
+    const hasNewMuscleGroup = ex.muscleGroups.some(mg => !usedMuscleGroups.has(mg));
+    
+    if (hasNewMuscleGroup || selected.length < 2) {
+      if (addExercise(ex)) {
+        focusAdded++;
+      }
     }
   }
   
-  // Primeira passada: variedade de grupos musculares
-  for (const ex of candidates) {
+  // Se não conseguiu adicionar focados suficientes, adicionar qualquer um
+  if (focusAdded < focusCount) {
+    for (const ex of shuffledFocused) {
+      if (focusAdded >= focusCount) break;
+      if (addExercise(ex)) {
+        focusAdded++;
+      }
+    }
+  }
+  
+  // 5.3: Completar com outros exercícios (20% do total)
+  const shuffledOthers = otherExercises.sort(() => Math.random() - 0.5);
+  
+  for (const ex of shuffledOthers) {
     if (selected.length >= targetCount) break;
     
-    // Não adicionar duplicados
-    if (selected.includes(ex)) continue;
-    
     const hasNewMuscleGroup = ex.muscleGroups.some(mg => !usedMuscleGroups.has(mg));
-    if (hasNewMuscleGroup || selected.length === 0) {
-      selected.push(ex);
-      ex.muscleGroups.forEach(mg => usedMuscleGroups.add(mg));
+    if (hasNewMuscleGroup) {
+      addExercise(ex);
     }
   }
   
-  // Segunda passada: completar se necessário
+  // Se ainda não atingiu o target, adicionar qualquer exercício restante
   if (selected.length < targetCount) {
-    const remaining = candidates.filter(ex => !selected.includes(ex));
-    selected.push(...remaining.slice(0, targetCount - selected.length));
+    console.log(`⚠️ [SELECT] Apenas ${selected.length}/${targetCount}, completando...`);
+    const allRemaining = [...shuffledFocused, ...shuffledOthers];
+    
+    for (const ex of allRemaining) {
+      if (selected.length >= targetCount) break;
+      addExercise(ex);
+    }
   }
   
-  console.log(`✅ [SELECT] Selecionados: ${selected.length} exercícios`);
+  console.log(`✅ [SELECT] Total selecionado: ${selected.length} exercícios`);
+  console.log(`✅ [SELECT] Grupos musculares cobertos: ${Array.from(usedMuscleGroups).join(', ')}`);
+  console.log(`✅ [SELECT] Exercícios: ${selected.map(e => e.name).join(', ')}`);
   
-  // Substituir se tiver contraindicação por dor
-  const finalSelection = selected.map(ex => {
-    const hasPain = context.painAreas.some(pain => ex.avoidIfPain.includes(pain));
-    if (hasPain) {
-      console.log(`⚠️ [SUBSTITUTE] ${ex.name} → Substituindo por dor`);
-      return substituteIfPain(ex.id, context.painAreas);
-    }
-    return ex;
-  });
-  
-  // Converter para formato de treino
-  return finalSelection.map(convertDBExerciseToTraining);
+  // ✅ ETAPA 6: CONVERTER PARA FORMATO DE TREINO
+  return selected.map(ex => convertDBExerciseToTraining(ex, context));
 }
 
 // ============================================================================
@@ -697,19 +1020,26 @@ function mapPainAreas(painAreas: string[]): PainArea[] {
     .filter(area => area !== undefined) as PainArea[];
 }
 
-function convertDBExerciseToTraining(dbEx: DBExercise): TrainingExercise {
+function convertDBExerciseToTraining(dbEx: DBExercise, context?: UserContext): TrainingExercise {
   // Lógica de segurança para garantir que não quebre se um campo estiver faltando
+  let setsValue = dbEx.sets || 3;
   const repsValue = dbEx.reps ? `${dbEx.reps}` : (dbEx.duration ? `${dbEx.duration}s` : '10');
   const restValue = dbEx.rest || 60;
   const tempoValue = dbEx.tempo ? `${dbEx.tempo.concentric}-${dbEx.tempo.isometric}-${dbEx.tempo.eccentric}` : '2-0-2';
+
+  // ✅ NOVO: Aplicar modificadores de volume se houver contexto
+  if (context && context.modifiers) {
+    setsValue = Math.max(1, Math.round(setsValue * context.modifiers.volume));
+    console.log(`📊 [CONVERT] Aplicando modificador de volume: ${dbEx.sets} → ${setsValue} sets (${context.modifiers.volume}x)`);
+  }
 
   return {
     id: dbEx.id,
     name: dbEx.name,
     category: mapCategoryToTraining(dbEx.category),
-    muscle_group: dbEx.muscleGroups[0] || 'core', // Pega o primeiro grupo muscular como principal
+    muscle_group: dbEx.muscleGroups[0] || 'core',
     equipment: mapEquipmentToTraining(dbEx.equipment[0] || 'none'),
-    sets: dbEx.sets || 3, // Valor padrão de 3 séries se não for definido
+    sets: setsValue, // ✅ AGORA USA O VALOR MODIFICADO
     reps: repsValue,
     rest_seconds: restValue,
     tempo: tempoValue,
@@ -717,7 +1047,6 @@ function convertDBExerciseToTraining(dbEx: DBExercise): TrainingExercise {
     gif_url: dbEx.gifUrl,
     video_url: dbEx.videoUrl,
     variations: {
-      // Busca na própria base de dados pelo nome da regressão/progressão
       easier: dbEx.regression ? EXERCISE_DATABASE.find(e => e.id === dbEx.regression)?.name : undefined,
       harder: dbEx.progression ? EXERCISE_DATABASE.find(e => e.id === dbEx.progression)?.name : undefined
     },

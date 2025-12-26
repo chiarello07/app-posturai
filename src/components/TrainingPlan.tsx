@@ -153,7 +153,7 @@ const loadTrainingPlan = async () => {
 
     const { success, data, error } = await getUserWorkout(user.id);
 
-    // ✅ SE NÃO TEM WORKOUT, MOSTRAR MENSAGEM AMIGÁVEL (NÃO REDIRECIONAR!)
+    // ✅ SE NÃO TEM WORKOUT, MOSTRAR MENSAGEM AMIGÁVEL
     if (!success || !data || error) {
       console.log("⚠️ [TRAINING] Nenhum treino encontrado no Supabase");
       
@@ -167,7 +167,7 @@ const loadTrainingPlan = async () => {
         return;
       }
       
-      // ✅ SE NÃO TEM EM NENHUM LUGAR, MOSTRAR UI DE ERRO (NÃO REDIRECIONAR!)
+      // ✅ SE NÃO TEM EM NENHUM LUGAR, MOSTRAR UI DE ERRO
       console.warn("⚠️ [TRAINING] Nenhum treino disponível (Supabase e localStorage)");
       setTrainingPlan(null);
       setIsLoading(false);
@@ -175,9 +175,14 @@ const loadTrainingPlan = async () => {
       return;
     }
 
-    // ✅ SE TEM WORKOUT, CARREGAR NORMALMENTE
+    // ✅ SE TEM WORKOUT, CARREGAR E SALVAR NO LOCALSTORAGE
     if (data && data.plan) {
       console.log("✅ [TRAINING] Treino carregado do Supabase:", data.plan);
+      
+      // ✅ SALVAR NO LOCALSTORAGE (ESTAVA FALTANDO ISSO!)
+      localStorage.setItem('currentTrainingPlan', JSON.stringify(data.plan));
+      console.log("💾 [TRAINING] Treino salvo no localStorage!");
+      
       setTrainingPlan(data.plan);
     } else {
       console.error("❌ [TRAINING] Workout encontrado, mas sem 'plan':", data);
@@ -1361,61 +1366,138 @@ return (
           </div>
         </section>
         
-        {/* ============= SEÇÃO: CALENDÁRIO SEMANAL (MANTÉM IGUAL) ============= */}
-        <section className="mb-8">
-          <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <Calendar className="w-6 h-6 text-indigo-600" />
-            Seu Calendário Semanal
-          </h3>
+{/* ============= SEÇÃO: CALENDÁRIO SEMANAL (DINÂMICO COM DIAS REAIS) ============= */}
+<section className="mb-8">
+  <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+    <Calendar className="w-6 h-6 text-indigo-600" />
+    Seu Calendário Semanal
+  </h3>
+  
+  <div className="bg-white rounded-2xl p-6 border-2 border-gray-200">
+    <div className="grid grid-cols-7 gap-2">
+      {(() => {
+        // ✅ BUSCAR DADOS DO USUÁRIO
+        let userProfileData = userProfile;
+        
+        if (!userProfileData || !userProfileData.trainingDays) {
+          const stored = localStorage.getItem('userProfile');
+          if (stored) {
+            userProfileData = JSON.parse(stored);
+          }
+        }
+        
+        console.log("📅 [CALENDAR DEBUG] userProfile completo:", userProfileData);
+        console.log("📅 [CALENDAR DEBUG] trainingDays:", userProfileData?.trainingDays);
+        console.log("📅 [CALENDAR DEBUG] exercise_frequency:", userProfileData?.exercise_frequency);
+        
+        const daysOfWeek = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+        const phases = trainingPlan.phases || [];
+        
+        // ✅ MAPEAR DIAS SELECIONADOS PELO USUÁRIO
+        const userSelectedDays = userProfileData?.trainingDays || [];
+        
+        // Mapeamento: 'seg' → 0 (índice do array daysOfWeek)
+        const dayMapping: Record<string, number> = {
+          'seg': 0,
+          'ter': 1,
+          'qua': 2,
+          'qui': 3,
+          'sex': 4,
+          'sab': 5,
+          'dom': 6
+        };
+        
+        // Converter ['seg', 'ter', 'qui', 'sex', 'sab'] → [0, 1, 3, 4, 5]
+        let trainingDays: number[] = userSelectedDays
+          .map((day: string) => dayMapping[day.toLowerCase()])
+          .filter((index: number) => index !== undefined);
+        
+        console.log("📅 [CALENDAR DEBUG] Dias selecionados:", userSelectedDays);
+        console.log("📅 [CALENDAR DEBUG] Índices mapeados:", trainingDays);
+        
+        // ✅ FALLBACK: Se não tiver trainingDays, usar frequência genérica
+        if (trainingDays.length === 0) {
+          console.warn("⚠️ [CALENDAR] trainingDays vazio, usando frequência genérica");
+          const frequency = parseInt(userProfileData?.exercise_frequency || '3');
           
-          <div className="bg-white rounded-2xl p-6 border-2 border-gray-200">
-            <div className="grid grid-cols-7 gap-2">
-              {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((day, index) => {
-                const workouts = ["A", "Rest", "B", "Rest", "C", "Stretch", "Rest"];
-                const workout = workouts[index];
-                const isWorkout = ["A", "B", "C"].includes(workout);
-                const isStretch = workout === "Stretch";
-                const isRest = workout === "Rest";
-                
-                return (
-                  <div key={day} className="text-center">
-                    <p className="text-xs font-semibold text-gray-600 mb-2">{day}</p>
-                    <div className={`rounded-xl p-3 ${
-                      isWorkout ? "bg-gradient-to-br from-blue-500 to-indigo-600 text-white" :
-                      isStretch ? "bg-gradient-to-br from-green-500 to-teal-600 text-white" :
-                      "bg-gray-100 text-gray-500"
-                    }`}>
-                      {isWorkout && (
-                        <>
-                          <p className="text-2xl font-bold">{workout}</p>
-                          <p className="text-xs mt-1">60min</p>
-                        </>
-                      )}
-                      {isStretch && (
-                        <>
-                          <p className="text-xl">🧘</p>
-                          <p className="text-xs mt-1 font-semibold">Alongamento</p>
-                        </>
-                      )}
-                      {isRest && (
-                        <>
-                          <p className="text-xl">😴</p>
-                          <p className="text-xs mt-1">Descanso</p>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+          if (frequency === 2) trainingDays = [0, 3];
+          else if (frequency === 3) trainingDays = [0, 2, 4];
+          else if (frequency === 4) trainingDays = [0, 2, 3, 5];
+          else if (frequency === 5) trainingDays = [0, 1, 3, 4, 5];
+          else if (frequency >= 6) trainingDays = [0, 1, 2, 3, 4, 5];
+          else trainingDays = [0, 2, 4];
+          
+          console.log("📅 [CALENDAR] Fallback - Frequência:", frequency, "→ Dias:", trainingDays);
+        }
+        
+        // ✅ DISTRIBUIR FASES NOS DIAS DE TREINO
+        const weekSchedule = daysOfWeek.map((_, index) => {
+          if (trainingDays.includes(index)) {
+            const phaseIndex = trainingDays.indexOf(index) % phases.length;
+            const phase = phases[phaseIndex];
+            return {
+              type: 'workout',
+              phase: phase?.phase || 'A',
+              duration: phase?.estimated_duration_minutes || 60
+            };
+          }
+          
+          if (index === 5 && !trainingDays.includes(5)) {
+            return { type: 'stretch' };
+          }
+          
+          return { type: 'rest' };
+        });
+        
+        console.log("📅 [CALENDAR DEBUG] Schedule final:", weekSchedule);
+        
+        // ✅ RENDERIZAR
+        return daysOfWeek.map((day, index) => {
+          const schedule = weekSchedule[index];
+          const isWorkout = schedule.type === 'workout';
+          const isStretch = schedule.type === 'stretch';
+          const isRest = schedule.type === 'rest';
+          
+          return (
+            <div key={day} className="text-center">
+              <p className="text-xs font-semibold text-gray-600 mb-2">{day}</p>
+              <div className={`rounded-xl p-3 ${
+                isWorkout ? "bg-gradient-to-br from-blue-500 to-indigo-600 text-white" :
+                isStretch ? "bg-gradient-to-br from-green-500 to-teal-600 text-white" :
+                "bg-gray-100 text-gray-500"
+              }`}>
+                {isWorkout && (
+                  <>
+                    <p className="text-2xl font-bold">{schedule.phase}</p>
+                    <p className="text-xs mt-1">{schedule.duration}min</p>
+                  </>
+                )}
+                {isStretch && (
+                  <>
+                    <p className="text-xl">🧘</p>
+                    <p className="text-xs mt-1 font-semibold">Alongamento</p>
+                  </>
+                )}
+                {isRest && (
+                  <>
+                    <p className="text-xl">😴</p>
+                    <p className="text-xs mt-1">Descanso</p>
+                  </>
+                )}
+              </div>
             </div>
-            
-            <div className="mt-6 bg-blue-50 rounded-xl p-4 border border-blue-200">
-              <p className="text-sm text-gray-700">
-                <span className="font-bold">💡 Dica:</span> O alongamento dedicado de 30-40min é essencial para sua recuperação e melhora postural. Não pule essa sessão!
-              </p>
-            </div>
-          </div>
-        </section>
+          );
+        });
+      })()}
+    </div>
+    
+    <div className="mt-6 bg-blue-50 rounded-xl p-4 border border-blue-200">
+      <p className="text-sm text-gray-700">
+        <span className="font-bold">💡 Dica:</span> Mantenha consistência nos dias escolhidos para melhores resultados!
+      </p>
+    </div>
+  </div>
+</section>
         
         {/* ============= SEÇÃO: CRITÉRIOS DE PROGRESSÃO (MANTÉM IGUAL) ============= */}
         <section>

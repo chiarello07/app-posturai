@@ -222,16 +222,46 @@ export default function PhotoAnalysis({ onBack, onComplete, userProfile, onBackT
       setAnalysisProgress(90);
       
       // ✅ ETAPA 5: SALVAR NO SUPABASE (100%)
-      setProgressMessage('Salvando análise...');
-      console.log('💾 [ANALYSIS] Salvando no Supabase...');
-      
-      if (userProfile.id) {
-        await saveAnalysis(userProfile.id, completeAnalysis);
-        console.log('✅ [ANALYSIS] Salvo no Supabase!');
-      }
-      
+setProgressMessage('Salvando análise...');
+console.log('💾 [ANALYSIS] Salvando no Supabase...');
+
+if (userProfile.id) {
+  await saveAnalysis(userProfile.id, completeAnalysis);
+  console.log('✅ [ANALYSIS] Salvo no Supabase!');
+  
+  // ✅ CORREÇÃO: GERAR TREINO BASEADO NA ANÁLISE
+  console.log('🏋️ [TRAINING] Gerando plano de treino personalizado...');
+  setProgressMessage('Gerando seu treino personalizado...');
+  
+  try {
+    // Importar funções necessárias
+    const { generatePersonalizedTrainingPlan } = await import('@/lib/training/trainingGenerator');
+    const { createUserWorkout } = await import('@/lib/supabase');
+    
+    // Gerar o treino usando o perfil + análise postural
+    const trainingPlan = generatePersonalizedTrainingPlan(userProfile, completeAnalysis.aiAnalysis);
+    
+    console.log('✅ [TRAINING] Treino gerado:', trainingPlan.name);
+    
+    // Salvar no Supabase usando a função que já existe
+    const result = await createUserWorkout(userProfile.id, trainingPlan, 'A');
+    
+    if (result.success) {
+      console.log('✅ [TRAINING] Treino salvo em user_workouts!');
       // Salvar no localStorage como backup
-      localStorage.setItem('completeAnalysis', JSON.stringify(completeAnalysis));
+      localStorage.setItem('currentTrainingPlan', JSON.stringify(trainingPlan));
+    } else {
+      console.error('⚠️ [TRAINING] Erro ao salvar treino:', result.error);
+    }
+    
+  } catch (trainErr: any) {
+    console.error('⚠️ [TRAINING] Erro ao gerar treino:', trainErr);
+    // Não bloquear o fluxo se falhar - usuário pode gerar depois
+  }
+}
+
+// Salvar análise no localStorage como backup
+localStorage.setItem('completeAnalysis', JSON.stringify(completeAnalysis));
       
       // Atualizar perfil do usuário
       const updatedProfile = {

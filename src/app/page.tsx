@@ -174,6 +174,7 @@ const handleLogin = async (e: React.FormEvent) => {
     console.log("🎉 [ONBOARDING COMPLETE] Iniciando...");
     console.log("🎉 [ONBOARDING COMPLETE] tempEmail:", tempEmail);
     console.log("🎉 [ONBOARDING COMPLETE] Dados recebidos:", profile);
+    console.log("🎉 [ONBOARDING COMPLETE] trainingDays recebidos:", profile.trainingDays); // ✅ LOG ADICIONAL
     
     // VALIDAÇÃO CRÍTICA
     if (!tempEmail || typeof tempEmail !== 'string') {
@@ -224,6 +225,7 @@ const handleLogin = async (e: React.FormEvent) => {
         last_period_start: profile.last_period_start || undefined,
         last_period_end: profile.last_period_end || undefined,
         exercise_frequency: profile.exercise_frequency,
+        training_days: profile.trainingDays || [], // ✅ ADICIONADO
         dedication_hours: profile.dedication_hours || 0,
         weight: profile.weight || undefined,
         height: profile.height || undefined,
@@ -248,6 +250,7 @@ const handleLogin = async (e: React.FormEvent) => {
       };
 
       console.log("📤 [ONBOARDING] Salvando dados completos:", onboardingData);
+      console.log("📤 [ONBOARDING] training_days que será salvo:", onboardingData.training_days); // ✅ LOG ADICIONAL
 
       // 4. SALVAR ONBOARDING NO BANCO
       const saveResult = await saveOnboarding(onboardingData);
@@ -265,6 +268,7 @@ const handleLogin = async (e: React.FormEvent) => {
         name: profile.name,
         birth_date: profile.birth_date,
         exercise_frequency: profile.exercise_frequency,
+        trainingDays: profile.trainingDays || [], // ✅ ADICIONADO
         main_goals: profile.main_goals,
         experience_level: profile.experience_level,
         gender: profile.gender,
@@ -278,8 +282,14 @@ const handleLogin = async (e: React.FormEvent) => {
       };
 
       console.log("✅ [ONBOARDING] Perfil completo criado:", fullProfile);
+      console.log("✅ [ONBOARDING] trainingDays no perfil:", fullProfile.trainingDays); // ✅ LOG ADICIONAL
+      
       setUserProfile(fullProfile);
       localStorage.setItem("userProfile", JSON.stringify(fullProfile));
+      
+      // ✅ VERIFICAÇÃO FINAL
+      const savedProfile = JSON.parse(localStorage.getItem("userProfile") || '{}');
+      console.log("✅ [ONBOARDING] Verificação localStorage:", savedProfile.trainingDays);
 
       // 6. LIMPAR CREDENCIAIS
       setTempEmail("");
@@ -339,6 +349,7 @@ const handleLogin = async (e: React.FormEvent) => {
       };
 
       console.log("📊 [TRAINING] Perfil para generator:", profileForGenerator);
+      console.log("🔍 ESTRUTURA DA ANÁLISE POSTURAL:", JSON.stringify(analysisData, null, 2));
 
       const trainingPlan = generatePersonalizedTrainingPlan(profileForGenerator, analysisData);
       

@@ -518,11 +518,15 @@ export default function OnboardingFlow({ onComplete, onBack, initialStep = 1 }: 
                 ].map((area) => (
                   <button
                     key={area.value}
-                    onClick={() => toggleArrayItem("focusAreas", area.value, 6)}
-                    className={`p-3 rounded-xl border-2 font-semibold transition ${
+                    onClick={() => {
+                      console.log(`🎯 [FOCUS] Clicou em ${area.label}`);
+                      console.log(`🎯 [FOCUS] Áreas antes:`, formData.focusAreas);
+                      toggleArrayItem("focusAreas", area.value);
+                    }}
+                    className={`p-6 rounded-2xl border-2 transition-all ${
                       formData.focusAreas.includes(area.value)
-                        ? "border-blue-500 bg-blue-50 text-blue-900"
-                        : "border-gray-200 text-gray-700 hover:border-blue-300"
+                        ? "border-pink-500 bg-pink-50"
+                        : "border-gray-200 hover:border-pink-300"
                     }`}
                   >
                     {area.label}

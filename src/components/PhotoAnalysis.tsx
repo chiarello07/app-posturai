@@ -37,6 +37,7 @@ export default function PhotoAnalysis({ onBack, onComplete, userProfile, onBackT
   const [error, setError] = useState<string | null>(null);
   const [showReport, setShowReport] = useState(false);
   const [analysisData, setAnalysisData] = useState<any>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, field: PhotoType) => {
     const file = e.target.files?.[0];
@@ -67,7 +68,15 @@ export default function PhotoAnalysis({ onBack, onComplete, userProfile, onBackT
       return;
     }
 
+
+    // ✅ PREVENIR MÚLTIPLAS CHAMADAS
+    if (isSaving) {
+    console.warn('⚠️ [ANALYSIS] Salvamento já em andamento, ignorando...');
+    return;
+    }
+
     setIsAnalyzing(true);
+    setIsSaving(true);
     setAnalysisProgress(0);
     setError(null);
 
@@ -157,7 +166,7 @@ export default function PhotoAnalysis({ onBack, onComplete, userProfile, onBackT
     },
   },
   
-  // ... resto continua igual
+
         
         // Correlação com anamnese
         anamnesisCorrelation: {
@@ -226,7 +235,11 @@ setProgressMessage('Salvando análise...');
 console.log('💾 [ANALYSIS] Salvando no Supabase...');
 
 if (userProfile.id) {
+
+  console.log('💾 [SAVE] Iniciando saveAnalysis() - userId:', userProfile.id);
+
   await saveAnalysis(userProfile.id, completeAnalysis);
+  console.log('✅ [SAVE] saveAnalysis() concluído!');
   console.log('✅ [ANALYSIS] Salvo no Supabase!');
   
   // ✅ CORREÇÃO: GERAR TREINO BASEADO NA ANÁLISE
@@ -286,8 +299,11 @@ localStorage.setItem('completeAnalysis', JSON.stringify(completeAnalysis));
       console.error('❌ [ANALYSIS] Erro:', err);
       setError(err.message || 'Erro ao processar análise. Tente novamente.');
       setIsAnalyzing(false);
-    }
-  };
+      setIsSaving(false); // ← LIBERAR FLAG EM CASO DE ERRO
+    } finally {
+      setIsSaving(false); // ← SEMPRE LIBERAR FLAG
+  }
+};
 
   const handleRedoAnalysis = () => {
     setShowReport(false);

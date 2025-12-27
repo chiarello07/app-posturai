@@ -1950,31 +1950,37 @@ export function filterByAvailableEquipment(
 }
 
 export function substituteIfPain(
-  exerciseId: string,
-  painAreas: PainArea[]
-): Exercise | null {
-  const exercise = getExerciseById(exerciseId);
-  if (!exercise) return null;
-
-  const hasPainConflict = painAreas.some(pain => exercise.avoidIfPain.includes(pain));
+  exercise: Exercise,
+  painAreas?: string[]
+): Exercise {  // ✅ MUDANÇA: Sempre retorna Exercise, nunca null
   
-  if (!hasPainConflict) {
+  if (!painAreas || painAreas.length === 0) {
     return exercise;
   }
-
-  if (exercise.alternatives && exercise.alternatives.length > 0) {
-    for (const altId of exercise.alternatives) {
-      const altExercise = getExerciseById(altId);
-      if (altExercise) {
-        const altHasPain = painAreas.some(pain => altExercise.avoidIfPain.includes(pain));
-        if (!altHasPain) {
-          return altExercise;
-        }
-      }
+  
+  // Verificar se o exercício deve ser evitado devido à dor
+  const shouldAvoid = exercise.avoidIfPain?.some(area => 
+    painAreas.includes(area)
+  );
+  
+  if (!shouldAvoid) {
+    // Sem conflito com áreas de dor - retorna o exercício original
+    return exercise;
+  }
+  
+  // ✅ TEM CONFLITO - Tentar encontrar substituto
+  if (exercise.regression) {
+    const substitute = EXERCISE_DATABASE.find(ex => ex.id === exercise.regression);
+    
+    if (substitute) {
+      console.log(`[SUBSTITUTION] ${exercise.name} → ${substitute.name} (dor em: ${painAreas.join(', ')})`);
+      return substitute;
     }
   }
-
-  return null;
+  
+  // ✅ NÃO ACHOU SUBSTITUTO - MANTÉM O ORIGINAL COM AVISO
+  console.warn(`[PAIN WARNING] ${exercise.name} pode causar desconforto (áreas: ${exercise.avoidIfPain?.join(', ')}). Sem substituto disponível - mantendo exercício.`);
+  return exercise;  // ✅ CRÍTICO: Retorna o original ao invés de null
 }
 
 export function selectRandomExercises(
@@ -1988,3 +1994,25 @@ export function selectRandomExercises(
   const shuffled = [...exercises].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, count);
 }
+
+// ✅ FEATURE FLAGS - MVP SCOPE (27/12/2024)
+const FEATURE_FLAGS_DB = {
+  MOBILITY_ENABLED: false,
+  STRETCHING_ENABLED: false
+} as const;
+
+// ✅ WRAPPER PARA TODAS AS FUNÇÕES DE BUSCA
+export function getEnabledExercises(exercises: Exercise[]): Exercise[] {
+  return exercises.filter(ex => {
+    if (!FEATURE_FLAGS_DB.MOBILITY_ENABLED && ex.category === 'mobility') {
+      return false;
+    }
+    if (!FEATURE_FLAGS_DB.STRETCHING_ENABLED && ex.category === 'flexibility') {
+      return false;
+    }
+    return true;
+  });
+}
+
+// ✅ SOBRESCREVER EXPORTS EXISTENTES COM VERSÃO FILTRADA
+export const FILTERED_EXERCISE_DATABASE = getEnabledExercises(EXERCISE_DATABASE);

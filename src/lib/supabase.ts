@@ -407,26 +407,94 @@ export async function isOnboardingComplete(userId: string) {
 // ============================================================================
 
 /**
- * Salvar análise postural
+ * Salvar análise postural (COM PROTEÇÃO CONTRA DUPLICAÇÃO)
  */
 export async function saveAnalysis(userId: string, analysisData: any) {
-  const { data, error } = await supabase
-    .from('analyses')
-    .insert({
-      user_id: userId,
-      analysis_data: analysisData
-    })
-    .select()
-    .single();
-
-  if (!error) {
-    await supabase
-      .from('profiles')
-      .update({ has_analysis: true })
-      .eq('id', userId);
+  console.log('💾 [SUPABASE] saveAnalysis() chamado - userId:', userId);
+  console.log('💾 [SUPABASE] Timestamp:', new Date().toISOString());
+  
+  // ✅ VALIDAÇÃO DE ENTRADA
+  if (!userId || typeof userId !== 'string') {
+    console.error('❌ [SUPABASE] userId inválido:', userId);
+    throw new Error('userId inválido');
   }
-
-  return { data, error };
+  
+  if (!analysisData || typeof analysisData !== 'object') {
+    console.error('❌ [SUPABASE] analysisData inválido:', analysisData);
+    throw new Error('analysisData inválido');
+  }
+  
+  try {
+    // ✅ VERIFICAR SESSÃO
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      console.error('❌ [SUPABASE] SEM SESSÃO! Usuário não autenticado!');
+      throw new Error('Usuário não autenticado');
+    }
+    
+    console.log('💾 [SUPABASE] Sessão válida. Gerando chave única...');
+    
+    // ✅ GERAR CHAVE ÚNICA (user_id + minuto atual)
+    const now = new Date();
+    const minute = Math.floor(now.getTime() / 60000); // Timestamp em minutos
+    const analysisKey = `${userId}_${minute}`;
+    
+    console.log('💾 [SUPABASE] Analysis Key:', analysisKey);
+    console.log('💾 [SUPABASE] Tentando UPSERT...');
+    
+    // ✅ USAR UPSERT COM CHAVE ÚNICA
+    const { data, error } = await supabase
+      .from('analyses')
+      .upsert({
+        user_id: userId,
+        analysis_data: analysisData,
+        analysis_key: analysisKey, // ← CHAVE ÚNICA
+        created_at: new Date().toISOString()
+      }, {
+        onConflict: 'analysis_key', // ← SE JÁ EXISTIR, ATUALIZA
+        ignoreDuplicates: false
+      })
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('❌ [SUPABASE] Erro ao salvar análise:', error);
+      console.error('❌ [SUPABASE] Erro detalhes:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint
+      });
+      throw error;
+    }
+    
+    console.log('✅ [SUPABASE] Análise salva com sucesso!');
+    console.log('✅ [SUPABASE] ID:', data.id);
+    console.log('✅ [SUPABASE] Analysis Key:', data.analysis_key);
+    
+    // ✅ ATUALIZAR FLAG has_analysis NO PROFILE
+    console.log('💾 [SUPABASE] Atualizando flag has_analysis...');
+    
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({ 
+        has_analysis: true,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+    
+    if (profileError) {
+      console.error('⚠️ [SUPABASE] Erro ao atualizar profile (não-crítico):', profileError);
+    } else {
+      console.log('✅ [SUPABASE] Profile atualizado!');
+    }
+    
+    return { data, error: null };
+    
+  } catch (err: any) {
+    console.error('❌ [SUPABASE] Exceção em saveAnalysis:', err);
+    return { data: null, error: err };
+  }
 }
 
 /**

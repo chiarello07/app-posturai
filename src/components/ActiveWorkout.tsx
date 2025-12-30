@@ -262,6 +262,14 @@ useEffect(() => {
     <span className="font-semibold">{exercise.duration}s</span> de duração
   </div>
 )}
+
+  {/* ✅ TEMPO DE DESCANSO */}
+  {(exercise.rest || exercise.rest_seconds) && (
+    <div className="flex items-center gap-1 text-gray-600">
+      <Clock className="w-4 h-4" />
+      <span className="font-semibold">{exercise.rest || exercise.rest_seconds}s</span> descanso
+    </div>
+  )}
                     </div>
                   </div>
 

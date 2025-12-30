@@ -24,6 +24,8 @@ export default function HomePage({
   const [currentBoostTip, setCurrentBoostTip] = useState<BoostTip | null>(null);
   const [showAnalysisAlert, setShowAnalysisAlert] = useState(false);
   const [triggerUpdate, setTriggerUpdate] = React.useState(0);
+  const [trainingPhases, setTrainingPhases] = useState<string[]>(['A', 'B', 'C']);
+  const [totalPhases, setTotalPhases] = useState(3);
   
 
   // ✅ LER TREINOS REAIS DO LOCALSTORAGE
@@ -58,11 +60,37 @@ export default function HomePage({
   }, [userProfile, triggerUpdate]);
 
   useEffect(() => {
-    const history = getShownTipsHistory();
-    const tip = getNextBoostTip(history);
-    setCurrentBoostTip(tip);
-    saveShownTip(tip.id);
-  }, []);
+  // Carrega boost tip
+  const history = getShownTipsHistory();
+  const tip = getNextBoostTip(history);
+  setCurrentBoostTip(tip);
+  saveShownTip(tip.id);
+  
+  // ✅ CARREGAR FASES DO PLANO DE TREINO
+  const loadTrainingPhases = () => {
+    try {
+      const cachedPlan = localStorage.getItem('trainingPlan');
+      if (cachedPlan) {
+        const plan = JSON.parse(cachedPlan);
+        if (plan?.phases && Array.isArray(plan.phases)) {
+          const phaseCount = plan.phases.length;
+          const phaseLetters = Array.from({ length: phaseCount }, (_, i) => 
+            String.fromCharCode(65 + i)
+          );
+          setTrainingPhases(phaseLetters);
+          setTotalPhases(phaseCount);
+          console.log(`✅ [HOMEPAGE] Carregadas ${phaseCount} fases: [${phaseLetters.join(', ')}]`);
+          return;
+        }
+      }
+      console.log(`⚠️ [HOMEPAGE] Plano não encontrado, usando ABC padrão`);
+    } catch (error) {
+      console.error('❌ [HOMEPAGE] Erro ao carregar fases:', error);
+    }
+  };
+  
+  loadTrainingPhases();
+}, []);
 
   // ✅ ATUALIZAR QUANDO COMPLETAR TREINO
   React.useEffect(() => {
@@ -131,66 +159,48 @@ export default function HomePage({
   const hasAnalysis = userProfile?.has_analysis || false;
 
   const handleStartTraining = () => {
-    if (!hasAnalysis) {
-      setShowAnalysisAlert(true);
-      setTimeout(() => setShowAnalysisAlert(false), 3000);
-      return;
-    }
-    
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('requested_workout_index', nextWorkout.index.toString());
-      localStorage.setItem('requested_workout_letter', nextWorkout.letter);
-    }
-    
-    console.log('🔥 [HOMEPAGE] Abrindo modal para Treino', nextWorkout.letter);
-    onStartWorkout();
-  };
+  if (!hasAnalysis) {
+    setShowAnalysisAlert(true);
+    setTimeout(() => setShowAnalysisAlert(false), 3000);
+    return;
+  }
+  
+  if (typeof window !== 'undefined') {
+    // ✅ SALVA TODOS OS DADOS DO PRÓXIMO TREINO
+    localStorage.setItem('currentWorkoutPhase', nextWorkout.index.toString());
+    localStorage.setItem('requested_workout_index', nextWorkout.index.toString());
+    localStorage.setItem('requested_workout_letter', nextWorkout.letter);
+  }
+  
+  console.log(`🔥 [HOMEPAGE] Abrindo modal para Treino ${nextWorkout.letter} (índice ${nextWorkout.index}/${totalPhases})`);
+  onStartWorkout();
+};
 
   // ✅ FUNÇÃO PARA DETERMINAR PRÓXIMO TREINO
   const getNextWorkout = () => {
-    if (!userProfile?.id) return { letter: 'A', index: 0 };
-    
-    const history = JSON.parse(localStorage.getItem('workoutHistory') || '[]');
-    const userHistory = history.filter((s: any) => s.userId === userProfile.id);
-    
-    console.log('🔄 [ROTATION] Total de treinos do usuário:', userHistory.length);
-    
-    if (userHistory.length === 0) {
-      console.log('🔄 [ROTATION] Nenhum treino → Treino A');
-      return { letter: 'A', index: 0 };
-    }
-    
-    const lastWorkout = userHistory[userHistory.length - 1];
-    const lastPhaseName = lastWorkout.phaseName || '';
-    
-    console.log('🔄 [ROTATION] Último treino:', lastPhaseName);
-    console.log('🔄 [ROTATION] Data do último treino:', lastWorkout.date);
-    
-    const match = lastPhaseName.match(/Treino ([A-Z])/);
-    if (match) {
-      const lastLetter = match[1];
-      const lastIndex = lastLetter.charCodeAt(0) - 65;
-      const totalWorkouts = 3;
-      const nextIndex = (lastIndex + 1) % totalWorkouts;
-      const nextLetter = String.fromCharCode(65 + nextIndex);
-      
-      console.log('🔄 [ROTATION] Último:', lastLetter, '(index:', lastIndex, ')');
-      console.log('🔄 [ROTATION] Próximo:', nextLetter, '(index:', nextIndex, ')');
-      
-      const today = new Date().toISOString().split('T')[0];
-      const todayWorkouts = userHistory.filter((s: any) => s.date === today);
-      
-      if (todayWorkouts.length > 0) {
-        console.log('🔄 [ROTATION] Já treinou hoje! Próximo será:', nextLetter);
-        return { letter: nextLetter, index: nextIndex, alreadyTrainedToday: true };
-      }
-      
-      return { letter: nextLetter, index: nextIndex };
-    }
-    
-    console.log('🔄 [ROTATION] Não encontrou letra → Treino A');
-    return { letter: 'A', index: 0 };
+  const today = new Date().toISOString().split('T')[0];
+  const history = JSON.parse(localStorage.getItem('workoutHistory') || '{}');
+  const todayWorkouts = history[today] || [];
+  
+  const alreadyTrainedToday = todayWorkouts.length > 0;
+
+  console.log(`📅 [HOME] Hoje: ${today} | Treinos feitos hoje: ${todayWorkouts.length}`);
+  
+  const allWorkouts = Object.values(history).flat() as string[];
+  const totalWorkoutsDone = allWorkouts.length;
+  
+  // ✅ USA O TOTAL DE FASES DINÂMICO
+  const nextPhaseIndex = totalWorkoutsDone % totalPhases;
+  const nextPhaseLetter = trainingPhases[nextPhaseIndex] || 'A';
+  
+  console.log(`📊 [HOMEPAGE] Total feitos: ${totalWorkoutsDone} | Próximo: ${nextPhaseLetter} (${nextPhaseIndex}/${totalPhases})`);
+  
+  return {
+    letter: nextPhaseLetter,
+    index: nextPhaseIndex,
+    alreadyTrainedToday
   };
+};
 
   const nextWorkout = getNextWorkout();
 
@@ -334,9 +344,26 @@ export default function HomePage({
           </div>
         </section>
 
-        {/* Botão Iniciar Treino */}
-        <section>
-          {nextWorkout.alreadyTrainedToday ? (
+{/* ✅ AVISO: JÁ TREINOU HOJE */}
+{nextWorkout.alreadyTrainedToday && (
+  <div className="bg-green-50 border-2 border-green-500 rounded-3xl p-6 text-center mb-4">
+    <div className="flex items-center justify-center gap-2 mb-2">
+      <CheckCircle2 className="w-8 h-8 text-green-600" />
+      <p className="text-2xl font-bold text-green-600">Treino Concluído Hoje!</p>
+    </div>
+    <p className="text-gray-600 mb-4">
+      Ótimo trabalho! O descanso faz parte do treinamento. Volte amanhã para continuar sua jornada.
+    </p>
+    <div className="bg-white rounded-lg p-3 inline-block">
+      <p className="text-sm text-gray-600">Próximo treino:</p>
+      <p className="text-xl font-bold text-gray-900">Treino {nextWorkout.letter}</p>
+    </div>
+  </div>
+)}
+
+{/* Botão Iniciar Treino */}
+<section>
+  {nextWorkout.alreadyTrainedToday ? (
             <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-500 rounded-3xl p-6 text-center shadow-lg">
               <div className="flex items-center justify-center gap-2 mb-2">
                 <CheckCircle2 className="w-8 h-8 text-green-600" />
@@ -350,9 +377,14 @@ export default function HomePage({
             </div>
           ) : (
             <button
-              onClick={handleStartTraining}
-              className="w-full bg-gradient-to-r from-green-500 to-emerald-600 rounded-3xl p-6 flex items-center justify-between hover:scale-[1.02] transition-all shadow-2xl hover:shadow-green-500/50"
-            >
+  onClick={handleStartTraining}
+  disabled={!hasAnalysis || nextWorkout.alreadyTrainedToday}
+  className={`w-full bg-gradient-to-r from-green-500 to-emerald-600 rounded-3xl p-6 flex items-center justify-between transition-all shadow-2xl ${
+    !hasAnalysis || nextWorkout.alreadyTrainedToday
+      ? 'opacity-50 cursor-not-allowed'
+      : 'hover:scale-[1.02] hover:shadow-green-500/50'
+  }`}
+>
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
                   <Zap className="w-7 h-7 text-white" />

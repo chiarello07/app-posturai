@@ -116,24 +116,24 @@ export default function TrainingPlan({ userProfile }: TrainingPlanProps) {
     }
   }, [userProfile]);
 
-// ✅ LER LOCALSTORAGE E ABRIR TREINO ESPECÍFICO
+// ✅ LER LOCALSTORAGE E ABRIR TREINO ESPECÍFICO:
 useEffect(() => {
-  if (!trainingPlan) return; // Só executa se trainingPlan está carregado
-
-  const startPhase = localStorage.getItem('startWorkoutPhase');
+  if (!trainingPlan) return;
   
-  if (startPhase !== null && !isNaN(parseInt(startPhase))) {
-    const phaseIndex = parseInt(startPhase);
-    console.log('🎯 [TRAININGPLAN] localStorage encontrado! startWorkoutPhase=' + phaseIndex);
-    console.log('🎯 [TRAININGPLAN] Abrindo ActiveWorkout com phaseIndex:', phaseIndex);
+  const savedPhase = localStorage.getItem('currentWorkoutPhase');
+  if (savedPhase) {
+    const phaseIndex = parseInt(savedPhase, 10);
     
-    // ✅ ABRIR TREINO ESPECÍFICO
-    setShowActiveWorkout(phaseIndex);
-    
-    // ✅ LIMPAR LOCALSTORAGE
-    localStorage.removeItem('startWorkoutPhase');
+    // ✅ VALIDA SE O ÍNDICE EXISTE NO PLANO ATUAL
+    if (phaseIndex >= 0 && phaseIndex < trainingPlan.phases.length) {
+      setShowActiveWorkout(phaseIndex);
+      localStorage.removeItem('currentWorkoutPhase');
+    } else {
+      console.warn(`⚠️ Fase ${phaseIndex} não existe no plano atual (total: ${trainingPlan.phases.length})`);
+      localStorage.removeItem('currentWorkoutPhase');
+    }
   }
-}, [trainingPlan]); // Depende de trainingPlan estar carregado
+}, [trainingPlan]);
 
 const loadTrainingPlan = async () => {
   try {
@@ -502,55 +502,193 @@ return (
         </div>
       </div>
 
-      {/* ✅ CARDS DE TREINOS HORIZONTAIS */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Seus Treinos</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {trainingPlan.phases.map((phase, phaseIndex) => {
-            const phaseLetter = String.fromCharCode(65 + phaseIndex);
-            const phaseColors = [
-              { bg: 'from-blue-500 to-indigo-600', light: 'bg-blue-50', text: 'text-blue-700' },
-              { bg: 'from-purple-500 to-pink-600', light: 'bg-purple-50', text: 'text-purple-700' },
-              { bg: 'from-green-500 to-emerald-600', light: 'bg-green-50', text: 'text-green-700' },
-            ];
-            const colors = phaseColors[phaseIndex % 3];
-
-            return (
-              <button
-                key={phaseIndex}
-                onClick={() => setSelectedPhase(phaseIndex)}
-                className="bg-white rounded-2xl p-6 shadow-sm border-2 border-gray-100 hover:border-blue-300 hover:shadow-md transition-all text-left group"
-              >
-                {/* LETRA GRANDE */}
-                <div className={`w-16 h-16 bg-gradient-to-br ${colors.bg} rounded-2xl flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform`}>
-                  <span className="text-3xl font-bold text-white">{phaseLetter}</span>
-                </div>
-
-                {/* NOME */}
-                <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-1">
-                  {phase.name.replace(`Treino ${phaseLetter} - `, '')}
-                </h3>
-
-                {/* DESCRIÇÃO */}
-                <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                  {phase.description}
-                </p>
-
-                {/* INFO */}
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1 text-gray-600">
-                    <Dumbbell className="w-3 h-3" />
-                    <span>{phase.exercises.length} exercícios</span>
-                  </div>
-                  <div className={`${colors.light} ${colors.text} px-2 py-1 rounded-full font-medium`}>
-                    Ver detalhes
-                  </div>
-                </div>
-              </button>
-            );
-          })}
+      {/* ✅ CARDS DE TREINOS HORIZONTAIS - DINÂMICO (2-7 TREINOS) */}
+<div className="space-y-3">
+  {trainingPlan.phases.map((phase, index) => {
+    const phaseLetter = String.fromCharCode(65 + index); // A=65, B=66, C=67...
+    const isExpanded = expandedPhase === index;
+    const phaseExercises = phase.exercises || [];
+    const completedCount = phaseExercises.filter(ex => completedExercises.has(ex.id)).length;
+    const totalExercises = phaseExercises.length;
+    
+    return (
+      <div
+        key={index}
+        className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-slate-200"
+      >
+        {/* HEADER DO CARD */}
+        <div className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            {/* Letra e Nome */}
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
+                <span className="text-white font-bold text-xl">{phaseLetter}</span>
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-lg">{phase.name}</h3>
+                <p className="text-sm text-slate-500">{totalExercises} exercícios</p>
+              </div>
+            </div>
+            
+            {/* Botão de Ação - APENAS EXPANDIR/COLAPSAR */}
+<div className="flex items-center gap-2">
+  <button
+    onClick={() => togglePhase(index)}
+    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold transition-all duration-200 flex items-center gap-2"
+  >
+    {isExpanded ? (
+      <>
+        <ChevronUp className="w-4 h-4" />
+        Recolher
+      </>
+    ) : (
+      <>
+        <ChevronDown className="w-4 h-4" />
+        Ver Exercícios
+      </>
+    )}
+  </button>
+            </div>
+          </div>
+          
+          {/* Tags de Foco */}
+          {phase.focus && phase.focus.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {phase.focus.map((focusItem, idx) => (
+                <span
+                  key={idx}
+                  className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium"
+                >
+                  {focusItem}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
+        
+        {/* LISTA DE EXERCÍCIOS (EXPANDÍVEL) */}
+        {isExpanded && (
+          <div className="border-t border-slate-200 bg-slate-50 p-4">
+            <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
+              <Dumbbell className="w-4 h-4" />
+              Exercícios
+            </h4>
+            <div className="space-y-2">
+              {phaseExercises.map((exercise, exIdx) => {
+                const isCompleted = completedExercises.has(exercise.id);
+                const isTimeBasedExercise = exercise.duration || (exercise.reps && TIME_PATTERN.test(String(exercise.reps)));
+                
+                return (
+                  <div
+                    key={`${phaseIndex}-${exerciseIndex}-${exercise.id}`}
+                    className={`p-3 rounded-xl transition-all duration-200 ${
+                      isCompleted 
+                        ? 'bg-green-50 border border-green-200' 
+                        : 'bg-white border border-slate-200 hover:border-blue-300'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-3 flex-1">
+                        {/* Número do Exercício */}
+                        <div className="w-6 h-6 rounded-lg bg-slate-200 flex items-center justify-center flex-shrink-0">
+                          <span className="text-xs font-bold text-slate-700">{exIdx + 1}</span>
+                        </div>
+                        
+                        {/* Info do Exercício */}
+                        <div className="flex-1">
+                          <h5 className="font-semibold text-slate-900 mb-1">{exercise.name}</h5>
+                          <div className="flex flex-wrap gap-3 text-sm text-slate-600">
+                            <span className="flex items-center gap-1">
+                              <Repeat className="w-3 h-3" />
+                              {exercise.sets} séries
+                            </span>
+                            {isTimeBasedExercise ? (
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {exercise.duration ? `${exercise.duration}s` : exercise.reps} duração
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1">
+                                <TrendingUp className="w-3 h-3" />
+                                {exercise.reps} reps
+                              </span>
+                            )}
+                            {(exercise.rest || exercise.rest_seconds) && (
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {exercise.rest || exercise.rest_seconds}s descanso
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Botão Ver Detalhes */}
+                      <button
+                        onClick={() => toggleExercise(exercise.id)}
+                        className="px-3 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      >
+                        Ver detalhes
+                      </button>
+                    </div>
+                    
+                    {/* Detalhes Expandidos */}
+                    {expandedExercise === exercise.id && (
+                      <div className="mt-3 pt-3 border-t border-slate-200 space-y-2">
+                        {exercise.description && (
+                          <p className="text-sm text-slate-600">{exercise.description}</p>
+                        )}
+                        {exercise.cues && exercise.cues.length > 0 && (
+                          <div>
+                            <p className="text-xs font-semibold text-slate-700 mb-1">Dicas de Execução:</p>
+                            <ul className="text-xs text-slate-600 space-y-1">
+                              {exercise.cues.map((cue, cueIdx) => (
+                                <li key={cueIdx} className="flex items-start gap-2">
+                                  <span className="text-blue-500 mt-0.5">•</span>
+                                  <span>{cue}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {(exercise.imageUrl || exercise.gifUrl || exercise.videoUrl) && (
+                          <div className="flex gap-2">
+                            {exercise.imageUrl && (
+                              <a
+                                href={exercise.imageUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                              >
+                                <ImageIcon className="w-3 h-3" />
+                                Imagem
+                              </a>
+                            )}
+                            {exercise.videoUrl && (
+                              <a
+                                href={exercise.videoUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                              >
+                                <Video className="w-3 h-3" />
+                                Vídeo
+                              </a>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
+    );
+  })}
+</div>
 
       {/* ✅ DICA RÁPIDA */}
       <div className="mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-100">
@@ -736,6 +874,20 @@ return (
           <div className="absolute bottom-0 left-0 w-72 h-72 bg-white rounded-full blur-3xl -ml-36 -mb-36"></div>
         </div>
         
+        {/* ✅ AVISO DE FASE DE ADAPTAÇÃO */}
+<div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded-r-lg">
+  <div className="flex items-start gap-3">
+    <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+    <div>
+      <h4 className="font-semibold text-blue-900 mb-1">Fase de Adaptação (Semanas 1-2)</h4>
+      <p className="text-sm text-blue-800">
+        Seu treino começa com <strong>volume reduzido</strong> para garantir segurança, aperfeiçoar técnica e avaliar tolerância. 
+        Siga a prescrição antes de buscar falha muscular. O volume aumentará progressivamente nas próximas semanas.
+      </p>
+    </div>
+  </div>
+</div>
+
         {/* Botão fechar */}
         <button
           onClick={() => setShowPeriodizationModal(false)}
@@ -1391,6 +1543,21 @@ return (
         console.log("📅 [CALENDAR DEBUG] exercise_frequency:", userProfileData?.exercise_frequency);
         
         const daysOfWeek = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+        // ✅ CALCULAR DIAS DE TREINO
+const calculateTrainingDays = (frequency: number): number[] => {
+  if (frequency === 2) return [1, 4];
+  if (frequency === 3) return [1, 3, 5];
+  if (frequency === 4) return [1, 2, 4, 5];
+  if (frequency === 5) return [1, 2, 3, 4, 5];
+  if (frequency === 6) return [1, 2, 3, 4, 5, 6];
+  if (frequency >= 7) return [0, 1, 2, 3, 4, 5, 6];
+  return [1, 3, 5];
+};
+
+const trainingFrequency = trainingPlan?.frequency_per_week || 3;
+const trainingDaysIndexes = calculateTrainingDays(trainingFrequency);
+
+console.log(`📅 [CALENDAR] Frequência: ${trainingFrequency}x/semana | Dias: [${trainingDaysIndexes.join(', ')}]`);
         const phases = trainingPlan.phases || [];
         
         // ✅ MAPEAR DIAS SELECIONADOS PELO USUÁRIO
@@ -1430,24 +1597,37 @@ return (
           console.log("📅 [CALENDAR] Fallback - Frequência:", frequency, "→ Dias:", trainingDays);
         }
         
-        // ✅ DISTRIBUIR FASES NOS DIAS DE TREINO
-        const weekSchedule = daysOfWeek.map((_, index) => {
-          if (trainingDays.includes(index)) {
-            const phaseIndex = trainingDays.indexOf(index) % phases.length;
-            const phase = phases[phaseIndex];
-            return {
-              type: 'workout',
-              phase: phase?.phase || 'A',
-              duration: phase?.estimated_duration_minutes || 60
-            };
-          }
-          
-          if (index === 5 && !trainingDays.includes(5)) {
-            return { type: 'stretch' };
-          }
-          
-          return { type: 'rest' };
-        });
+        // ✅ DISTRIBUIR FASES NOS DIAS DE TREINO - SUPORTA ATÉ 7 FASES
+const weekSchedule = daysOfWeek.map((day, dayIndex) => {
+  const isTrainingDay = trainingDaysIndexes.includes(dayIndex);
+  
+  if (!isTrainingDay) {
+    return { day, activity: 'Descanso', color: 'bg-slate-100 text-slate-500' };
+  }
+  
+  // Calcular qual fase (A, B, C, D, E, F, G) vai neste dia
+  const trainingDayPosition = trainingDaysIndexes.indexOf(dayIndex);
+  const totalPhases = trainingPlan?.phases?.length || 3;
+  const phaseIndex = trainingDayPosition % totalPhases;
+  const phaseLetter = String.fromCharCode(65 + phaseIndex); // A=65, B=66, C=67...
+  
+  // Cores diferentes para cada fase
+  const phaseColors = [
+    'bg-blue-500 text-white',    // A
+    'bg-green-500 text-white',   // B
+    'bg-purple-500 text-white',  // C
+    'bg-orange-500 text-white',  // D
+    'bg-pink-500 text-white',    // E
+    'bg-indigo-500 text-white',  // F
+    'bg-teal-500 text-white'     // G
+  ];
+  
+  return {
+    day,
+    activity: `Treino ${phaseLetter}`,
+    color: phaseColors[phaseIndex] || 'bg-blue-500 text-white'
+  };
+});
         
         console.log("📅 [CALENDAR DEBUG] Schedule final:", weekSchedule);
         

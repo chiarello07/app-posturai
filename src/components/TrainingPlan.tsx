@@ -580,7 +580,7 @@ return (
                 
                 return (
                   <div
-                    key={`${phaseIndex}-${exerciseIndex}-${exercise.id}`}
+                    key={`${exIdx}-${exercise.id}`}
                     className={`p-3 rounded-xl transition-all duration-200 ${
                       isCompleted 
                         ? 'bg-green-50 border border-green-200' 

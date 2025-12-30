@@ -795,7 +795,7 @@ export default function OnboardingFlow({ onComplete, onBack, initialStep = 1 }: 
               </div>
 
               <div className="space-y-3">
-                {[2, 3, 4, 5, 6].map((freq) => (
+                {[1, 2, 3, 4, 5, 6, 7].map((freq) => (
                   <button
                     key={freq}
                     onClick={() => handleInputChange("trainingFrequency", String(freq))}

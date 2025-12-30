@@ -160,9 +160,6 @@ export default function CompleteAnalysisReport({
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
             Relatório de Avaliação Postural
           </h1>
-          <p className="text-gray-600 text-lg">
-            Análise por Inteligência Artificial
-          </p>
           <div className="flex items-center justify-center gap-4 mt-4 text-sm text-gray-500">
             <span>Paciente: <strong>{userProfile.name}</strong></span>
             <span>•</span>

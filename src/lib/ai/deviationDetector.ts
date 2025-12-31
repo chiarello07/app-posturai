@@ -1,25 +1,13 @@
 // src/lib/ai/deviationDetector.ts
 
 import { PosturalAnalysisResult } from './posturalAnalysis';
+import { PosturalDeviation } from '@/types';
 import { EXERCISE_DATABASE } from '@/lib/training/exerciseDatabase';
-
-/**
- * Interface para desvio postural detectado
- */
-export interface PosturalDeviation {
-  type: 'shoulder_asymmetry' | 'hip_tilt' | 'forward_head' | 'hyperlordosis' | 'kyphosis' | 'knee_valgus' | 'knee_varus';
-  severity: 'leve' | 'moderada' | 'grave';
-  side?: 'left' | 'right';
-  angle: number;
-  normalRange: { min: number; max: number };
-  description: string;
-  correctiveExerciseIds: string[]; // IDs do exerciseDatabase
-}
 
 /**
  * Mapeamento de desvios para exercícios corretivos (Tier 1 - OTIMIZADO!)
  */
-const DEVIATION_TO_EXERCISES: Record<PosturalDeviation['type'], string[]> = {
+const DEVIATION_TO_EXERCISES: Record<string, string[]> = {
   // ASSIMETRIA DE OMBROS
   shoulder_asymmetry: [
     'ex123', // Manguito Rotador - Rotação Externa (ESSENCIAL!)
@@ -101,16 +89,15 @@ export function detectDeviations(
     const shoulderAngle = frontal?.angles.shoulderAlignment || posterior?.angles.shoulderAlignment || 180;
     
     if (shoulderAngle < 170) {
-      const severity = shoulderAngle < 160 ? 'grave' : shoulderAngle < 165 ? 'moderada' : 'leve';
+      const severity = shoulderAngle < 160 ? 'high' : shoulderAngle < 165 ? 'medium' : 'low';
       
       deviations.push({
-        type: 'shoulder_asymmetry',
+        id: `deviation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: 'Desalinhamento de Ombros',
         severity,
-        side: shoulderAngle < 175 ? 'right' : 'left',
-        angle: shoulderAngle,
-        normalRange: { min: 175, max: 185 },
         description: 'Assimetria de ombros detectada. Um ombro está mais elevado que o outro, podendo causar tensão muscular, dores no pescoço e desconforto nas costas.',
-        correctiveExerciseIds: DEVIATION_TO_EXERCISES.shoulder_asymmetry
+        affectedArea: 'Ombros',
+        recommendations: []
       });
     }
   }
@@ -120,16 +107,15 @@ export function detectDeviations(
     const hipAngle = frontal?.angles.hipAlignment || posterior?.angles.hipAlignment || 180;
     
     if (hipAngle < 170) {
-      const severity = hipAngle < 160 ? 'grave' : hipAngle < 165 ? 'moderada' : 'leve';
+      const severity = hipAngle < 160 ? 'high' : hipAngle < 165 ? 'medium' : 'low';
       
       deviations.push({
-        type: 'hip_tilt',
+        id: `deviation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: 'Inclinação Pélvica Lateral',
         severity,
-        side: hipAngle < 175 ? 'right' : 'left',
-        angle: hipAngle,
-        normalRange: { min: 175, max: 185 },
         description: 'Inclinação pélvica lateral detectada (Trendelenburg). Pode causar dores lombares crônicas, desequilíbrios musculares e sobrecarga nas articulações.',
-        correctiveExerciseIds: DEVIATION_TO_EXERCISES.hip_tilt
+        affectedArea: 'Quadril',
+        recommendations: []
       });
     }
   }
@@ -139,15 +125,15 @@ export function detectDeviations(
     const spineAngle = lateral.angles.spineAngle;
     
     if (spineAngle < 80 || spineAngle > 100) {
-      const severity = Math.abs(spineAngle - 90) > 15 ? 'grave' : Math.abs(spineAngle - 90) > 10 ? 'moderada' : 'leve';
+      const severity = Math.abs(spineAngle - 90) > 15 ? 'high' : Math.abs(spineAngle - 90) > 10 ? 'medium' : 'low';
       
       deviations.push({
-        type: 'forward_head',
+        id: `deviation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: 'Anteriorização da Cabeça',
         severity,
-        angle: spineAngle,
-        normalRange: { min: 85, max: 95 },
         description: 'Anteriorização da cabeça (Forward Head Posture). Muito comum em quem trabalha sentado ou usa muito celular. Pode causar dores no pescoço, ombros e até enxaquecas.',
-        correctiveExerciseIds: DEVIATION_TO_EXERCISES.forward_head
+        affectedArea: 'Coluna Cervical',
+        recommendations: []
       });
     }
   }
@@ -157,15 +143,15 @@ export function detectDeviations(
     const spineAngle = lateral.angles.spineAngle;
     
     if (spineAngle > 100) {
-      const severity = spineAngle > 110 ? 'grave' : spineAngle > 105 ? 'moderada' : 'leve';
+      const severity = spineAngle > 110 ? 'high' : spineAngle > 105 ? 'medium' : 'low';
       
       deviations.push({
-        type: 'hyperlordosis',
+        id: `deviation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: 'Hiperlordose Lombar',
         severity,
-        angle: spineAngle,
-        normalRange: { min: 85, max: 95 },
         description: 'Hiperlordose lombar detectada. Curvatura excessiva da região lombar, geralmente causada por fraqueza do core e glúteos, além de encurtamento dos flexores do quadril.',
-        correctiveExerciseIds: DEVIATION_TO_EXERCISES.hyperlordosis
+        affectedArea: 'Coluna Lombar',
+        recommendations: []
       });
     }
   }
@@ -175,15 +161,15 @@ export function detectDeviations(
     const spineAngle = lateral.angles.spineAngle;
     
     if (spineAngle < 80) {
-      const severity = spineAngle < 70 ? 'grave' : spineAngle < 75 ? 'moderada' : 'leve';
+      const severity = spineAngle < 70 ? 'high' : spineAngle < 75 ? 'medium' : 'low';
       
       deviations.push({
-        type: 'kyphosis',
+        id: `deviation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: 'Cifose Torácica',
         severity,
-        angle: spineAngle,
-        normalRange: { min: 85, max: 95 },
         description: 'Cifose torácica aumentada (Upper Crossed Syndrome). Ombros arredondados para frente, muito comum em quem passa horas sentado, usando computador ou celular.',
-        correctiveExerciseIds: DEVIATION_TO_EXERCISES.kyphosis
+        affectedArea: 'Coluna Torácica',
+        recommendations: []
       });
     }
   }
@@ -193,19 +179,19 @@ export function detectDeviations(
     const kneeAngle = lateral.angles.kneeAlignment;
     
     if (kneeAngle < 170 || kneeAngle > 190) {
-      const severity = Math.abs(kneeAngle - 180) > 15 ? 'grave' : Math.abs(kneeAngle - 180) > 10 ? 'moderada' : 'leve';
+      const severity = Math.abs(kneeAngle - 180) > 15 ? 'high' : Math.abs(kneeAngle - 180) > 10 ? 'medium' : 'low';
       
-      const type = kneeAngle < 180 ? 'knee_valgus' : 'knee_varus';
+      const isValgus = kneeAngle < 180;
       
       deviations.push({
-        type,
+        id: `deviation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: isValgus ? 'Joelhos em Valgo' : 'Joelhos em Varo',
         severity,
-        angle: kneeAngle,
-        normalRange: { min: 175, max: 185 },
-        description: type === 'knee_valgus' 
+        description: isValgus 
           ? 'Joelhos em valgo (joelhos para dentro). Comum em mulheres e pode causar dor no joelho, lesões no LCA e condromalácia patelar.'
           : 'Joelhos em varo (joelhos arqueados). Pode causar desgaste articular na parte interna do joelho e sobrecarga no menisco.',
-        correctiveExerciseIds: DEVIATION_TO_EXERCISES[type]
+        affectedArea: 'Joelhos',
+        recommendations: []
       });
     }
   }
@@ -233,56 +219,62 @@ export function generateDeviationSummary(deviations: PosturalDeviation[]): {
 
   // Ordenar por severidade
   const sorted = [...deviations].sort((a, b) => {
-    const severityOrder = { grave: 3, moderada: 2, leve: 1 };
+    const severityOrder = { high: 3, medium: 2, low: 1 };
     return severityOrder[b.severity] - severityOrder[a.severity];
   });
 
   const primary = sorted[0];
   const secondary = sorted.length > 1 ? sorted[1] : null;
 
-  const typeNames: Record<PosturalDeviation['type'], string> = {
-    shoulder_asymmetry: 'Assimetria de Ombros',
-    hip_tilt: 'Inclinação Pélvica',
-    forward_head: 'Anteriorização da Cabeça',
-    hyperlordosis: 'Hiperlordose Lombar',
-    kyphosis: 'Cifose Torácica',
-    knee_valgus: 'Joelhos em Valgo',
-    knee_varus: 'Joelhos em Varo'
-  };
-
   const riskFactors: string[] = [];
 
-  if (deviations.some(d => d.type === 'forward_head' || d.type === 'kyphosis')) {
+  if (deviations.some(d => d.name.includes('Cabeça') || d.name.includes('Cifose'))) {
     riskFactors.push('Postura sentada prolongada');
     riskFactors.push('Uso excessivo de dispositivos eletrônicos');
   }
 
-  if (deviations.some(d => d.type === 'hyperlordosis' || d.type === 'hip_tilt')) {
+  if (deviations.some(d => d.name.includes('Lordose') || d.name.includes('Pélvica'))) {
     riskFactors.push('Fraqueza do core e glúteos');
     riskFactors.push('Encurtamento dos flexores do quadril');
   }
 
-  if (deviations.some(d => d.type === 'knee_valgus' || d.type === 'knee_varus')) {
+  if (deviations.some(d => d.name.includes('Joelho'))) {
     riskFactors.push('Risco aumentado de lesão no joelho');
     riskFactors.push('Fraqueza do glúteo médio');
   }
 
-  if (deviations.some(d => d.severity === 'grave')) {
+  if (deviations.some(d => d.severity === 'high')) {
     riskFactors.push('Recomenda-se avaliação com fisioterapeuta ou médico ortopedista');
   }
 
   return {
-    primary: `${typeNames[primary.type]} (${primary.severity})`,
-    secondary: secondary ? `${typeNames[secondary.type]} (${secondary.severity})` : null,
+    primary: `${primary.name} (${primary.severity})`,
+    secondary: secondary ? `${secondary.name} (${secondary.severity})` : null,
     riskFactors
   };
 }
 
 /**
- * Busca detalhes dos exercícios corretivos
+ * Busca detalhes dos exercícios corretivos baseado no nome do desvio
  */
 export function getCorrectiveExercises(deviation: PosturalDeviation) {
-  return deviation.correctiveExerciseIds
+  // Mapear nome do desvio para a chave do dicionário
+  const deviationKeyMap: Record<string, string> = {
+    'Desalinhamento de Ombros': 'shoulder_asymmetry',
+    'Inclinação Pélvica Lateral': 'hip_tilt',
+    'Anteriorização da Cabeça': 'forward_head',
+    'Hiperlordose Lombar': 'hyperlordosis',
+    'Cifose Torácica': 'kyphosis',
+    'Joelhos em Valgo': 'knee_valgus',
+    'Joelhos em Varo': 'knee_varus'
+  };
+
+  const key = deviationKeyMap[deviation.name];
+  if (!key) return [];
+
+  const exerciseIds = DEVIATION_TO_EXERCISES[key] || [];
+  
+  return exerciseIds
     .map(id => EXERCISE_DATABASE.find(ex => ex.id === id))
     .filter(ex => ex !== undefined);
 }

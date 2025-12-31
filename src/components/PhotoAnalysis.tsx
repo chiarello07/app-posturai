@@ -137,30 +137,37 @@ export default function PhotoAnalysis({ onBack, onComplete, userProfile, onBackT
     frontal: {
       title: "Vista Frontal",
       findings: deviations
-        .filter(d => d.type === 'shoulder_asymmetry' || d.type === 'hip_tilt')
-        .map(d => `${d.description} (Ângulo: ${d.angle}°)`), // ← ADICIONA ÂNGULO
-      severity: deviations.some(d => d.severity === 'grave') ? 'Grave' : 
-               deviations.some(d => d.severity === 'moderada') ? 'Moderada' : 'Leve',
+        .filter(d => d.affectedArea === 'Ombros' || d.affectedArea === 'Quadril')
+        .map(d => `${d.description} (Severidade: ${d.severity})`),
+      severity: deviations.some(d => d.severity === 'high') ? 'Grave' : 
+               deviations.some(d => d.severity === 'medium') ? 'Moderada' : 'Leve',
       explanation: "A vista frontal mostra o alinhamento lateral do corpo através de 33 pontos detectados pela IA.",
       confidence: poseResults.frontal?.confidence || 0
     },
     lateral: {
       title: "Vista Lateral",
       findings: deviations
-        .filter(d => d.type === 'forward_head' || d.type === 'hyperlordosis' || d.type === 'kyphosis')
-        .map(d => `${d.description} (Ângulo: ${d.angle}°)`),
-      severity: deviations.some(d => d.severity === 'grave') ? 'Grave' : 
-               deviations.some(d => d.severity === 'moderada') ? 'Moderada' : 'Leve',
+        .filter(d => 
+  d.name.includes('Cabeça') || 
+  d.name.includes('Lordose') || 
+  d.name.includes('Cifose') ||
+  d.affectedArea === 'Coluna Cervical' ||
+  d.affectedArea === 'Coluna Lombar' ||
+  d.affectedArea === 'Coluna Torácica'
+)
+        .map(d => `${d.description} (Severidade: ${d.severity})`),
+      severity: deviations.some(d => d.severity === 'high') ? 'Grave' : 
+               deviations.some(d => d.severity === 'medium') ? 'Moderada' : 'Leve',
       explanation: "A vista lateral revela a curvatura da coluna através de análise biomecânica.",
       confidence: poseResults.lateral?.confidence || 0
     },
     posterior: {
       title: "Vista Posterior",
       findings: deviations
-        .filter(d => d.type === 'shoulder_asymmetry' || d.type === 'hip_tilt')
-        .map(d => `${d.description} (Ângulo: ${d.angle}°)`),
-      severity: deviations.some(d => d.severity === 'grave') ? 'Grave' : 
-               deviations.some(d => d.severity === 'moderada') ? 'Moderada' : 'Leve',
+  .filter(d => d.affectedArea === 'Ombros' || d.affectedArea === 'Quadril')
+  .map(d => d.description),
+severity: deviations.some(d => d.severity === 'high') ? 'Grave' : 
+         deviations.some(d => d.severity === 'medium') ? 'Moderada' : 'Leve',
       explanation: "A vista de costas mostra se ombros e quadris estão nivelados.",
       confidence: poseResults.posterior?.confidence || 0
     },
@@ -194,7 +201,7 @@ export default function PhotoAnalysis({ onBack, onComplete, userProfile, onBackT
         // Recomendações
         recommendations: {
           immediate: deviations.slice(0, 3).map(d => 
-            `Corrigir ${d.type.replace('_', ' ')} através de exercícios específicos`
+            `Corrigir ${d.name} através de exercícios específicos`
           ),
           shortTerm: [
             "Fortalecer musculatura estabilizadora",
@@ -252,7 +259,7 @@ if (userProfile.id) {
     const { createUserWorkout } = await import('@/lib/supabase');
     
     // Gerar o treino usando o perfil + análise postural
-    const trainingPlan = generatePersonalizedTrainingPlan(userProfile, completeAnalysis.aiAnalysis);
+    const trainingPlan = generatePersonalizedTrainingPlan(userProfile, completeAnalysis as any);
     
     console.log('✅ [TRAINING] Treino gerado:', trainingPlan.name);
     

@@ -17,7 +17,7 @@ export const ADAPTATION_RULES: AdaptationRule[] = [
     {
         condition: (analysis) => 
             analysis.deviations.some(d => 
-                d.type === 'Hiperlordose Lombar' && d.severity === 'Grave'
+                d.name === 'Hiperlordose Lombar' && d.severity === 'high'
             ),
         modifications: {
             exercisesToAvoid: [
@@ -43,7 +43,7 @@ export const ADAPTATION_RULES: AdaptationRule[] = [
     {
         condition: (analysis) => 
             analysis.deviations.some(d => 
-                d.type === 'Hiperlordose Lombar' && d.severity === 'Moderada'
+                d.name === 'Hiperlordose Lombar' && d.severity === 'medium'
             ),
         modifications: {
             exercisesToPrioritize: [
@@ -63,7 +63,7 @@ export const ADAPTATION_RULES: AdaptationRule[] = [
     {
         condition: (analysis) => 
             analysis.deviations.some(d => 
-                d.type === 'Hipercifose Torácica' && d.severity === 'Grave'
+                d.name === 'Hipercifose Torácica' && d.severity === 'high'
             ),
         modifications: {
             exercisesToAvoid: [
@@ -90,7 +90,7 @@ export const ADAPTATION_RULES: AdaptationRule[] = [
     {
         condition: (analysis) => 
             analysis.deviations.some(d => 
-                d.type === 'Ombros Protusos' && d.severity === 'Grave'
+                d.name === 'Ombros Protusos' && d.severity === 'high'
             ),
         modifications: {
             exercisesToAvoid: [
@@ -115,7 +115,7 @@ export const ADAPTATION_RULES: AdaptationRule[] = [
     {
         condition: (analysis) => 
             analysis.deviations.some(d => 
-                d.type === 'Cabeça Anteriorizada' && d.severity === 'Grave'
+                d.name === 'Cabeça Anteriorizada' && d.severity === 'high'
             ),
         modifications: {
             exercisesToPrioritize: [
@@ -135,7 +135,7 @@ export const ADAPTATION_RULES: AdaptationRule[] = [
     {
         condition: (analysis) => 
             analysis.deviations.some(d => 
-                d.type === 'Escoliose' && d.severity === 'Grave'
+                d.name === 'Escoliose' && d.severity === 'high'
             ),
         modifications: {
             exercisesToAvoid: [
@@ -161,7 +161,7 @@ export const ADAPTATION_RULES: AdaptationRule[] = [
     {
         condition: (analysis) => 
             analysis.deviations.some(d => 
-                d.type === 'Joelhos Valgos' && d.severity === 'Grave'
+                d.name === 'Joelhos Valgos' && d.severity === 'high'
             ),
         modifications: {
             exercisesToAvoid: [
@@ -185,7 +185,7 @@ export const ADAPTATION_RULES: AdaptationRule[] = [
     {
         condition: (analysis) => 
             analysis.deviations.some(d => 
-                d.type === 'Joelhos Varos' && d.severity === 'Grave'
+                d.name === 'Joelhos Varos' && d.severity === 'high'
             ),
         modifications: {
             exercisesToPrioritize: [
@@ -205,7 +205,7 @@ export const ADAPTATION_RULES: AdaptationRule[] = [
     {
         condition: (analysis) => 
             analysis.deviations.some(d => 
-                d.type === 'Pés Planos' && d.severity === 'Grave'
+                d.name === 'Pés Planos' && d.severity === 'high'
             ),
         modifications: {
             exercisesToPrioritize: [
@@ -225,7 +225,7 @@ export const ADAPTATION_RULES: AdaptationRule[] = [
     {
         condition: (analysis) => 
             analysis.deviations.some(d => 
-                d.type === 'Pés Cavos' && d.severity === 'Grave'
+                d.name === 'Pés Cavos' && d.severity === 'high'
             ),
         modifications: {
             exercisesToPrioritize: [

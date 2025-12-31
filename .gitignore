@@ -58,3 +58,4 @@ logs
 *.log
 1aa66d6 (feat: implementa periodização anual de 52 semanas + estrutura completa)
 POSTURAI/
+app-posturai-backup/

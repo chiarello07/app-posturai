@@ -67,24 +67,52 @@ async function analyzeFromForm(
         throw new Error('Dados do formulário não fornecidos');
     }
 
-    // Usar análise heurística baseada em perfil
-    const deviations = analyzePosturalDeviations(userProfile);
+    // Usar análise heurística baseada em perfil do formulário
+    const deviations: PosturalDeviation[] = [];
+    
+    // Analisar baseado nas áreas de dor reportadas
+    if (input.formData.painAreas && input.formData.painAreas.length > 0) {
+        for (const painArea of input.formData.painAreas) {
+            deviations.push({
+                id: `deviation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                name: `Dor em ${painArea}`,
+                severity: 'medium',
+                description: `Dor reportada na região ${painArea}`,
+                affectedArea: painArea,
+                recommendations: []
+            });
+        }
+    }
+    
+    // Analisar baseado nos hábitos posturais
+    if (input.formData.posturalHabits && input.formData.posturalHabits.includes('Muito tempo sentado')) {
+        deviations.push({
+            id: `deviation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            name: 'Postura Sentada Prolongada',
+            severity: 'medium',
+            description: 'Hábito de permanecer sentado por longos períodos',
+            affectedArea: 'Coluna Lombar',
+            recommendations: [
+                'Realizar pausas ativas a cada 60 minutos',
+                'Alongar flexores do quadril regularmente',
+                'Fortalecer musculatura posterior'
+            ]
+        });
+    }
     
     const analysis: PosturalAnalysis = {
         id: generateAnalysisId(),
         userId: userProfile.id,
         date: new Date().toISOString(),
         deviations,
-        overallScore: calculateOverallScore(deviations),
-        recommendations: generateFormBasedRecommendations(input.formData, deviations),
-        riskLevel: determineRiskLevel(deviations)
+        overallScore: calculateOverallScore(deviations)
     };
 
     return {
         analysis,
         confidence: 0.75, // Confiança moderada para análise baseada em formulário
         analysisMethod: 'form-based',
-        recommendations: analysis.recommendations
+        recommendations: generateFormBasedRecommendations(input.formData, deviations)
     };
 }
 
@@ -115,9 +143,7 @@ async function analyzeFromImage(
         userId: userProfile.id,
         date: new Date().toISOString(),
         deviations: visualAnalysis.deviations,
-        overallScore: visualAnalysis.overallPostureScore,
-        recommendations: visualAnalysis.recommendations,
-        riskLevel: visualAnalysis.riskLevel
+        overallScore: visualAnalysis.overallPostureScore
     };
 
     return {
@@ -125,7 +151,7 @@ async function analyzeFromImage(
         confidence: 0.90, // Alta confiança para análise baseada em imagem
         analysisMethod: 'image-based',
         visualAnalysis,
-        recommendations: visualAnalysis.recommendations
+        recommendations: visualAnalysis?.recommendations || []
     };
 }
 
@@ -165,9 +191,7 @@ async function analyzeHybrid(
         userId: userProfile.id,
         date: new Date().toISOString(),
         deviations: mergedDeviations,
-        overallScore: Math.round(mergedScore),
-        recommendations: mergedRecommendations,
-        riskLevel: determineRiskLevel(mergedDeviations)
+        overallScore: Math.round(mergedScore)
     };
 
     return {
@@ -192,13 +216,13 @@ function calculateOverallScore(deviations: PosturalDeviation[]): number {
     
     for (const deviation of deviations) {
         switch (deviation.severity) {
-            case 'Grave':
+            case 'high':
                 score -= 15;
                 break;
-            case 'Moderada':
+            case 'medium':
                 score -= 10;
                 break;
-            case 'Leve':
+            case 'low':
                 score -= 5;
                 break;
         }
@@ -208,8 +232,8 @@ function calculateOverallScore(deviations: PosturalDeviation[]): number {
 }
 
 function determineRiskLevel(deviations: PosturalDeviation[]): 'low' | 'moderate' | 'high' {
-    const graveCount = deviations.filter(d => d.severity === 'Grave').length;
-    const moderadaCount = deviations.filter(d => d.severity === 'Moderada').length;
+    const graveCount = deviations.filter(d => d.severity === 'high').length;
+    const moderadaCount = deviations.filter(d => d.severity === 'medium').length;
     
     if (graveCount >= 2 || (graveCount >= 1 && moderadaCount >= 2)) {
         return 'high';
@@ -267,24 +291,24 @@ function mergeDeviations(
     
     // Adicionar desvios do formulário
     for (const deviation of formDeviations) {
-        deviationMap.set(deviation.type, deviation);
+        deviationMap.set(deviation.name, deviation);
     }
     
     // Mesclar com desvios da imagem (prioridade para imagem)
     for (const deviation of imageDeviations) {
-        const existing = deviationMap.get(deviation.type);
+        const existing = deviationMap.get(deviation.name);
         
         if (existing) {
             // Se ambos detectaram, usar severidade mais alta
-            const severityOrder = { 'Leve': 1, 'Moderada': 2, 'Grave': 3 };
+            const severityOrder = { 'low': 1, 'medium': 2, 'high': 3 };
             const existingSeverity = severityOrder[existing.severity];
             const newSeverity = severityOrder[deviation.severity];
             
             if (newSeverity > existingSeverity) {
-                deviationMap.set(deviation.type, deviation);
+                deviationMap.set(deviation.name, deviation);
             }
         } else {
-            deviationMap.set(deviation.type, deviation);
+            deviationMap.set(deviation.name, deviation);
         }
     }
     

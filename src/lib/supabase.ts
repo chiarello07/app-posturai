@@ -52,6 +52,7 @@ export interface OnboardingData {
   nutrition_plan: string;
   favorite_activity: string;
   training_time: string;
+  training_days?: number;
   completed: boolean;
 }
 
@@ -346,7 +347,7 @@ export async function saveOnboarding(data: Partial<OnboardingData>) {
     if (data.last_period_end) profileUpdate.last_period_end = data.last_period_end;
     if (data.weight !== undefined && data.weight !== null) profileUpdate.weight = data.weight;
     if (data.height !== undefined && data.height !== null) profileUpdate.height = data.height;
-    if (data.training_days) profileUpdate.training_days = data.training_days;
+    if (data.training_days !== undefined && data.training_days !== null) profileUpdate.training_days = data.training_days; // ✅ CORRIGIDO
 
     console.log("💾 [SAVE ONBOARDING] Payload para profiles:", JSON.stringify(profileUpdate, null, 2));
 

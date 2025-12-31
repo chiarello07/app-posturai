@@ -15,107 +15,60 @@ import {
   AlertCircle
 } from "lucide-react";
 import { getExerciseMedia } from '@/lib/exercises/exerciseMedia';
-
-interface Exercise {
-  id: string;
-  name: string;
-  sets: number;
-  reps?: number;
-  duration?: number;
-  rest: number;
-  tempo: {
-    concentric: number;
-    isometric: number;
-    eccentric: number;
-  };
-  description: string;
-  cues: string[];
-  benefits: string[];
-  imageUrl?: string;
-  gifUrl?: string;
-  videoUrl?: string;
-}
-
-interface Phase {
-  name: string;
-  description: string;
-  focus: string[];
-  exercises: Exercise[];
-  frequency: string;
-}
+import type { Exercise, WorkoutPhase } from '@/types/training';
 
 interface ActiveWorkoutProps {
-  phase: Phase;
+  phase: WorkoutPhase;
   phaseIndex: number;
   onBack: () => void;
   onComplete: (completedIds: string[], duration: number) => void;
   userProfile: any;
 }
 
-export default function ActiveWorkout({ 
-  phase, 
-  phaseIndex, 
-  onBack, 
+export default function ActiveWorkout({
+  phase,
+  phaseIndex,
+  onBack,
   onComplete,
-  userProfile 
+  userProfile
 }: ActiveWorkoutProps) {
-  const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
+  const [expandedExercises, setExpandedExercises] = useState<Set<string>>(new Set());
   const [completedExercises, setCompletedExercises] = useState<Set<string>>(new Set());
-  const [workoutTimer, setWorkoutTimer] = useState(0);
-  const [timerInterval, setTimerInterval] = useState<NodeJS.Timeout | null>(null);
+  const [workoutTime, setWorkoutTime] = useState(0);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
-  // Iniciar cronômetro
-  // ✅ FORÇAR SCROLL AO MONTAR COMPONENTE
   useEffect(() => {
-    // Scroll imediato
-    window.scrollTo(0, 0);
-    document.documentElement.scrollTop = 0;
-    document.body.scrollTop = 0;
-    
-    // Garantir após render
-    setTimeout(() => {
-      window.scrollTo(0, 0);
-    }, 100);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
-  // ✅ INICIAR CRONÔMETRO QUANDO COMPONENTE MONTAR
-useEffect(() => {
-  console.log("⏱️ [TIMER] Iniciando cronômetro...");
-  
-  const interval = setInterval(() => {
-    setWorkoutTimer(prev => {
-      const newTime = prev + 1;
-      // Log a cada 10 segundos para debug
-      if (newTime % 10 === 0) {
-        console.log(`⏱️ [TIMER] ${newTime}s decorridos`);
-      }
-      return newTime;
-    });
-  }, 1000);
-  
-  setTimerInterval(interval);
-  console.log("✅ [TIMER] Cronômetro iniciado!");
-  
-  // Cleanup: parar cronômetro quando componente desmontar
-  return () => {
-    console.log("🛑 [TIMER] Parando cronômetro...");
-    clearInterval(interval);
-  };
-}, []); // Array vazio = executa só uma vez ao montar
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setWorkoutTime((prev) => prev + 1);
+    }, 1000);
 
-  const formatTime = (seconds: number) => {
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   const toggleExercise = (exerciseId: string) => {
-    setExpandedExercise(expandedExercise === exerciseId ? null : exerciseId);
+    setExpandedExercises((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(exerciseId)) {
+        newSet.delete(exerciseId);
+      } else {
+        newSet.add(exerciseId);
+      }
+      return newSet;
+    });
   };
 
-  const completeExercise = (exerciseId: string) => {
-    setCompletedExercises(prev => {
+  const toggleComplete = (exerciseId: string) => {
+    setCompletedExercises((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(exerciseId)) {
         newSet.delete(exerciseId);
@@ -127,9 +80,8 @@ useEffect(() => {
   };
 
   const handleFinish = () => {
-    if (timerInterval) clearInterval(timerInterval);
     const completedIds = Array.from(completedExercises);
-    onComplete(completedIds, workoutTimer);
+    onComplete(completedIds, workoutTime);
   };
 
   const handleCancel = () => {
@@ -137,302 +89,260 @@ useEffect(() => {
   };
 
   const confirmCancel = () => {
-    if (timerInterval) clearInterval(timerInterval);
-    const completedIds = Array.from(completedExercises);
-    onComplete(completedIds, workoutTimer); // Ainda salva progresso parcial
+    onBack();
   };
 
-  const phaseProgress = phase.exercises.filter(ex => {
-    const uniqueId = `phase-${phaseIndex}-exercise-${phase.exercises.indexOf(ex)}`;
-    return completedExercises.has(uniqueId);
-  }).length;
-  const phaseTotal = phase.exercises.length;
+  const allCompleted = completedExercises.size === phase.exercises.length;
+  const progress = (completedExercises.size / phase.exercises.length) * 100;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 pb-24">
-      {/* HEADER FIXO */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-md">
-        <div className="max-w-4xl mx-auto px-6 py-4">
-          <button
-            onClick={handleCancel}
-            className="flex items-center gap-2 bg-gradient-to-r from-red-500 to-orange-500 text-white px-4 py-2 rounded-xl hover:from-red-600 hover:to-orange-600 transition-all shadow-md hover:shadow-lg mb-3"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span className="font-semibold">Encerrar Treino</span>
-          </button>
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white pb-32">
+      {/* ✅ HEADER FIXO */}
+      <div className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-4xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between mb-3">
+            <button
+              onClick={handleCancel}
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              <span className="font-medium">Encerrar</span>
+            </button>
 
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">{phase.name}</h1>
-              <p className="text-sm text-gray-600">
-                {phaseProgress} de {phaseTotal} exercícios concluídos
-              </p>
-            </div>
-
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2 rounded-xl">
-              <p className="text-xs font-medium">Tempo</p>
-              <p className="text-2xl font-bold">{formatTime(workoutTimer)}</p>
+            <div className="flex items-center gap-2 text-gray-700">
+              <Clock className="w-5 h-5" />
+              <span className="font-bold text-lg">{formatTime(workoutTime)}</span>
             </div>
           </div>
 
-          {/* BARRA DE PROGRESSO */}
-          <div className="mt-3 w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-            <div
-              className="bg-gradient-to-r from-green-500 to-emerald-500 h-full transition-all duration-500"
-              style={{ width: `${(phaseProgress / phaseTotal) * 100}%` }}
-            />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h1 className="text-xl font-bold text-gray-900">{phase.name}</h1>
+              <span className="text-sm font-medium text-gray-600">
+                {completedExercises.size}/{phase.exercises.length} concluídos
+              </span>
+            </div>
+
+            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+              <div
+                className="bg-gradient-to-r from-blue-500 to-indigo-600 h-full transition-all duration-500 ease-out"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* LISTA DE EXERCÍCIOS */}
-      <div className="max-w-4xl mx-auto px-6 py-6 space-y-4">
-        {phase.exercises.map((exercise, exIndex) => {
-          const uniqueId = `phase-${phaseIndex}-exercise-${exIndex}`;
-          const isExerciseExpanded = expandedExercise === uniqueId;
-          const isCompleted = completedExercises.has(uniqueId);
+      {/* ✅ LISTA DE EXERCÍCIOS */}
+      <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
+        {phase.exercises.map((exercise, index) => {
+          const isExpanded = expandedExercises.has(exercise.id);
+          const isCompleted = completedExercises.has(exercise.id);
+          const media = getExerciseMedia(exercise.name);
 
           return (
             <div
-              key={uniqueId}
-              className={`border-2 rounded-xl overflow-hidden transition-all ${
-                isCompleted
-                  ? 'border-green-500 bg-green-50'
-                  : 'border-gray-200 bg-white'
-              }`}
+              key={exercise.id}
+              className={`
+                bg-white rounded-2xl shadow-md overflow-hidden transition-all duration-300
+                ${isCompleted ? "ring-2 ring-green-500" : ""}
+                ${isExpanded ? "shadow-xl" : ""}
+              `}
             >
-              <div className="p-4">
+              {/* ✅ CABEÇALHO DO EXERCÍCIO (SEMPRE VISÍVEL) */}
+              <div
+                className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={() => toggleExercise(exercise.id)}
+              >
                 <div className="flex items-start gap-4">
-                  {/* CHECKBOX */}
-                  <button
-                    onClick={() => completeExercise(uniqueId)}
-                    className={`flex-shrink-0 w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all ${
-                      isCompleted
-                        ? 'bg-green-500 border-green-500'
-                        : 'border-gray-300 hover:border-green-500'
-                    }`}
-                  >
-                    {isCompleted && <CheckCircle2 className="w-6 h-6 text-white" />}
-                  </button>
-
                   {/* IMAGEM/GIF */}
                   <div className="flex-shrink-0 w-24 h-24 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl flex items-center justify-center overflow-hidden">
-                    {exercise.gifUrl ? (
+                    {exercise.gif_url ? (
                       <img
-                        src={exercise.gifUrl}
+                        src={exercise.gif_url}
                         alt={exercise.name}
                         className="w-full h-full object-cover"
                       />
-                    ) : exercise.imageUrl ? (
+                    ) : media?.gifUrl ? (
                       <img
-                        src={exercise.imageUrl}
+                        src={media.gifUrl}
                         alt={exercise.name}
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <ImageIcon className="w-10 h-10 text-blue-400" />
+                      <ImageIcon className="w-12 h-12 text-blue-400" />
                     )}
                   </div>
 
+                  {/* INFORMAÇÕES */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h3 className="font-bold text-gray-900 text-lg leading-tight">
+                        {index + 1}. {exercise.name}
+                      </h3>
+                      {isExpanded ? (
+                        <ChevronUp className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                      )}
+                    </div>
 
-                  {/* INFO */}
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">
-                      {exIndex + 1}. {exercise.name}
-                    </h3>
-
+                    {/* MÉTRICAS PRINCIPAIS */}
                     <div className="flex flex-wrap gap-3 text-sm">
-                      {exercise.sets && (
+                      {/* ✅ SÉRIES */}
+                      <div className="flex items-center gap-1 text-gray-600">
+                        <Repeat className="w-4 h-4" />
+                        <span className="font-semibold">{exercise.sets}</span> séries
+                      </div>
+
+                      {/* ✅ REPS OU DURAÇÃO */}
+                      {exercise.reps && (
                         <div className="flex items-center gap-1 text-gray-600">
-                          <Repeat className="w-4 h-4" />
-                          <span className="font-semibold">{exercise.sets}</span> séries
+                          <TrendingUp className="w-4 h-4" />
+                          <span className="font-semibold">{exercise.reps}</span> reps
                         </div>
                       )}
 
-                      {exercise.reps && !exercise.duration && (
-  <div className="flex items-center gap-1 text-gray-600">
-    <TrendingUp className="w-4 h-4" />
-    <span className="font-semibold">{exercise.reps}</span> reps
-  </div>
-)}
-
-{exercise.duration && (
-  <div className="flex items-center gap-1 text-gray-600">
-    <Clock className="w-4 h-4" />
-    <span className="font-semibold">{exercise.duration}s</span> de duração
-  </div>
-)}
-
-  {/* ✅ TEMPO DE DESCANSO */}
-  {(exercise.rest || exercise.rest_seconds) && (
-    <div className="flex items-center gap-1 text-gray-600">
-      <Clock className="w-4 h-4" />
-      <span className="font-semibold">{exercise.rest || exercise.rest_seconds}s</span> descanso
-    </div>
-  )}
+                      {/* ✅ TEMPO DE DESCANSO */}
+                      {exercise.rest_seconds && (
+                        <div className="flex items-center gap-1 text-gray-600">
+                          <Clock className="w-4 h-4" />
+                          <span className="font-semibold">{exercise.rest_seconds}s</span> descanso
+                        </div>
+                      )}
                     </div>
                   </div>
-
-                  {/* BOTÃO EXPANDIR */}
-                  <button
-                    onClick={() => toggleExercise(uniqueId)}
-                    className="flex-shrink-0 p-2 hover:bg-gray-100 rounded-lg transition"
-                  >
-                    {isExerciseExpanded ? (
-                      <ChevronUp className="w-6 h-6 text-gray-600" />
-                    ) : (
-                      <ChevronDown className="w-6 h-6 text-gray-600" />
-                    )}
-                  </button>
                 </div>
               </div>
 
-              {/* DETALHES EXPANDIDOS */}
-              {isExerciseExpanded && (
-                <div className="border-t border-gray-200 bg-gray-50 p-6 space-y-4">
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                      <Info className="w-4 h-4 text-blue-600" />
-                      Como Executar
-                    </h4>
-                    <p className="text-gray-700 leading-relaxed">
-                      {exercise.description}
-                    </p>
-                  </div>
-
-                  {exercise.cues && exercise.cues.length > 0 && (
+              {/* ✅ DETALHES EXPANDIDOS */}
+              {isExpanded && (
+                <div className="px-4 pb-4 space-y-4 border-t border-gray-100">
+                  {/* INSTRUÇÕES */}
+                  {exercise.instructions && (
                     <div>
                       <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-green-600" />
-                        Dicas Importantes
+                        <Info className="w-4 h-4 text-blue-500" />
+                        Como Executar
                       </h4>
-                      <ul className="space-y-2">
-                        {exercise.cues.map((cue, idx) => (
-                          <li key={idx} className="flex items-start gap-2 text-gray-700">
-                            <span className="text-green-600 mt-1">✓</span>
-                            <span>{cue}</span>
-                          </li>
-                        ))}
-                      </ul>
+                      <p className="text-gray-700 text-sm leading-relaxed">
+                        {exercise.instructions}
+                      </p>
                     </div>
                   )}
 
-                  {exercise.benefits && exercise.benefits.length > 0 && (
+                  {/* NOTAS POSTURAIS */}
+                  {exercise.postural_notes && (
                     <div>
                       <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                        <Award className="w-4 h-4 text-purple-600" />
-                        Benefícios
+                        <AlertCircle className="w-4 h-4 text-amber-500" />
+                        Atenção Postural
                       </h4>
-                      <ul className="space-y-2">
-                        {exercise.benefits.map((benefit, idx) => (
-                          <li key={idx} className="flex items-start gap-2 text-gray-700">
-                            <span className="text-purple-600 mt-1">★</span>
-                            <span>{benefit}</span>
-                          </li>
-                        ))}
-                      </ul>
+                      <p className="text-gray-700 text-sm leading-relaxed">
+                        {exercise.postural_notes}
+                      </p>
                     </div>
                   )}
 
-                  {/* IMAGEM DEMONSTRATIVA */}
-                  {(() => {
-                    const media = getExerciseMedia(exercise.name);
-                    
-                    return (
-                      <div>
-                        <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                          <ImageIcon className="w-4 h-4 text-blue-600" />
-                          Demonstração Visual
-                        </h4>
-                        
-                        <div className="bg-gray-100 rounded-xl overflow-hidden">
-                          <img
-                            src={media.gifUrl || media.imageUrl}
-                            alt={`Demonstração: ${exercise.name}`}
-                            className="w-full h-auto object-contain"
-                            onError={(e) => {
-                              // Fallback se imagem não carregar
-                              e.currentTarget.src = `https://placehold.co/400x300/E5E7EB/6B7280/png?text=Imagem+em+breve&font=roboto`;
-                            }}
-                          />
-                        </div>
-                        
-                        <p className="text-xs text-gray-500 mt-2 text-center">
-                          💡 Dica: Siga as instruções acima para execução correta
-                        </p>
+                  {/* VÍDEO (SE DISPONÍVEL) */}
+                  {exercise.video_url && (
+                    <div>
+                      <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                        <Award className="w-4 h-4 text-purple-500" />
+                        Demonstração Visual
+                      </h4>
+                      <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                        <video
+                          src={exercise.video_url}
+                          controls
+                          className="w-full h-full"
+                        />
                       </div>
-                    );
-                  })()}
-
-                  <button
-                    onClick={() => completeExercise(uniqueId)}
-                    className={`w-full py-3 rounded-lg font-semibold transition-all ${
-                      isCompleted
-                        ? 'bg-green-500 text-white hover:bg-green-600'
-                        : 'bg-blue-600 text-white hover:bg-blue-700'
-                    }`}
-                  >
-                    {isCompleted ? '✓ Exercício Concluído' : 'Marcar como Concluído'}
-                  </button>
+                    </div>
+                  )}
                 </div>
               )}
+
+              {/* ✅ BOTÃO DE CONCLUSÃO */}
+              <div className="px-4 pb-4">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleComplete(exercise.id);
+                  }}
+                  className={`
+                    w-full py-3 rounded-xl font-semibold transition-all duration-300
+                    ${
+                      isCompleted
+                        ? "bg-green-500 text-white hover:bg-green-600"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }
+                  `}
+                >
+                  {isCompleted ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <CheckCircle2 className="w-5 h-5" />
+                      Concluído
+                    </span>
+                  ) : (
+                    "Marcar como Concluído"
+                  )}
+                </button>
+              </div>
             </div>
           );
         })}
       </div>
 
-      {/* BOTÃO FINALIZAR (SEMPRE VISÍVEL) */}
-<div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg z-20">
-  <div className="max-w-4xl mx-auto">
-    {phaseProgress === phaseTotal ? (
-      <button
-        onClick={handleFinish}
-        className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-4 rounded-xl font-bold text-lg hover:from-green-600 hover:to-emerald-600 transition shadow-lg"
-      >
-        🎉 Finalizar Treino
-      </button>
-    ) : (
-      <button
-        disabled
-        className="w-full bg-gray-300 text-gray-500 py-4 rounded-xl font-bold text-lg cursor-not-allowed opacity-60"
-      >
-        Complete todos os exercícios ({phaseProgress}/{phaseTotal})
-      </button>
-    )}
-  </div>
-</div>
+      {/* ✅ BOTÃO FINALIZAR (SEMPRE VISÍVEL) */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40">
+        <div className="max-w-4xl mx-auto px-4 py-4">
+          <button
+            onClick={handleFinish}
+            disabled={!allCompleted}
+            className={`
+              w-full py-4 rounded-xl font-bold text-lg transition-all duration-300
+              ${
+                allCompleted
+                  ? "bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-xl hover:scale-[1.02]"
+                  : "bg-gray-200 text-gray-400 cursor-not-allowed"
+              }
+            `}
+          >
+            {allCompleted ? (
+              <span className="flex items-center justify-center gap-2">
+                🎉 Finalizar Treino
+              </span>
+            ) : (
+              `Complete todos os exercícios (${completedExercises.size}/${phase.exercises.length})`
+            )}
+          </button>
+        </div>
+      </div>
 
-      {/* MODAL DE CANCELAMENTO */}
+      {/* ✅ MODAL DE CONFIRMAÇÃO DE CANCELAMENTO */}
       {showCancelModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
-            <div className="text-center">
-              <div className="mx-auto w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mb-4">
-                <AlertCircle className="w-10 h-10 text-orange-600" />
-              </div>
-              
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                Encerrar Treino?
-              </h2>
-              
-              <p className="text-gray-600 mb-6">
-                Você completou {phaseProgress} de {phaseTotal} exercícios. Seu progresso será salvo mesmo se encerrar agora.
-              </p>
-              
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setShowCancelModal(false)}
-                  className="bg-gray-200 text-gray-900 py-3 rounded-xl font-semibold hover:bg-gray-300 transition"
-                >
-                  Continuar Treino
-                </button>
-                <button
-                  onClick={confirmCancel}
-                  className="bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition"
-                >
-                  Encerrar Agora
-                </button>
-              </div>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <h3 className="text-xl font-bold text-gray-900 mb-3">
+              Encerrar Treino?
+            </h3>
+            <p className="text-gray-600 mb-6">
+              Seu progresso não será salvo. Tem certeza que deseja encerrar?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-colors"
+              >
+                Continuar Treino
+              </button>
+              <button
+                onClick={confirmCancel}
+                className="flex-1 py-3 bg-red-500 text-white rounded-xl font-semibold hover:bg-red-600 transition-colors"
+              >
+                Encerrar Agora
+              </button>
             </div>
           </div>
         </div>

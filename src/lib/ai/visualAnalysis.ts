@@ -30,12 +30,13 @@ export function analyzePostureFromLandmarks(landmarks: BodyLandmarks): VisualAna
     // ANÁLISE DE CABEÇA ANTERIORIZADA
     const headForwardAngle = calculateHeadForwardAngle(landmarks);
     if (headForwardAngle > 15) {
-        const severity = headForwardAngle > 30 ? 'Grave' : headForwardAngle > 20 ? 'Moderada' : 'Leve';
+        const severity = headForwardAngle > 30 ? 'high' : headForwardAngle > 20 ? 'medium' : 'low';
         deviations.push({
-            type: 'Cabeça Anteriorizada',
-            severity: severity as 'Leve' | 'Moderada' | 'Grave',
+            id: `deviation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            name: 'Cabeça Anteriorizada',
+            severity,
             description: `Projeção anterior da cabeça de ${headForwardAngle.toFixed(1)}°`,
-            affectedRegions: ['Cervical', 'Torácica Superior'],
+            affectedArea: 'Coluna Cervical',
             recommendations: [
                 'Fortalecer flexores profundos do pescoço',
                 'Alongar musculatura posterior do pescoço',
@@ -43,18 +44,19 @@ export function analyzePostureFromLandmarks(landmarks: BodyLandmarks): VisualAna
             ]
         });
         detectedPatterns.push('Forward Head Posture');
-        totalScore -= severity === 'Grave' ? 15 : severity === 'Moderada' ? 10 : 5;
+        totalScore -= severity === 'high' ? 15 : severity === 'medium' ? 10 : 5;
     }
 
     // ANÁLISE DE OMBROS PROTUSOS
     const shoulderProtraction = calculateShoulderProtraction(landmarks);
     if (shoulderProtraction > 2) {
-        const severity = shoulderProtraction > 5 ? 'Grave' : shoulderProtraction > 3.5 ? 'Moderada' : 'Leve';
+        const severity = shoulderProtraction > 5 ? 'high' : shoulderProtraction > 3.5 ? 'medium' : 'low';
         deviations.push({
-            type: 'Ombros Protusos',
-            severity: severity as 'Leve' | 'Moderada' | 'Grave',
+            id: `deviation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            name: 'Ombros Protusos',
+            severity,
             description: `Protração escapular de ${shoulderProtraction.toFixed(1)} cm`,
-            affectedRegions: ['Ombros', 'Torácica'],
+            affectedArea: 'Ombros',
             recommendations: [
                 'Fortalecer romboides e trapézio médio',
                 'Alongar peitoral menor',
@@ -62,18 +64,19 @@ export function analyzePostureFromLandmarks(landmarks: BodyLandmarks): VisualAna
             ]
         });
         detectedPatterns.push('Rounded Shoulders');
-        totalScore -= severity === 'Grave' ? 12 : severity === 'Moderada' ? 8 : 4;
+        totalScore -= severity === 'high' ? 12 : severity === 'medium' ? 8 : 4;
     }
 
     // ANÁLISE DE HIPERCIFOSE TORÁCICA
     const thoracicCurvature = calculateThoracicCurvature(landmarks);
     if (thoracicCurvature > 40) {
-        const severity = thoracicCurvature > 55 ? 'Grave' : thoracicCurvature > 47 ? 'Moderada' : 'Leve';
+        const severity = thoracicCurvature > 55 ? 'high' : thoracicCurvature > 47 ? 'medium' : 'low';
         deviations.push({
-            type: 'Hipercifose Torácica',
-            severity: severity as 'Leve' | 'Moderada' | 'Grave',
+            id: `deviation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            name: 'Hipercifose Torácica',
+            severity,
             description: `Curvatura torácica aumentada: ${thoracicCurvature.toFixed(1)}°`,
-            affectedRegions: ['Torácica'],
+            affectedArea: 'Coluna Torácica',
             recommendations: [
                 'Extensão torácica sobre rolo de espuma',
                 'Fortalecer extensores torácicos',
@@ -81,18 +84,19 @@ export function analyzePostureFromLandmarks(landmarks: BodyLandmarks): VisualAna
             ]
         });
         detectedPatterns.push('Thoracic Kyphosis');
-        totalScore -= severity === 'Grave' ? 15 : severity === 'Moderada' ? 10 : 5;
+        totalScore -= severity === 'high' ? 15 : severity === 'medium' ? 10 : 5;
     }
 
     // ANÁLISE DE HIPERLORDOSE LOMBAR
     const lumbarCurvature = calculateLumbarCurvature(landmarks);
     if (lumbarCurvature > 45) {
-        const severity = lumbarCurvature > 60 ? 'Grave' : lumbarCurvature > 52 ? 'Moderada' : 'Leve';
+        const severity = lumbarCurvature > 60 ? 'high' : lumbarCurvature > 52 ? 'medium' : 'low';
         deviations.push({
-            type: 'Hiperlordose Lombar',
-            severity: severity as 'Leve' | 'Moderada' | 'Grave',
+            id: `deviation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            name: 'Hiperlordose Lombar',
+            severity,
             description: `Curvatura lombar aumentada: ${lumbarCurvature.toFixed(1)}°`,
-            affectedRegions: ['Lombar'],
+            affectedArea: 'Coluna Lombar',
             recommendations: [
                 'Fortalecer abdômen e glúteos',
                 'Alongar flexores de quadril e eretores lombares',
@@ -100,18 +104,19 @@ export function analyzePostureFromLandmarks(landmarks: BodyLandmarks): VisualAna
             ]
         });
         detectedPatterns.push('Lumbar Hyperlordosis');
-        totalScore -= severity === 'Grave' ? 15 : severity === 'Moderada' ? 10 : 5;
+        totalScore -= severity === 'high' ? 15 : severity === 'medium' ? 10 : 5;
     }
 
     // ANÁLISE DE ESCOLIOSE
     const spinalDeviation = calculateSpinalDeviation(landmarks);
     if (spinalDeviation > 5) {
-        const severity = spinalDeviation > 15 ? 'Grave' : spinalDeviation > 10 ? 'Moderada' : 'Leve';
+        const severity = spinalDeviation > 15 ? 'high' : spinalDeviation > 10 ? 'medium' : 'low';
         deviations.push({
-            type: 'Escoliose',
-            severity: severity as 'Leve' | 'Moderada' | 'Grave',
+            id: `deviation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            name: 'Escoliose',
+            severity,
             description: `Desvio lateral da coluna: ${spinalDeviation.toFixed(1)}°`,
-            affectedRegions: ['Coluna Completa'],
+            affectedArea: 'Coluna Completa',
             recommendations: [
                 'Exercícios unilaterais para correção de assimetrias',
                 'Fortalecimento de musculatura paravertebral',
@@ -119,18 +124,19 @@ export function analyzePostureFromLandmarks(landmarks: BodyLandmarks): VisualAna
             ]
         });
         detectedPatterns.push('Scoliosis');
-        totalScore -= severity === 'Grave' ? 20 : severity === 'Moderada' ? 12 : 6;
+        totalScore -= severity === 'high' ? 20 : severity === 'medium' ? 12 : 6;
     }
 
     // ANÁLISE DE JOELHOS VALGOS
     const kneeValgusAngle = calculateKneeValgusAngle(landmarks);
     if (kneeValgusAngle > 5) {
-        const severity = kneeValgusAngle > 12 ? 'Grave' : kneeValgusAngle > 8 ? 'Moderada' : 'Leve';
+        const severity = kneeValgusAngle > 12 ? 'high' : kneeValgusAngle > 8 ? 'medium' : 'low';
         deviations.push({
-            type: 'Joelhos Valgos',
-            severity: severity as 'Leve' | 'Moderada' | 'Grave',
+            id: `deviation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            name: 'Joelhos Valgos',
+            severity,
             description: `Ângulo valgo dos joelhos: ${kneeValgusAngle.toFixed(1)}°`,
-            affectedRegions: ['Joelhos', 'Quadril'],
+            affectedArea: 'Joelhos',
             recommendations: [
                 'Fortalecer abdutores de quadril',
                 'Exercícios de controle neuromuscular',
@@ -138,18 +144,19 @@ export function analyzePostureFromLandmarks(landmarks: BodyLandmarks): VisualAna
             ]
         });
         detectedPatterns.push('Knee Valgus');
-        totalScore -= severity === 'Grave' ? 12 : severity === 'Moderada' ? 8 : 4;
+        totalScore -= severity === 'high' ? 12 : severity === 'medium' ? 8 : 4;
     }
 
     // ANÁLISE DE JOELHOS VAROS
     const kneeVarusAngle = calculateKneeVarusAngle(landmarks);
     if (kneeVarusAngle > 5) {
-        const severity = kneeVarusAngle > 12 ? 'Grave' : kneeVarusAngle > 8 ? 'Moderada' : 'Leve';
+        const severity = kneeVarusAngle > 12 ? 'high' : kneeVarusAngle > 8 ? 'medium' : 'low';
         deviations.push({
-            type: 'Joelhos Varos',
-            severity: severity as 'Leve' | 'Moderada' | 'Grave',
+            id: `deviation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            name: 'Joelhos Varos',
+            severity,
             description: `Ângulo varo dos joelhos: ${kneeVarusAngle.toFixed(1)}°`,
-            affectedRegions: ['Joelhos', 'Quadril'],
+            affectedArea: 'Joelhos',
             recommendations: [
                 'Fortalecer adutores de quadril',
                 'Alongar musculatura lateral da coxa',
@@ -157,17 +164,19 @@ export function analyzePostureFromLandmarks(landmarks: BodyLandmarks): VisualAna
             ]
         });
         detectedPatterns.push('Knee Varus');
-        totalScore -= severity === 'Grave' ? 12 : severity === 'Moderada' ? 8 : 4;
+        totalScore -= severity === 'high' ? 12 : severity === 'medium' ? 8 : 4;
     }
 
     // ANÁLISE DE ASSIMETRIA DE OMBROS
     const shoulderAsymmetry = calculateShoulderAsymmetry(landmarks);
     if (shoulderAsymmetry > 1.5) {
+        const severity = shoulderAsymmetry > 3 ? 'medium' : 'low';
         deviations.push({
-            type: 'Assimetria de Ombros',
-            severity: shoulderAsymmetry > 3 ? 'Moderada' : 'Leve',
+            id: `deviation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            name: 'Assimetria de Ombros',
+            severity,
             description: `Diferença de altura entre ombros: ${shoulderAsymmetry.toFixed(1)} cm`,
-            affectedRegions: ['Ombros', 'Torácica'],
+            affectedArea: 'Ombros',
             recommendations: [
                 'Exercícios unilaterais para equalização',
                 'Fortalecer lado mais fraco',
@@ -181,11 +190,13 @@ export function analyzePostureFromLandmarks(landmarks: BodyLandmarks): VisualAna
     // ANÁLISE DE ASSIMETRIA DE QUADRIL
     const hipAsymmetry = calculateHipAsymmetry(landmarks);
     if (hipAsymmetry > 1.5) {
+        const severity = hipAsymmetry > 3 ? 'medium' : 'low';
         deviations.push({
-            type: 'Assimetria de Quadril',
-            severity: hipAsymmetry > 3 ? 'Moderada' : 'Leve',
+            id: `deviation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            name: 'Assimetria de Quadril',
+            severity,
             description: `Diferença de altura entre quadris: ${hipAsymmetry.toFixed(1)} cm`,
-            affectedRegions: ['Quadril', 'Lombar'],
+            affectedArea: 'Quadril',
             recommendations: [
                 'Exercícios de estabilização pélvica',
                 'Fortalecer musculatura de quadril bilateralmente',
@@ -355,11 +366,11 @@ function generateRecommendations(deviations: PosturalDeviation[], riskLevel: str
         recommendations.push('Realize reavaliações mensais para acompanhar progresso');
     }
     
-    if (deviations.some(d => d.type.includes('Coluna') || d.type.includes('Lombar'))) {
+    if (deviations.some(d => d.name.includes('Coluna') || d.name.includes('Lombar'))) {
         recommendations.push('Fortaleça a musculatura de core para estabilização da coluna');
     }
     
-    if (deviations.some(d => d.type.includes('Ombro') || d.type.includes('Cabeça'))) {
+    if (deviations.some(d => d.name.includes('Ombro') || d.name.includes('Cabeça'))) {
         recommendations.push('Ajuste ergonomia do ambiente de trabalho');
         recommendations.push('Faça pausas regulares para alongamento cervical e escapular');
     }

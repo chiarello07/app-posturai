@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
-import { signUpUser, loginUser } from "@/lib/supabase";
+import { createUser, loginUser } from "@/lib/supabase";
 
 interface AuthScreenProps {
   onLoginSuccess: (userId: string) => void;
@@ -59,7 +59,7 @@ export default function AuthScreen({ onLoginSuccess, onSignupSuccess }: AuthScre
     } else {
       // SIGNUP
       console.log("📝 Criando conta...");
-      const result = await signUpUser(email, password);
+      const result = await createUser(email, password);
       
       if (!result.success) {
         if (result.error?.message?.includes("already registered")) {

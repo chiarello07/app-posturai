@@ -568,9 +568,10 @@ const handleLogin = async (e: React.FormEvent) => {
 
         {currentTab === "analysis" && userProfile && (
           <PhotoAnalysis
-            userProfile={userProfile}
-            onComplete={handleAnalysisComplete}
-            onBackToHome={() => setCurrentTab("home")}
+          userProfile={userProfile}
+          onComplete={handleAnalysisComplete}
+          onBack={() => setCurrentTab("home")}
+          onBackToHome={() => setCurrentTab("home")}
           />
         )}
 

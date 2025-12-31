@@ -135,3 +135,103 @@ export async function analyzeAllPhotos(photos: {
     }
   };
 }
+
+/**
+ * Analisa desvios posturais baseado nos resultados da análise
+ * @param analysisResult - Resultado da análise postural
+ * @returns Array de desvios detectados
+ */
+export function analyzePosturalDeviations(
+  analysisResult: PosturalAnalysisResult
+): any[] {
+  const deviations: any[] = [];
+  
+  const { angles, view, confidence } = analysisResult;
+  
+  console.log(`🔍 [DEVIATIONS] Analisando desvios na vista ${view}...`);
+  
+  // ✅ DETECTAR DESVIOS BASEADO NOS ÂNGULOS
+  
+  // Ombros desalinhados
+  if (angles.shoulderAlignment < 175) {
+    deviations.push({
+      id: `shoulder-${Date.now()}`,
+      name: 'Desalinhamento de Ombros',
+      severity: angles.shoulderAlignment < 165 ? 'high' : 'medium',
+      description: 'Ombros apresentam assimetria ou elevação irregular',
+      affectedArea: 'Ombros',
+      recommendations: [
+        'Exercícios de fortalecimento de trapézio',
+        'Alongamento de peitoral',
+        'Correção postural consciente'
+      ]
+    });
+  }
+  
+  // Quadril desalinhado
+  if (angles.hipAlignment < 175) {
+    deviations.push({
+      id: `hip-${Date.now()}`,
+      name: 'Desalinhamento de Quadril',
+      severity: angles.hipAlignment < 165 ? 'high' : 'medium',
+      description: 'Quadril apresenta inclinação lateral',
+      affectedArea: 'Quadril',
+      recommendations: [
+        'Fortalecimento de glúteos',
+        'Alongamento de flexores do quadril',
+        'Exercícios de estabilização pélvica'
+      ]
+    });
+  }
+  
+  // Coluna (Forward Head / Cifose / Lordose)
+  if (view === 'lateral') {
+    if (angles.spineAngle < 85) {
+      deviations.push({
+        id: `spine-forward-${Date.now()}`,
+        name: 'Anteriorização da Cabeça / Cifose',
+        severity: angles.spineAngle < 75 ? 'high' : 'medium',
+        description: 'Cabeça projetada para frente e/ou aumento da curvatura torácica',
+        affectedArea: 'Coluna Cervical e Torácica',
+        recommendations: [
+          'Fortalecimento de extensores cervicais',
+          'Alongamento de peitoral e trapézio superior',
+          'Exercícios de retração escapular'
+        ]
+      });
+    } else if (angles.spineAngle > 100) {
+      deviations.push({
+        id: `spine-lordosis-${Date.now()}`,
+        name: 'Hiperlordose Lombar',
+        severity: angles.spineAngle > 110 ? 'high' : 'medium',
+        description: 'Aumento excessivo da curvatura lombar',
+        affectedArea: 'Coluna Lombar',
+        recommendations: [
+          'Fortalecimento de core e abdominais',
+          'Alongamento de flexores do quadril',
+          'Exercícios de estabilização lombar'
+        ]
+      });
+    }
+  }
+  
+  // Joelhos
+  if (angles.kneeAlignment < 175 || angles.kneeAlignment > 185) {
+    deviations.push({
+      id: `knee-${Date.now()}`,
+      name: 'Desalinhamento de Joelhos',
+      severity: 'medium',
+      description: 'Joelhos apresentam valgo ou varo',
+      affectedArea: 'Joelhos',
+      recommendations: [
+        'Fortalecimento de quadríceps e glúteos',
+        'Alongamento de IT band',
+        'Exercícios de estabilização de joelho'
+      ]
+    });
+  }
+  
+  console.log(`✅ [DEVIATIONS] ${deviations.length} desvios detectados na vista ${view}`);
+  
+  return deviations;
+}

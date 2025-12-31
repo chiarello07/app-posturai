@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 
 import { getUserWorkout, getCurrentUser, supabase } from "@/lib/supabase";
-import { PeriodizationTimeline } from './PeriodizationTimeline';
+// import { PeriodizationTimeline } from './PeriodizationTimeline';
 import { getWorkoutStats } from '@/lib/training/progressTracker';
 import { 
   saveWorkoutSession, 
@@ -32,38 +32,10 @@ import ActiveWorkout from './ActiveWorkout';
 import { saveWorkoutProgress } from '@/lib/training/progressTracker';
 import {toast } from 'sonner';
 import { Activity } from 'lucide-react';
+import type { Exercise, WorkoutPhase } from '@/types/training';
 
 interface TrainingPlanProps {
   userProfile: any;
-}
-
-interface Exercise {
-  id: string;
-  name: string;
-  sets: number;
-  reps?: number;
-  duration?: number;
-  rest: number;
-  tempo: {
-    concentric: number;
-    isometric: number;
-    eccentric: number;
-    rest: number;
-  };
-  description: string;
-  cues: string[];
-  benefits: string[];
-  imageUrl?: string;
-  gifUrl?: string;
-  videoUrl?: string;
-}
-
-interface Phase {
-  name: string;
-  description: string;
-  focus: string[];
-  exercises: Exercise[];
-  frequency: string;
 }
 
 interface TrainingPlan {
@@ -71,7 +43,7 @@ interface TrainingPlan {
   userName: string;
   level: string;
   duration: string;
-  phases: Phase[];
+  phases: WorkoutPhase[];
   periodization?: {
     currentPhase: string;
     totalWeeks: number;
@@ -235,18 +207,17 @@ const finishWorkout = () => {
   }
   
   // ✅ CRIAR LOGS DOS EXERCÍCIOS
-  const exerciseLogs: ExerciseLog[] = phase.exercises.map((ex, idx) => {
+  const exerciseLogs = phase.exercises.map((ex, idx) => {
     const uniqueId = `phase-${activeWorkout}-exercise-${idx}`;
     return {
       exerciseId: ex.id,
       exerciseName: ex.name,
       sets: ex.sets,
-      reps: (typeof ex.reps === 'string' && TIME_PATTERN.test(ex.reps)) ? 0 : (ex.reps || 0),
-      duration: ex.duration,
-      rest: ex.rest,
+      reps: ex.reps,
+      rest: ex.rest_seconds,
       completed: completedIds.includes(uniqueId),
       tempo: ex.tempo
-    };
+    } as any;
   });
   
   // ✅ CALCULAR MÉTRICAS
@@ -266,7 +237,8 @@ const finishWorkout = () => {
     totalReps: metrics.totalReps,
     totalVolume: 0,
     estimatedCalories: metrics.estimatedCalories,
-    completionRate: metrics.completionRate
+    completionRate: metrics.completionRate,
+    averageRPE: 5
   };
   
   // ✅ SALVAR NO HISTÓRICO (PROCESSADO!)
@@ -311,22 +283,21 @@ const handleWorkoutComplete = (completedIds: string[], duration: number) => {
   const phase = trainingPlan.phases[showActiveWorkout];
   
   // ✅ CRIAR LOGS DOS EXERCÍCIOS
-  const exerciseLogs: ExerciseLog[] = phase.exercises.map((ex, idx) => {
+  const exerciseLogs = phase.exercises.map((ex, idx) => {
     const uniqueId = `phase-${showActiveWorkout}-exercise-${idx}`;
     return {
       exerciseId: ex.id,
       exerciseName: ex.name,
       sets: ex.sets,
       reps: (typeof ex.reps === 'string' && TIME_PATTERN.test(ex.reps)) ? 0 : (ex.reps || 0),
-      duration: ex.duration,
-      rest: ex.rest,
+      rest: ex.rest_seconds,
       completed: completedIds.includes(uniqueId),
       tempo: ex.tempo
     };
   });
   
   // ✅ CALCULAR MÉTRICAS
-  const metrics = calculateWorkoutMetrics(exerciseLogs, duration);
+  const metrics = calculateWorkoutMetrics(exerciseLogs as any, duration);
   
   // ✅ CRIAR SESSÃO DE TREINO (SEM SALVAR AINDA)
   const session: WorkoutSession = {
@@ -337,7 +308,7 @@ const handleWorkoutComplete = (completedIds: string[], duration: number) => {
     startTime: new Date(Date.now() - duration * 1000).toISOString(),
     endTime: new Date().toISOString(),
     duration: duration,
-    exercises: exerciseLogs,
+    exercises: exerciseLogs as any,
     totalSets: metrics.totalSets,
     totalReps: metrics.totalReps,
     totalVolume: 0,
@@ -405,12 +376,16 @@ const handleWorkoutComplete = (completedIds: string[], duration: number) => {
   if (showActiveWorkout !== null && trainingPlan) {
     return (
       <ActiveWorkout
-        phase={trainingPlan.phases[showActiveWorkout]}
-        phaseIndex={showActiveWorkout}
-        onBack={() => setShowActiveWorkout(null)}
-        onComplete={handleWorkoutComplete}
-        userProfile={userProfile}
-      />
+  phase={{
+    ...trainingPlan.phases[showActiveWorkout],
+    phase: `Fase ${showActiveWorkout + 1}`,
+    estimated_duration_minutes: 60
+  } as any}
+  phaseIndex={showActiveWorkout}
+  onBack={() => setShowActiveWorkout(null)}
+  onComplete={handleWorkoutComplete}
+  userProfile={userProfile}
+/>
     );
   }
 
@@ -576,7 +551,7 @@ return (
             <div className="space-y-2">
               {phaseExercises.map((exercise, exIdx) => {
                 const isCompleted = completedExercises.has(exercise.id);
-                const isTimeBasedExercise = exercise.duration || (exercise.reps && TIME_PATTERN.test(String(exercise.reps)));
+                const isTimeBasedExercise = (exercise.reps && TIME_PATTERN.test(String(exercise.reps)));
                 
                 return (
                   <div
@@ -605,7 +580,7 @@ return (
                             {isTimeBasedExercise ? (
                               <span className="flex items-center gap-1">
                                 <Clock className="w-3 h-3" />
-                                {exercise.duration ? `${exercise.duration}s` : exercise.reps} duração
+                                {exercise.reps} duração
                               </span>
                             ) : (
                               <span className="flex items-center gap-1">
@@ -613,10 +588,10 @@ return (
                                 {exercise.reps} reps
                               </span>
                             )}
-                            {(exercise.rest || exercise.rest_seconds) && (
+                            {exercise.rest_seconds && (
                               <span className="flex items-center gap-1">
                                 <Clock className="w-3 h-3" />
-                                {exercise.rest || exercise.rest_seconds}s descanso
+                                {exercise.rest_seconds}s descanso
                               </span>
                             )}
                           </div>
@@ -635,48 +610,24 @@ return (
                     {/* Detalhes Expandidos */}
                     {expandedExercise === exercise.id && (
                       <div className="mt-3 pt-3 border-t border-slate-200 space-y-2">
-                        {exercise.description && (
-                          <p className="text-sm text-slate-600">{exercise.description}</p>
+                        {exercise.instructions && (
+                          <p className="text-sm text-slate-600">{exercise.instructions}</p>
                         )}
-                        {exercise.cues && exercise.cues.length > 0 && (
-                          <div>
-                            <p className="text-xs font-semibold text-slate-700 mb-1">Dicas de Execução:</p>
-                            <ul className="text-xs text-slate-600 space-y-1">
-                              {exercise.cues.map((cue, cueIdx) => (
-                                <li key={cueIdx} className="flex items-start gap-2">
-                                  <span className="text-blue-500 mt-0.5">•</span>
-                                  <span>{cue}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        {(exercise.imageUrl || exercise.gifUrl || exercise.videoUrl) && (
-                          <div className="flex gap-2">
-                            {exercise.imageUrl && (
-                              <a
-                                href={exercise.imageUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
-                              >
-                                <ImageIcon className="w-3 h-3" />
-                                Imagem
-                              </a>
-                            )}
-                            {exercise.videoUrl && (
-                              <a
-                                href={exercise.videoUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
-                              >
-                                <Video className="w-3 h-3" />
-                                Vídeo
-                              </a>
-                            )}
-                          </div>
-                        )}
+                        
+                        {(exercise.gif_url || exercise.video_url) && (
+  <div className="flex gap-2">
+    {exercise.gif_url && (
+      <a href={exercise.gif_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
+        Ver demonstração (GIF)
+      </a>
+    )}
+    {exercise.video_url && (
+      <a href={exercise.video_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
+        Assistir vídeo
+      </a>
+    )}
+  </div>
+)}
                       </div>
                     )}
                   </div>
@@ -710,148 +661,141 @@ return (
     </div>
 
     {/* ✅ MODAL: DETALHES DO TREINO */}
-    {selectedPhase !== null && (
-      <div 
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-        onClick={() => setSelectedPhase(null)}
-      >
-        <div 
-          className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {(() => {
-            const phase = trainingPlan.phases[selectedPhase];
-            const phaseLetter = String.fromCharCode(65 + selectedPhase);
-            const phaseColors = [
-              { bg: 'from-blue-500 to-indigo-600' },
-              { bg: 'from-purple-500 to-pink-600' },
-              { bg: 'from-green-500 to-emerald-600' },
-            ];
-            const colors = phaseColors[selectedPhase % 3];
+{selectedPhase !== null && (
+  <div 
+    className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+    onClick={() => setSelectedPhase(null)}
+  >
+    <div 
+      className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {(() => {
+        const phase = trainingPlan.phases[selectedPhase];
+        const phaseLetter = String.fromCharCode(65 + selectedPhase);
+        const phaseColors = [
+          { bg: 'from-blue-500 to-indigo-600' },
+          { bg: 'from-purple-500 to-pink-600' },
+          { bg: 'from-green-500 to-emerald-600' },
+        ];
+        const colors = phaseColors[selectedPhase % 3];
 
-            return (
-              <>
-                {/* HEADER DO MODAL */}
-                <div className={`bg-gradient-to-br ${colors.bg} p-8 rounded-t-3xl text-white relative`}>
-                  <button
-                    onClick={() => setSelectedPhase(null)}
-                    className="absolute top-4 right-4 w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors"
-                  >
-                    <span className="text-2xl">×</span>
-                  </button>
-                  
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
-                      <span className="text-4xl font-bold">{phaseLetter}</span>
-                    </div>
-                    <div>
-                      <h2 className="text-2xl font-bold">{phase.name}</h2>
-                      <p className="text-white/90 text-sm mt-1">{phase.description}</p>
-                    </div>
-                  </div>
-
-                  {/* TAGS DE FOCO */}
-                  <div className="flex flex-wrap gap-2">
-                    {phase.focus.map((focus, idx) => (
-                      <span
-                        key={idx}
-                        className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium"
-                      >
-                        {focus}
-                      </span>
-                    ))}
-                  </div>
+        return (
+          <>
+            {/* HEADER DO MODAL */}
+            <div className={`bg-gradient-to-br ${colors.bg} p-8 rounded-t-3xl text-white relative`}>
+              <button
+                onClick={() => setSelectedPhase(null)}
+                className="absolute top-4 right-4 w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors"
+              >
+                <span className="text-2xl">×</span>
+              </button>
+              
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+                  <span className="text-4xl font-bold">{phaseLetter}</span>
                 </div>
+                <div>
+                  <h2 className="text-2xl font-bold">{phase.name}</h2>
+                </div>
+              </div>
 
-                {/* CONTEÚDO DO MODAL */}
-                <div className="p-8">
-                  <div className="flex items-center gap-4 text-sm text-gray-600 mb-6">
-                    <div className="flex items-center gap-2">
-                      <Dumbbell className="w-4 h-4" />
-                      <span>{phase.exercises.length} exercícios</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Repeat className="w-4 h-4" />
-                      <span>{phase.frequency}</span>
-                    </div>
-                  </div>
+              {/* TAGS DE FOCO */}
+              <div className="flex flex-wrap gap-2">
+                {phase.focus.map((focus, idx) => (
+                  <span
+                    key={idx}
+                    className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium"
+                  >
+                    {focus}
+                  </span>
+                ))}
+              </div>
+            </div>
 
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">Exercícios</h3>
-                  
-                  <div className="space-y-3">
-                    {phase.exercises.map((exercise, exIndex) => (
-                      <div
-                        key={exIndex}
-                        className="bg-gray-50 rounded-xl p-4 border border-gray-200"
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="flex-shrink-0 w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-sm border border-gray-200">
-                            <span className="text-sm font-bold text-gray-700">{exIndex + 1}</span>
-                          </div>
-                          
-                          <div className="flex-1 min-w-0">
-                            <h4 className="text-sm font-bold text-gray-900 mb-2">
-                              {exercise.name}
-                            </h4>
-                            
-                            <div className="flex flex-wrap gap-3 text-xs text-gray-600 mb-2">
-                              {exercise.sets && (
-                                <div className="flex items-center gap-1">
-                                  <Repeat className="w-3 h-3" />
-                                  <span>{exercise.sets} séries</span>
-                                </div>
-                              )}
-                              {exercise.reps && (
-                                <div className="flex items-center gap-1">
-                                  <TrendingUp className="w-3 h-3" />
-                                  <span>{exercise.reps} reps</span>
-                                </div>
-                              )}
-                              {exercise.duration && (
-                                <div className="flex items-center gap-1">
-                                  <Clock className="w-3 h-3" />
-                                  <span>{exercise.duration}s</span>
-                                </div>
-                              )}
-                              {exercise.rest && (
-                                <div className="flex items-center gap-1">
-                                  <Clock className="w-3 h-3" />
-                                  <span>Descanso {exercise.rest}s</span>
-                                </div>
-                              )}
+            {/* CONTEÚDO DO MODAL */}
+            <div className="p-8">
+              <div className="flex items-center gap-4 text-sm text-gray-600 mb-6">
+                <div className="flex items-center gap-2">
+                  <Dumbbell className="w-4 h-4" />
+                  <span>{phase.exercises.length} exercícios</span>
+                </div>
+              </div>
+
+              <h3 className="text-lg font-bold text-gray-900 mb-4">Exercícios</h3>
+              
+              <div className="space-y-3">
+                {phase.exercises.map((exercise, exIndex) => (
+                  <div
+                    key={exIndex}
+                    className="bg-gray-50 rounded-xl p-4 border border-gray-200"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-sm border border-gray-200">
+                        <span className="text-sm font-bold text-gray-700">{exIndex + 1}</span>
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-bold text-gray-900 mb-2">
+                          {exercise.name}
+                        </h4>
+                        
+                        <div className="flex flex-wrap gap-3 text-xs text-gray-600 mb-2">
+                          {exercise.sets && (
+                            <div className="flex items-center gap-1">
+                              <Repeat className="w-3 h-3" />
+                              <span>{exercise.sets} séries</span>
                             </div>
-
-                            <p className="text-xs text-gray-600 line-clamp-2">
-                              {exercise.description}
-                            </p>
-                          </div>
-
-                          {(exercise.imageUrl || exercise.gifUrl) && (
-                            <div className="flex-shrink-0 w-16 h-16 bg-white rounded-lg overflow-hidden border border-gray-200">
-                              <img
-                                src={exercise.imageUrl || exercise.gifUrl}
-                                alt={exercise.name}
-                                className="w-full h-full object-cover"
-                              />
+                          )}
+                          {exercise.reps && (
+                            <div className="flex items-center gap-1">
+                              <TrendingUp className="w-3 h-3" />
+                              <span>{exercise.reps} reps</span>
+                            </div>
+                          )}
+                          {exercise.rest_seconds && (
+                            <div className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              <span>Descanso {exercise.rest_seconds}s</span>
                             </div>
                           )}
                         </div>
-                      </div>
-                    ))}
-                  </div>
 
-                  <div className="mt-6 bg-blue-50 rounded-xl p-4 border border-blue-100">
-                    <p className="text-sm text-gray-700 text-center">
-                      <span className="font-semibold">💡 Dica:</span> Inicie este treino pela aba Home
-                    </p>
+                        {exercise.instructions && (
+                          <p className="text-xs text-gray-600 line-clamp-2">
+                            {exercise.instructions}
+                          </p>
+                        )}
+                      </div>
+
+                      {(exercise.gif_url || exercise.video_url) && (
+                        <div className="flex-shrink-0 w-16 h-16 bg-white rounded-lg overflow-hidden border border-gray-200">
+                          {exercise.gif_url && (
+                            <img
+                              src={exercise.gif_url}
+                              alt={exercise.name}
+                              className="w-full h-full object-cover"
+                            />
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </>
-            );
-          })()}
-        </div>
-      </div>
-    )}
+                ))}
+              </div>
+
+              <div className="mt-6 bg-blue-50 rounded-xl p-4 border border-blue-100">
+                <p className="text-sm text-gray-700 text-center">
+                  <span className="font-semibold">💡 Dica:</span> Inicie este treino pela aba Home
+                </p>
+              </div>
+            </div>
+          </>
+        );
+      })()}
+    </div>
+  </div>
+)}
 
 {/* ============================================ */}
 {/* MODAL DE PERIODIZAÇÃO - VERSÃO 2.0 ÉPICA    */}
@@ -923,7 +867,7 @@ return (
                   🎯 Correção Postural + Hipertrofia
                 </span>
                 <span className="bg-white/20 backdrop-blur-sm text-white px-4 py-1.5 rounded-full text-sm font-semibold">
-                  📍 {trainingPlan.phases[0]?.frequency || "3x por semana"}
+                  📍 3x por semana
                 </span>
               </div>
             </div>
@@ -1554,7 +1498,7 @@ const calculateTrainingDays = (frequency: number): number[] => {
   return [1, 3, 5];
 };
 
-const trainingFrequency = trainingPlan?.frequency_per_week || 3;
+const trainingFrequency = trainingPlan?.phases?.length || 3;
 const trainingDaysIndexes = calculateTrainingDays(trainingFrequency);
 
 console.log(`📅 [CALENDAR] Frequência: ${trainingFrequency}x/semana | Dias: [${trainingDaysIndexes.join(', ')}]`);
@@ -1634,9 +1578,9 @@ const weekSchedule = daysOfWeek.map((day, dayIndex) => {
         // ✅ RENDERIZAR
         return daysOfWeek.map((day, index) => {
           const schedule = weekSchedule[index];
-          const isWorkout = schedule.type === 'workout';
-          const isStretch = schedule.type === 'stretch';
-          const isRest = schedule.type === 'rest';
+          const isWorkout = schedule.activity.includes('Treino');
+          const isStretch = schedule.activity.includes('Alongamento');
+          const isRest = schedule.activity.includes('Descanso');
           
           return (
             <div key={day} className="text-center">
@@ -1647,11 +1591,11 @@ const weekSchedule = daysOfWeek.map((day, dayIndex) => {
                 "bg-gray-100 text-gray-500"
               }`}>
                 {isWorkout && (
-                  <>
-                    <p className="text-2xl font-bold">{schedule.phase}</p>
-                    <p className="text-xs mt-1">{schedule.duration}min</p>
-                  </>
-                )}
+  <>
+    <p className="text-xl font-bold">{schedule.activity}</p>
+    <p className="text-xs mt-1 opacity-80">Treino completo</p>
+  </>
+)}
                 {isStretch && (
                   <>
                     <p className="text-xl">🧘</p>

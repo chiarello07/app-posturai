@@ -97,7 +97,7 @@ export default function OnboardingFlow({ onComplete, onBack, initialStep = 1 }: 
 
   const toggleArrayItem = (field: string, value: string, max?: number) => {
   setFormData((prev) => {
-    const currentArray = prev[field] || [];
+    const currentArray = (prev as any)[field] || [];
     
     // ✅ LÓGICA DE EXCLUSÃO MÚTUA PARA "NENHUM"
     if (field === "healthProblems") {
@@ -107,9 +107,9 @@ export default function OnboardingFlow({ onComplete, onBack, initialStep = 1 }: 
       }
       // Se clicou em qualquer dor, remove "nenhum"
       else {
-        const newArray = currentArray.filter((item) => item !== "nenhum");
+        const newArray = currentArray.filter((item: string) => item !== "nenhum");
         if (newArray.includes(value)) {
-          return { ...prev, [field]: newArray.filter((item) => item !== value) };
+          return { ...prev, [field]: newArray.filter((item: string) => item !== value) };
         } else {
           return { ...prev, [field]: [...newArray, value] };
         }
@@ -118,7 +118,7 @@ export default function OnboardingFlow({ onComplete, onBack, initialStep = 1 }: 
     
     // Lógica padrão para outros campos
     if (currentArray.includes(value)) {
-      return { ...prev, [field]: currentArray.filter((item) => item !== value) };
+      return { ...prev, [field]: currentArray.filter((item: string) => item !== value) };
     } else if (!max || currentArray.length < max) {
       return { ...prev, [field]: [...currentArray, value] };
     }
@@ -203,7 +203,7 @@ export default function OnboardingFlow({ onComplete, onBack, initialStep = 1 }: 
     case 10:
       return formData.trainingFrequency !== "";
     case 11:
-      return formData.trainingDays.length > 0 && parseInt(formData.trainingDays.length) <= parseInt(formData.trainingFrequency);
+      return formData.trainingDays.length > 0 && formData.trainingDays.length <= parseInt(formData.trainingFrequency);
     case 12:
       return formData.name.trim() !== "" && formData.agreeToTerms; // ✅ TERMO VALIDADO AQUI!
     default:

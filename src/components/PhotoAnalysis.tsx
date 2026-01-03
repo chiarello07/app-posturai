@@ -8,7 +8,7 @@ import { saveAnalysis } from "@/lib/supabase";
 import CompleteAnalysisReport from "./CompleteAnalysisReport";
 
 interface PhotoAnalysisProps {
-  onBack: () => void;
+  onBack?: () => void;
   onComplete: (analysisData: any) => void;
   userProfile: any;
   onBackToHome: () => void;

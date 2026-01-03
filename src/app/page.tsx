@@ -1,15 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  Activity,
-  Camera,
-  TrendingUp,
-  User as UserIcon,
-  Home as HomeIcon,
-  ArrowLeft,
-  Zap
-} from "lucide-react";
+import { Activity, Camera, TrendingUp, User as UserIcon, Home as HomeIcon, ArrowLeft, Zap } from "lucide-react";
 import SignupCredentials from "@/components/SignupCredentials";
 import OnboardingFlow from "@/components/OnboardingFlow";
 import PhotoAnalysis from "@/components/PhotoAnalysis";
@@ -21,24 +13,8 @@ import CompleteAnalysisReport from "@/components/CompleteAnalysisReport";
 import BoostPosturAI from "@/components/BoostPosturAI";
 import { generatePersonalizedTrainingPlan } from "@/lib/training/trainingGenerator";
 import { getWorkoutStats } from '@/lib/training/progressTracker';
-
-import {
-  createUser,
-  loginUser,
-  getProfile,
-  logoutUser,
-  saveAnalysis,
-  saveOnboarding,
-  getCurrentUser,
-  supabase,
-  createUserWorkout
-} from "@/lib/supabase";
-
-import {
-  Language,
-  getSavedLanguage,
-  setSavedLanguage
-} from "@/lib/translateService";
+import { createUser, loginUser, getProfile, logoutUser, saveAnalysis, saveOnboarding, getCurrentUser, supabase, createUserWorkout } from "@/lib/supabase";
+import { Language, getSavedLanguage, setSavedLanguage } from "@/lib/translateService";
 
 type Tab =
   | "login"
@@ -591,6 +567,7 @@ const handleLogin = async (e: React.FormEvent) => {
               localStorage.setItem("userProfile", JSON.stringify(updated));
               setCurrentTab("analysis");
             }}
+            onGoToTraining={() => setCurrentTab("training")}
           />
         )}
 

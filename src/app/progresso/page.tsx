@@ -5,11 +5,13 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import YearlyPeriodizationTimeline from "@/components/YearlyPeriodizationTimeline";
+import { supabase } from "@/lib/supabase";
 
 export default function ProgressoPage() {
   const router = useRouter();
   const [currentWeek, setCurrentWeek] = useState(1);
   const [isPremium, setIsPremium] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     // TODO: Buscar dados reais do Supabase
@@ -21,9 +23,46 @@ export default function ProgressoPage() {
     setIsPremium(mockPremium);
   }, []);
 
-  const handleUpgrade = () => {
-    // Redirecionar pro link de pagamento da Keoto
-    window.open("https://keoto.com/checkout/posturai-anual", "_blank");
+  const handleUpgradeToPremium = async () => {
+    try {
+      setIsLoading(true);
+
+      // Obter dados do usuário atual
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        alert('Você precisa estar logado para assinar o Premium');
+        return;
+      }
+
+      // Chamar endpoint de checkout
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_ANUAL,
+          userId: user.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao criar checkout');
+      }
+
+      // Redirecionar para checkout da Stripe
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      console.error('Erro ao criar checkout:', error);
+      alert('Erro ao criar checkout. Tente novamente.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -46,7 +85,7 @@ export default function ProgressoPage() {
         <YearlyPeriodizationTimeline
           currentWeek={currentWeek}
           isPremium={isPremium}
-          onUpgrade={handleUpgrade}
+          onUpgrade={handleUpgradeToPremium}
         />
       </main>
     </div>

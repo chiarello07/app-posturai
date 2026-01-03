@@ -12,7 +12,6 @@ import {
 } from './progressTracker';
 
 export {
-  WorkoutProgress,
   getNextWorkoutPhase,
   saveWorkoutProgress,
   loadWorkoutProgress,

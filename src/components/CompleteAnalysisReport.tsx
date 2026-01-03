@@ -12,6 +12,7 @@ interface CompleteAnalysisReportProps {
   photos: any;
   onBack: () => void;
   onRedoAnalysis: () => void;
+  onGoToTraining?: () => void;
 }
 
 export default function CompleteAnalysisReport({ 
@@ -19,7 +20,8 @@ export default function CompleteAnalysisReport({
   analysis: propAnalysis,
   photos, 
   onBack, 
-  onRedoAnalysis 
+  onRedoAnalysis,
+  onGoToTraining 
 }: CompleteAnalysisReportProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [analysis, setAnalysis] = useState<any>(null);
@@ -495,7 +497,7 @@ export default function CompleteAnalysisReport({
             Refazer Análise
           </button>
           <button
-            onClick={onBack}
+            onClick={onGoToTraining || onBack}
             className="flex-1 px-6 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-2xl font-bold hover:shadow-xl hover:scale-[1.02] transition"
           >
             Ir para Treino

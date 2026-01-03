@@ -66,7 +66,7 @@ export const INCOMPATIBLE_COMBINATIONS = {
  * Identifica o grupo muscular principal de um exercício
  */
 export function getExerciseMuscleGroup(exercise: Exercise): keyof typeof MUSCLE_GROUPS | null {
-  const primaryMuscle = exercise.primaryMuscles?.[0]?.toLowerCase() || '';
+  const primaryMuscle = exercise.muscle_group?.[0]?.toLowerCase() || '';
   
   // Busca direta no mapeamento
   for (const [muscle, group] of Object.entries(MUSCLE_TO_GROUP)) {
@@ -92,10 +92,10 @@ export function areExercisesCompatible(exercise1: Exercise, exercise2: Exercise)
   if (group1 === 'CORE' || group2 === 'CORE') return true;
   
   // Verifica incompatibilidades
-  const incompatible1 = INCOMPATIBLE_COMBINATIONS[group1] || [];
-  const incompatible2 = INCOMPATIBLE_COMBINATIONS[group2] || [];
+  const incompatible1 = (INCOMPATIBLE_COMBINATIONS[group1] || []) as readonly string[];
+  const incompatible2 = (INCOMPATIBLE_COMBINATIONS[group2] || []) as readonly string[];
   
-  return !incompatible1.includes(group2) && !incompatible2.includes(group1);
+  return !incompatible1.includes(group2 as any) && !incompatible2.includes(group1 as any);
 }
 
 /**

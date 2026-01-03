@@ -11,6 +11,8 @@ interface HomePageProps {
   onStartWorkout: (phaseIndex?: number) => void;
   onNavigateToProfile: () => void;
   nextWorkoutPhase: string;
+  onShowTrainingPlan?: () => void;
+  onShowBoostPosturAI?: () => void;
 }
 
 export default function HomePage({ 
@@ -18,7 +20,9 @@ export default function HomePage({
   onStartPosturalAnalysis,
   onStartWorkout,
   onNavigateToProfile,
-  nextWorkoutPhase
+  nextWorkoutPhase,
+  onShowTrainingPlan,
+  onShowBoostPosturAI
 }: HomePageProps) {
   const [selectedDay, setSelectedDay] = useState(new Date().getDay());
   const [currentBoostTip, setCurrentBoostTip] = useState<BoostTip | null>(null);
@@ -210,6 +214,20 @@ export default function HomePage({
     if (weekProgress >= weekGoal) return "Meta batida! Continue assim!";
     if (remaining === 1) return "Falta apenas 1 treino para bater a meta";
     return `Faltam ${remaining} treinos para bater a meta`;
+  };
+
+    const handleShowTrainingPlan = () => {
+    if (onShowTrainingPlan) {
+      onShowTrainingPlan();
+    } else {
+      // Fallback: scroll até seção de treino ou mostrar alert
+      alert('Funcionalidade de Plano de Treino em desenvolvimento');
+    }
+  };
+
+    const handleShowBoostPosturAI = () => {
+    // Funcionalidade removida temporariamente
+    alert('Boost PosturAI em desenvolvimento. Em breve!');
   };
 
   return (
@@ -405,11 +423,13 @@ export default function HomePage({
           )}
         </section>
 
-        {/* Ações Rápidas */}
+                {/* Ações Rápidas */}
         <section>
           <h3 className="text-sm font-semibold text-gray-500 mb-3 px-1">Ações Rápidas</h3>
           <div className="grid grid-cols-3 gap-3">
+            {/* ✅ BOTÃO 1: PLANO DE TREINO */}
             <button
+              onClick={handleShowTrainingPlan}
               className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col items-center gap-2 hover:scale-105 transition-all shadow-lg hover:shadow-xl"
             >
               <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
@@ -418,6 +438,7 @@ export default function HomePage({
               <span className="text-xs font-medium text-center text-gray-700">Plano de Treino</span>
             </button>
 
+            {/* ✅ BOTÃO 2: ANÁLISE */}
             <button
               onClick={onStartPosturalAnalysis}
               className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col items-center gap-2 hover:scale-105 transition-all shadow-lg hover:shadow-xl"
@@ -428,7 +449,9 @@ export default function HomePage({
               <span className="text-xs font-medium text-center text-gray-700">Análise</span>
             </button>
 
+            {/* ✅ BOTÃO 3: BOOST POSTURAI */}
             <button
+              onClick={handleShowBoostPosturAI}
               className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col items-center gap-2 hover:scale-105 transition-all shadow-lg hover:shadow-xl"
             >
               <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
@@ -438,7 +461,7 @@ export default function HomePage({
             </button>
           </div>
         </section>
-
+        
         {/* Alerta de análise pendente */}
         {showAnalysisAlert && (
           <div className="fixed top-6 left-6 right-6 z-50 animate-slideDown">
@@ -474,3 +497,4 @@ export default function HomePage({
     </div>
   );
 }
+

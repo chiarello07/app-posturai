@@ -27,6 +27,7 @@ export interface PosturalAnalysis {
   date: string;
   deviations: PosturalDeviation[];
   overallScore: number;
+  overallRisk?: 'low' | 'medium' | 'high';
   imageUrl?: string;
   videoUrl?: string;
   notes?: string;

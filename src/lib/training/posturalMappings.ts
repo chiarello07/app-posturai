@@ -53,12 +53,12 @@ export const PAIN_AREA_TO_CONTRAINDICATION: Record<PainArea, {
     modify: ['ex_pull_ups', 'ex_lat_pulldown'], // TODO: adicionar IDs reais
     prioritize: ['ex_chin_tuck', 'ex_cervical_stability'] // TODO: adicionar IDs reais
   },
-  'shoulders': {
+  'shoulder': {
     avoid: ['ex_overhead_press', 'ex_dips'], // TODO: adicionar IDs reais
     modify: ['ex_bench_press', 'ex_lateral_raise'], // TODO: adicionar IDs reais
     prioritize: ['ex030', 'ex_external_rotation'] // face pull + rotação externa
   },
-  'knees': {
+  'knee': {
     avoid: ['ex_deep_squat', 'ex_leg_extension_heavy'], // TODO: adicionar IDs reais
     modify: ['ex_squat_partial', 'ex_leg_press'], // TODO: adicionar IDs reais
     prioritize: ['ex004', 'ex_terminal_knee_ext'] // ponte glútea + extensão terminal
@@ -72,6 +72,21 @@ export const PAIN_AREA_TO_CONTRAINDICATION: Record<PainArea, {
     avoid: ['ex056', 'ex_barbell_row_heavy'], // stiff + remada pesada
     modify: ['ex014', 'ex_pull_light'], // remada horizontal leve
     prioritize: ['ex_thoracic_mobility', 'ex030'] // mobilidade torácica + face pull
+  },
+    'wrist': {
+    avoid: ['push-ups', 'plank', 'burpees'],
+    modify: ['use-wrist-wraps', 'neutral-grip'],
+    prioritize: ['wrist-mobility', 'forearm-strength']
+  },
+  'elbow': {
+    avoid: ['tricep-dips', 'overhead-press', 'pull-ups'],
+    modify: ['reduce-range', 'lighter-weight'],
+    prioritize: ['elbow-mobility', 'bicep-stretch']
+  },
+  'ankle': {
+    avoid: ['jumping', 'running', 'calf-raises'],
+    modify: ['low-impact', 'ankle-support'],
+    prioritize: ['ankle-mobility', 'balance-work']
   }
 };
 
@@ -107,10 +122,13 @@ export function getPainTriggers(area: PainArea): string[] {
   const triggers: Record<PainArea, string[]> = {
     'lower-back': ['flexão', 'carga axial', 'rotação'],
     'neck': ['overhead', 'extensão cervical', 'tensão'],
-    'shoulders': ['overhead press', 'rotação interna', 'carga alta'],
-    'knees': ['flexão profunda', 'impacto', 'rotação'],
+    'shoulder': ['overhead press', 'rotação interna', 'carga alta'],
+    'knee': ['flexão profunda', 'impacto', 'rotação'],
     'hips': ['flexão profunda', 'abdução', 'rotação externa'],
-    'upper-back': ['carga axial', 'flexão torácica', 'puxadas pesadas']
+    'upper-back': ['carga axial', 'flexão torácica', 'puxadas pesadas'],
+    'wrist': ['push-ups', 'plank', 'burpees', 'handstand'],
+    'elbow': ['tricep-dips', 'overhead-press', 'pull-ups', 'bicep-curls'],
+    'ankle': ['jumping', 'running', 'calf-raises', 'box-jumps']
   };
   
   return triggers[area] || [];

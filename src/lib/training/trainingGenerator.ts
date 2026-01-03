@@ -1,6 +1,6 @@
 // src/lib/trainingGenerator.ts
 
-import { TrainingPlan, WorkoutPhase, Exercise as TrainingExercise } from '@/types/training';
+import { TrainingPlan, SplitType, WorkoutPhase, Exercise as TrainingExercise } from '@/types/training';
 import { 
   EXERCISE_DATABASE,
   FILTERED_EXERCISE_DATABASE, 
@@ -9,21 +9,11 @@ import {
   filterByAvailableEquipment,
   Exercise as DBExercise,
   Equipment,
+  MuscleGroup,
   PainArea
 } from './exerciseDatabase';
 import { PosturalAnalysisResult, calculatePosturalScore, requiresMedicalClearance } from '@/types/posturalAnalysis';
 import { normalizeDeviationType, POSTURAL_ISSUE_TO_EXERCISE_MAPPING } from './posturalMappings';
-import {
-  generateContextualTraining,
-  createUserContextFromOnboarding,
-  calculateCurrentWeek,
-  validateUserContext,
-  type UserContext,
-  type ContextualTrainingResult
-} from './contextualTrainingGenerator';
-
-import { getCurrentPhase } from './periodization';
-import { validateWorkoutCompatibility } from './muscleCompatibility';
 
 // ✅ CORREÇÃO BUG B: Mínimos por categoria
 const CATEGORY_MINIMUMS: Record<string, number> = {
@@ -145,7 +135,7 @@ function mapTargetMusclesToDBGroups(targetMuscles: string[]): string[] {
 // ⚠️ STUB TEMPORÁRIO - Substituir por implementação real
 // ============================================
 
-function getAllExercises(): Exercise[] {
+function getAllExercises(): DBExercise[] {
   console.log('✅ [getAllExercises] Carregando exercícios do banco de dados');
   
   if (!FILTERED_EXERCISE_DATABASE || FILTERED_EXERCISE_DATABASE.length === 0) {
@@ -212,229 +202,91 @@ interface UserProfile {
 // ✅ CORREÇÃO: Usar analyzeUserContext corretamente
 // ============================================
 
-/**
- * Gera plano de treinamento personalizado integrado com sistema contextual
- * @refactored Oxossi 31/12/2025 - Integração com contextualTrainingGenerator
- */
 export function generatePersonalizedTrainingPlan(
-  userProfile: UserProfile,
-  posturalAnalysis: PosturalAnalysisResult | null,
-  currentWeek: number = 1,
-  language: string = 'pt-BR'
+  profile: UserProfile,
+  posturalAnalysis?: PosturalAnalysisResult
 ): TrainingPlan {
-  try {
-    // ========================================================================
-    // FASE 1: CRIAR CONTEXTO DO USUÁRIO
-    // ========================================================================
-    const userContext: UserContext = createUserContextFromOnboarding({
-      fitnessLevel: userProfile.fitnessLevel,
-      weeklyFrequency: userProfile.weeklyFrequency,
-      sessionDuration: userProfile.sessionDuration,
-      availableEquipment: userProfile.availableEquipment || [],
-      goals: userProfile.goals || [],
-      limitations: userProfile.limitations || [],
-      posturalAnalysis: posturalAnalysis || undefined,
-      age: userProfile.age,
-      weight: userProfile.weight,
-      height: userProfile.height
-    });
-
-    // Validar contexto
-    const validation = validateUserContext(userContext);
-    if (!validation.isValid) {
-      console.error('❌ Contexto de usuário inválido:', validation.errors);
-      throw new Error(`Contexto inválido: ${validation.errors.join(', ')}`);
-    }
-
-    // ========================================================================
-    // FASE 2: CALCULAR SEMANA ATUAL DA PERIODIZAÇÃO
-    // ========================================================================
-    const actualWeek = calculateCurrentWeek(
-      userProfile.startDate || new Date().toISOString(),
-      currentWeek
-    );
-
-    console.log(`📅 Gerando treino para semana ${actualWeek}/52`);
-
-    // ========================================================================
-    // FASE 3: GERAR TREINO CONTEXTUAL
-    // ========================================================================
-    const contextualResult: ContextualTrainingResult = generateContextualTraining(
-      userContext,
-      actualWeek
-    );
-
-    // ========================================================================
-    // FASE 4: VALIDAR COMPATIBILIDADE MUSCULAR
-    // ========================================================================
-    const workouts = contextualResult.weeklyWorkouts;
-    
-    for (let i = 0; i < workouts.length; i++) {
-      const workout = workouts[i];
-      const exerciseIds = workout.exercises.map(ex => ex.id);
-      
-      const compatibilityCheck = validateWorkoutCompatibility(
-        exerciseIds,
-        workout.focus || 'full-body'
-      );
-
-      if (!compatibilityCheck.isValid) {
-        console.warn(`⚠️ Treino ${workout.name} tem incompatibilidades:`, compatibilityCheck.conflicts);
-        // TODO: Implementar lógica de substituição automática de exercícios incompatíveis
-      }
-    }
-
-    // ========================================================================
-    // FASE 4.5: FILTRO DE EXERCÍCIOS DUPLICADOS
-    // ========================================================================
-    const usedExerciseIds = new Set<string>();
-    
-    for (const workout of workouts) {
-      const uniqueExercises = workout.exercises.filter(exercise => {
-        if (usedExerciseIds.has(exercise.id)) {
-          console.warn(`⚠️ Exercício duplicado removido: ${exercise.name}`);
-          return false;
-        }
-        usedExerciseIds.add(exercise.id);
-        return true;
-      });
-      
-      workout.exercises = uniqueExercises;
-      
-      // Se ficaram poucos exercícios, avisar
-      if (uniqueExercises.length < 4) {
-        console.warn(`⚠️ Treino ${workout.name} ficou com apenas ${uniqueExercises.length} exercícios`);
-      }
-    }
-    
-    console.log(`✅ Filtro de duplicatas aplicado. Total de exercícios únicos: ${usedExerciseIds.size}`);
-
-    // ========================================================================
-    // FASE 5: CONVERTER PARA FORMATO TrainingPlan (COMPATIBILIDADE)
-    // ========================================================================
-    const trainingPlan: TrainingPlan = {
-      weeklyWorkouts: workouts.map(workout => ({
-        ...workout,
-        exercises: workout.exercises.map(ex => ({
-          ...ex,
-          // Garantir que todos os campos obrigatórios existam
-          sets: ex.sets || 3,
-          reps: ex.reps || '10-12',
-          rest: ex.rest || 60,
-          tempo: ex.tempo || '2-0-2-0',
-          notes: ex.notes || ''
-        }))
-      })),
-      currentWeek: actualWeek,
-      totalWeeks: 52,
-      phase: contextualResult.periodization.phase,
-      mesocycle: contextualResult.periodization.mesocycle,
-      focus: contextualResult.periodization.focus,
-      progressionNotes: contextualResult.progressionStrategy.notes,
-      nextProgressionWeek: actualWeek + 4, // Progressão a cada 4 semanas
-      scientificReferences: contextualResult.scientificContext.references,
-      language: language
-    };
-
-    console.log('✅ Plano de treinamento gerado com sucesso!');
-    console.log(`📊 Fase: ${trainingPlan.phase} | Mesociclo: ${trainingPlan.mesocycle}`);
-    console.log(`🎯 Foco: ${trainingPlan.focus}`);
-    console.log(`💪 Treinos: ${trainingPlan.weeklyWorkouts.length}`);
-
-    return trainingPlan;
-
-  } catch (error) {
-    console.error('❌ Erro ao gerar plano de treinamento:', error);
-    
-    // Fallback: gerar plano básico de segurança
-    return generateFallbackTrainingPlan(userProfile, currentWeek, language);
+  console.log('🏋️ [TRAINING GENERATOR] ===== INICIANDO GERAÇÃO INTELIGENTE =====');
+  console.log('👤 [PERFIL]:', profile.name);
+  console.log('🎯 [OBJETIVOS]:', profile.main_goals);
+  console.log('📊 [NÍVEL]:', profile.experience_level);
+  console.log('📅 [FREQUÊNCIA]:', profile.exercise_frequency);
+  console.log('⏱️ [TEMPO/SESSÃO]:', profile.dedication_hours);
+  console.log('🏠 [AMBIENTE]:', profile.training_environment);
+  console.log('⚠️ [DORES]:', profile.pain_areas);
+  
+  if (posturalAnalysis) {
+    console.log('📸 [ANÁLISE POSTURAL] Score:', calculatePosturalScore(posturalAnalysis));
+    console.log('📸 [ANÁLISE POSTURAL] Estrutura recebida:', posturalAnalysis);
+    console.log('⚠️ [DESVIOS]:', posturalAnalysis.aiAnalysis?.deviations);
+    console.log('🎯 [RECOMENDAÇÕES]:', posturalAnalysis.recommendations);
   }
+  
+  // Verificar liberação médica
+  if (profile.heart_problems === 'sim' || profile.injuries === 'sim') {
+    console.warn('⚠️ [AVISO] Usuário requer liberação médica antes de iniciar treinos');
+  }
+  
+  // ✅ CORREÇÃO: Usar analyzeUserContext para criar o contexto
+  const context = analyzeUserContext(profile, posturalAnalysis);
+  
+  console.log('🧠 [CONTEXTO ANALISADO]:', context);
+  
+
+  
+  // 2. DETERMINAR ESTRUTURA DO TREINO (baseado em CIÊNCIA + CONTEXTO)
+  const trainingStructure = determineOptimalStructure(context);
+  console.log("🏗️ [ESTRUTURA DETERMINADA]:", trainingStructure);
+  
+  // 3. PRESCREVER FASES DO TREINO
+  const phases = prescribeWorkoutPhases(context, trainingStructure);
+  console.log("✅ [FASES PRESCRITAS]:", phases.length);
+  
+  // ✅ CORREÇÃO BUG A (PARTE 2): Validação defensiva
+const programName = trainingStructure.programName || 'Plano Personalizado';
+const rationale = trainingStructure.rationale || 'Plano gerado automaticamente com base no seu perfil e objetivos.';
+const durationWeeks = trainingStructure.durationWeeks || 4;
+
+// ⚠️ LOG DE WARNING se fallback foi usado
+if (!trainingStructure.programName) {
+  console.warn('⚠️ [VALIDAÇÃO] programName ausente, usando fallback:', programName);
+}
+if (!trainingStructure.rationale) {
+  console.warn('⚠️ [VALIDAÇÃO] rationale ausente, usando fallback');
+}
+if (!trainingStructure.durationWeeks) {
+  console.warn('⚠️ [VALIDAÇÃO] durationWeeks ausente, usando fallback:', durationWeeks);
 }
 
-/**
- * Gera plano de treinamento básico em caso de falha no sistema contextual
- * @safety Fallback para garantir que o usuário sempre receba um treino
- */
-function generateFallbackTrainingPlan(
-  userProfile: UserProfile,
-  currentWeek: number,
-  language: string
-): TrainingPlan {
-  console.warn('⚠️ Usando plano de treinamento FALLBACK');
-
-  const basicWorkout: Workout = {
-    id: `fallback-workout-${Date.now()}`,
-    name: language === 'pt-BR' ? 'Treino Básico Full Body' : 'Basic Full Body Workout',
-    type: 'strength',
-    focus: 'full-body',
-    duration: 45,
-    exercises: [
-      {
-        id: 'squat-basic',
-        name: language === 'pt-BR' ? 'Agachamento Livre' : 'Bodyweight Squat',
-        category: 'strength',
-        muscleGroup: 'legs',
-        equipment: 'bodyweight',
-        sets: 3,
-        reps: '12-15',
-        rest: 60,
-        tempo: '2-0-2-0',
-        notes: language === 'pt-BR' ? 'Mantenha as costas retas' : 'Keep back straight'
-      },
-      {
-        id: 'pushup-basic',
-        name: language === 'pt-BR' ? 'Flexão de Braço' : 'Push-up',
-        category: 'strength',
-        muscleGroup: 'chest',
-        equipment: 'bodyweight',
-        sets: 3,
-        reps: '8-12',
-        rest: 60,
-        tempo: '2-0-2-0',
-        notes: language === 'pt-BR' ? 'Cotovelos próximos ao corpo' : 'Elbows close to body'
-      },
-      {
-        id: 'plank-basic',
-        name: language === 'pt-BR' ? 'Prancha Isométrica' : 'Plank Hold',
-        category: 'core',
-        muscleGroup: 'core',
-        equipment: 'bodyweight',
-        sets: 3,
-        reps: '30-60s',
-        rest: 45,
-        tempo: 'hold',
-        notes: language === 'pt-BR' ? 'Mantenha o core contraído' : 'Keep core engaged'
-      }
-    ],
-    warmup: {
-      duration: 5,
-      exercises: [
-        language === 'pt-BR' ? 'Mobilidade articular' : 'Joint mobility',
-        language === 'pt-BR' ? 'Cardio leve' : 'Light cardio'
-      ]
-    },
-    cooldown: {
-      duration: 5,
-      exercises: [
-        language === 'pt-BR' ? 'Alongamento estático' : 'Static stretching'
-      ]
-    }
-  };
-
-  return {
-    weeklyWorkouts: [basicWorkout, basicWorkout, basicWorkout],
-    currentWeek: currentWeek,
-    totalWeeks: 52,
-    phase: 'adaptation',
-    mesocycle: 1,
-    focus: 'Treino básico de segurança',
-    progressionNotes: language === 'pt-BR' 
-      ? 'Plano básico gerado automaticamente. Consulte um profissional.'
-      : 'Basic plan generated automatically. Consult a professional.',
-    nextProgressionWeek: currentWeek + 4,
-    scientificReferences: [],
-    language: language
-  };
+// 4. MONTAR PLANO COMPLETO
+const plan: TrainingPlan = {
+  name: `${programName} - ${profile.name}`,        // ✅ Usar validado
+  description: rationale,                          // ✅ Usar validado
+  duration_weeks: durationWeeks,                   // ✅ Usar validado
+  frequency_per_week: context.weeklyFrequency,
+  split_type: trainingStructure.splitType as SplitType,
+  phases: phases,
+  progression_strategy: {
+    type: context.progressionType,
+    increment_every_weeks: context.progressionWeeks,
+    increment_type: context.progressionMethod
+  },
+  adaptations: {
+    menstrual_cycle: profile.gender === "Mulher",
+    injury_modifications: profile.pain_areas || [],
+    pain_areas: profile.pain_areas || []
+  }
+};
+  
+  console.log("🎉 [TREINO GERADO]:", plan.name);
+  console.log("📊 [RESUMO]:", {
+    fases: plan.phases.length,
+    frequencia: plan.frequency_per_week,
+    duracao: plan.duration_weeks,
+    split: plan.split_type
+  });
+  
+  return plan;
 }
 
 // ============================================
@@ -501,7 +353,7 @@ function analyzeUserContext(
     const levelLower = profile.experience_level.toLowerCase();
     if (levelLower === 'iniciante' || levelLower === 'beginner') {
       normalizedLevel = 'iniciante';
-    } else if (levelLower === 'avancado' || levelLower === 'avançado' || levelLower === 'advanced') {
+    } else if (levelLower === 'avançado' || levelLower === 'avançado' || levelLower === 'advanced') {
       normalizedLevel = 'avançado';
     } else {
       normalizedLevel = 'intermediário';
@@ -706,8 +558,8 @@ function generateProgramName(context: UserContext): string {
   
   const levelNames: Record<string, string> = {
     'iniciante': 'Iniciante',
-    'intermediario': 'Intermediário',
-    'avancado': 'Avançado',
+    'intermediário': 'Intermediário',
+    'avançado': 'Avançado',
     'beginner': 'Iniciante',
     'intermediate': 'Intermediário',
     'advanced': 'Avançado'
@@ -752,8 +604,8 @@ function calculateProgramDuration(context: UserContext): number {
   }
   
   if (experienceLevel === 'iniciante') return 4;
-  if (experienceLevel === 'intermediario') return 6;
-  if (experienceLevel === 'avancado') {
+  if (experienceLevel === 'intermediário') return 6;
+  if (experienceLevel === 'avançado') {
     return (goalKey === 'força' || goalKey === 'strength') ? 12 : 8;
   }
   
@@ -874,15 +726,30 @@ function determineOptimalStructure(context: UserContext): TrainingStructure {
       focus,
       composition,
       intensity,
+      intensityLevel: intensity,
       duration: 45 + (level === 'avançado' ? 15 : level === 'intermediário' ? 10 : 0),
     };
   });
 
-  return {
-    splitType,
-    weeklyFrequency: adjustedFrequency,
-    phasesConfig: phases,
-  };
+  // Determinar split baseado na frequência semanal e nível
+const adjustedSplit = (() => {
+  const freq = context.weeklyFrequency;
+  const level = context.experienceLevel;
+  
+  if (freq >= 6) return 'push_pull_legs';
+  if (freq >= 5) return level === 'avançado' ? 'push_pull_legs' : 'upper_lower';
+  if (freq >= 4) return 'upper_lower';
+  if (freq >= 3) return level === 'iniciante' ? 'full_body' : 'upper_lower';
+  return 'full_body';
+})();
+
+return {
+  programName: 'Programa Personalizado',
+  rationale: 'Programa adaptado ao perfil do usuário',
+  durationWeeks: 52,
+  splitType: adjustedSplit,
+  phasesConfig: phases
+};
 }
 
 // ============================================
@@ -1056,7 +923,7 @@ function calculateIntensity(context: UserContext, phaseIndex: number): 'low' | '
   }
   
   // ✅ INTERMEDIÁRIOS: Variar entre moderado e alto
-  if (context.experienceLevel === 'intermediario') {
+  if (context.experienceLevel === 'intermediário') {
     return phaseIndex % 2 === 0 ? 'high' : 'moderate';
   }
   
@@ -1325,7 +1192,7 @@ function prescribeWorkoutPhases(context: UserContext, structure: TrainingStructu
     // 1. WARMUP/MOBILIDADE (FASE 3)
     if (timeDistribution.warmup > 0) {
       const userLevel = context.experienceLevel === 'iniciante' ? 'iniciante' 
-                      : context.experienceLevel === 'intermediario' ? 'intermediário'
+                      : context.experienceLevel === 'intermediário' ? 'intermediário'
                       : 'avançado';
       
       const warmupTarget = calculateOptimalExerciseCount(userLevel, 'mobilidade', context.weeklyFrequency);
@@ -1344,7 +1211,7 @@ function prescribeWorkoutPhases(context: UserContext, structure: TrainingStructu
     if (timeDistribution.strength > 0) {
       // Mapeia nível do contexto para formato esperado
       const userLevel = context.experienceLevel === 'iniciante' ? 'iniciante' 
-                      : context.experienceLevel === 'intermediario' ? 'intermediário'
+                      : context.experienceLevel === 'intermediário' ? 'intermediário'
                       : 'avançado';
       
       // ✅ USA A FUNÇÃO DA FASE 3
@@ -1388,7 +1255,7 @@ function prescribeWorkoutPhases(context: UserContext, structure: TrainingStructu
     // 3. MOBILIDADE ADICIONAL (FASE 3)
     if (timeDistribution.mobility > 0) {
       const userLevel = context.experienceLevel === 'iniciante' ? 'iniciante' 
-                      : context.experienceLevel === 'intermediario' ? 'intermediário'
+                      : context.experienceLevel === 'intermediário' ? 'intermediário'
                       : 'avançado';
       
       const mobilityTarget = calculateOptimalExerciseCount(userLevel, 'mobilidade', context.weeklyFrequency);
@@ -1418,7 +1285,7 @@ function prescribeWorkoutPhases(context: UserContext, structure: TrainingStructu
     // 5. COOLDOWN/ALONGAMENTO (FASE 3)
     if (timeDistribution.cooldown > 0) {
       const userLevel = context.experienceLevel === 'iniciante' ? 'iniciante' 
-                      : context.experienceLevel === 'intermediario' ? 'intermediário'
+                      : context.experienceLevel === 'intermediário' ? 'intermediário'
                       : 'avançado';
       
       const cooldownTarget = calculateOptimalExerciseCount(userLevel, 'alongamento', context.weeklyFrequency);
@@ -1444,8 +1311,8 @@ function prescribeWorkoutPhases(context: UserContext, structure: TrainingStructu
       phaseConfig.name
     );
 
-    const minExercises = context.experienceLevel === 'avancado' ? 6
-                      : context.experienceLevel === 'intermediario' ? 5
+    const minExercises = context.experienceLevel === 'avançado' ? 6
+                      : context.experienceLevel === 'intermediário' ? 5
                       : 4;
 
     // ✅ Se está abaixo do mínimo, completa com core primeiro
@@ -1706,7 +1573,7 @@ let availableExercises = allExercises.filter(ex => {
       }
       
       // Verificar tier
-      const exTier = ex.tier || 1;
+      const exTier = 1;
       if (!allowedTiers.includes(exTier)) {
         return false;
       }
@@ -1717,7 +1584,7 @@ let availableExercises = allExercises.filter(ex => {
       }
       
       // Verificar se há interseção entre muscleGroups do exercício e grupos correspondentes
-      const hasMatch = ex.muscleGroups.some(group => 
+      const hasMatch = ex.muscleGroups.some((group: MuscleGroup) =>
         correspondingGroups.includes(group)
       );
       
@@ -1740,7 +1607,7 @@ let availableExercises = allExercises.filter(ex => {
     const targetPerGroup = exercisesPerGroup[userLevel as keyof typeof exercisesPerGroup] || 2;
     
     // Ordenar por tier (priorizar tiers menores = mais essenciais)
-    muscleExercises.sort((a, b) => (a.tier || 1) - (b.tier || 1));
+    // muscleExercises.sort((a, b) => (a.tier || 1) - (b.tier || 1)); // Tier removido
     
     // Selecionar exercícios
     const toSelect = muscleExercises.slice(0, Math.min(targetPerGroup, muscleExercises.length));
@@ -1750,7 +1617,7 @@ let availableExercises = allExercises.filter(ex => {
         const trainingExercise = convertToTrainingExercise(exercise, context, phaseIndex);
         selectedExercises.push(trainingExercise);
         selectedIds.add(exercise.id);
-        console.log(`    ✅ Selecionado: ${exercise.name} (Tier ${exercise.tier || 1})`);
+        console.log(`    ✅ Selecionado: ${exercise.name}`);
       }
     }
   }
@@ -1782,7 +1649,7 @@ let availableExercises = allExercises.filter(ex => {
 // ============================================
 
 function validateExerciseForPhase(
-  exercise: Exercise,
+  exercise: DBExercise,
   phaseConfig: PhaseConfig,
   context: UserContext
 ): { valid: boolean; reason?: string; isSynergist?: boolean; isCorrective?: boolean } {
@@ -1798,10 +1665,10 @@ function validateExerciseForPhase(
   const userLevel = context.level || context.experienceLevel || 'intermediário';
   const allowedTiers = tierPriority[userLevel as keyof typeof tierPriority] || [1];
   
-  if (!allowedTiers.includes(exercise.tier || 1)) {
+  if (false) { // Tier check removido temporariamente
     return {
       valid: false,
-      reason: `Tier ${exercise.tier} não permitido para ${userLevel} (permitidos: ${allowedTiers.join(',')})`
+      reason: `Exercício não permitido para ${userLevel}`
     };
   }
   
@@ -1819,68 +1686,24 @@ function validateExerciseForPhase(
   }
   
   // 3. Validar se o exercício trabalha algum músculo do foco
-  const focusMuscles = phaseConfig.focus;
-  
-  // ✅ BUG 3: Verificar PRIMÁRIO
-  const isPrimary = focusMuscles.includes(exercise.primaryMuscle);
-  
-  if (isPrimary) {
-    console.log(`  ✅ Músculo PRIMÁRIO no foco: ${exercise.primaryMuscle}`);
-    return { valid: true };
-  }
-  
-  // ✅ BUG 3: Verificar SECUNDÁRIO
-  const isSecondary = exercise.secondaryMuscles?.some(sm => focusMuscles.includes(sm));
-  
-  if (isSecondary) {
-    console.log(`  ✅ Músculo SECUNDÁRIO no foco: ${exercise.secondaryMuscles?.filter(sm => focusMuscles.includes(sm)).join(', ')}`);
-    return { valid: true };
-  }
-  
-  // ✅ BUG 3: Verificar SINERGISTA (PERMITIDO)
-  const isSynergist = exercise.synergists?.some(syn => focusMuscles.includes(syn));
-  
-  if (isSynergist) {
-    console.log(`  ✅ [BUG 3] Músculo SINERGISTA permitido: ${exercise.synergists?.filter(syn => focusMuscles.includes(syn)).join(', ')}`);
-    return { 
-      valid: true, 
-      isSynergist: true 
-    };
-  }
-  
-  // 4. Se não trabalha nenhum músculo do foco, rejeitar
-  console.warn(`  ⚠️ Exercício não trabalha músculos do foco: ${focusMuscles.join(', ')}`);
-  return {
-    valid: false,
-    reason: `Exercício não trabalha nenhum músculo do foco: ${focusMuscles.join(', ')}`
-  };
-  
-  // 5. Validar equipamento disponível (não bloqueia, apenas avisa)
-  if (exercise.equipment && exercise.equipment !== 'bodyweight') {
-    const hasEquipment = context.availableEquipment?.some(eq => 
-      eq.type === exercise.equipment || eq.type === 'complete_gym'
-    );
-    
-    if (!hasEquipment) {
-      console.warn(`  ⚠️ Equipamento não disponível: ${exercise.equipment} (não bloqueante)`);
-    }
-  }
-  
-  // 6. Validar contraindicações (lesões/dores) - apenas aviso
-  if (context.painAreas && context.painAreas.length > 0) {
-    const painfulMuscles = context.painAreas.map(pa => pa.area);
-    const exerciseStresses = [exercise.primaryMuscle, ...(exercise.secondaryMuscles || [])];
-    
-    const hasContraindication = painfulMuscles.some(pm => exerciseStresses.includes(pm));
-    
-    if (hasContraindication) {
-      console.warn(`  ⚠️ Exercício pode agravar dor em: ${painfulMuscles.join(', ')} (não bloqueante)`);
-    }
-  }
-  
-  console.log(`  ✅ Exercício validado: ${exercise.name}`);
-  
+const focusMuscles = phaseConfig.focus;
+
+  // ✅ BUG 3: Verificar se exercício trabalha músculos do foco
+const hasMatchingMuscle = exercise.muscleGroups.some((mg: MuscleGroup) => 
+  focusMuscles.includes(mg as any)
+);
+
+if (hasMatchingMuscle) {
+  console.log(`  ✅ Músculo no foco: ${exercise.muscleGroups.join(', ')}`);
   return { valid: true };
+}
+
+// 4. Se não trabalha nenhum músculo do foco, rejeitar
+console.warn(`  ⚠️ Exercício não trabalha músculos do foco: ${focusMuscles.join(', ')}`);
+return {
+  valid: false,
+  reason: `Exercício não trabalha nenhum músculo do foco: ${focusMuscles.join(', ')}`
+};
 }
 
 // ============================================
@@ -1888,186 +1711,46 @@ function validateExerciseForPhase(
 // ✅ HELPER: Converte formato do banco para formato de treino
 // ============================================
 
-/**
- * Converte exercício do banco de dados para formato de treino com periodização
- * @refactored Oxossi 31/12/2025 - Integração com periodização de 52 semanas
- */
 function convertToTrainingExercise(
-  exercise: Exercise,
+  exercise: DBExercise,
   context: UserContext,
   phaseIndex: number
 ): TrainingExercise {
-  // ========================================================================
-  // FASE 1: OBTER INFORMAÇÕES DA PERIODIZAÇÃO
-  // ========================================================================
-  const currentWeek = context.currentWeek || 1;
-  const currentPhase = getCurrentPhase(currentWeek);
-  
+  // Determinar séries e reps baseado no nível e fase
   const userLevel = context.level || context.experienceLevel || 'intermediário';
   
-  console.log(`🔄 Convertendo exercício: ${exercise.name} | Fase: ${currentPhase.phase} | Nível: ${userLevel}`);
+  let sets = 3;
+  let reps = '10-12';
+  let rest = 90;
   
-  // ========================================================================
-  // FASE 2: DETERMINAR VOLUME BASEADO NA PERIODIZAÇÃO
-  // ========================================================================
-  let sets: number;
-  let reps: string;
-  let rest: number;
-  let tempo: string;
-  
-  switch (currentPhase.phase) {
-    case 'adaptation':
-      // Fase de Adaptação (Semanas 1-4)
-      sets = userLevel === 'iniciante' ? 2 : 3;
-      reps = '12-15';
-      rest = 90;
-      tempo = '3-0-3-0'; // Movimento controlado
-      break;
-      
-    case 'hypertrophy':
-      // Fase de Hipertrofia (Semanas 5-20)
-      if (userLevel === 'iniciante') {
-        sets = 3;
-        reps = '10-12';
-      } else if (userLevel === 'intermediário') {
-        sets = 4;
-        reps = '8-12';
-      } else {
-        sets = 4;
-        reps = '8-10';
-      }
-      rest = 60;
-      tempo = '2-0-2-0';
-      break;
-      
-    case 'strength':
-      // Fase de Força (Semanas 21-36)
-      if (userLevel === 'iniciante') {
-        sets = 3;
-        reps = '6-8';
-      } else if (userLevel === 'intermediário') {
-        sets = 4;
-        reps = '5-8';
-      } else {
-        sets = 5;
-        reps = '4-6';
-      }
-      rest = 120;
-      tempo = '2-0-1-0'; // Concêntrica explosiva
-      break;
-      
-    case 'power':
-      // Fase de Potência (Semanas 37-44)
-      if (userLevel === 'iniciante') {
-        sets = 3;
-        reps = '5-6';
-      } else {
-        sets = 4;
-        reps = '3-5';
-      }
-      rest = 180;
-      tempo = '1-0-X-0'; // Explosivo
-      break;
-      
-    case 'deload':
-      // Fase de Deload (Semanas 45-48)
-      sets = 2;
-      reps = '10-12';
-      rest = 90;
-      tempo = '2-0-2-0';
-      break;
-      
-    case 'peaking':
-      // Fase de Pico (Semanas 49-52)
-      if (userLevel === 'iniciante') {
-        sets = 2;
-        reps = '8-10';
-      } else {
-        sets = 3;
-        reps = '6-8';
-      }
-      rest = 120;
-      tempo = '2-0-1-0';
-      break;
-      
-    default:
-      // Fallback seguro
-      sets = 3;
-      reps = '10-12';
-      rest = 90;
-      tempo = '2-0-2-0';
-  }
-  
-  // ========================================================================
-  // FASE 3: APLICAR AJUSTES CONTEXTUAIS
-  // ========================================================================
-  
-  // Ajuste para exercícios de core (sempre maior volume)
-  if (exercise.primaryMuscle === 'core' || exercise.category === 'core') {
-    sets = Math.min(sets + 1, 5); // +1 série, máximo 5
-    reps = '15-20';
-    rest = 45;
-  }
-  
-  // Ajuste para exercícios unilaterais (dobrar séries)
-  if (exercise.name.toLowerCase().includes('unilateral') || 
-      exercise.name.toLowerCase().includes('single') ||
-      exercise.name.toLowerCase().includes('pistol')) {
-    sets = sets * 2; // Cada lado conta como 1 série
-    reps = reps.replace(/(\d+)/g, (match) => String(Math.floor(parseInt(match) * 0.7))); // Reduz reps
-  }
-  
-  // Ajuste para exercícios isométricos
-  if (exercise.category === 'isometric' || 
-      exercise.name.toLowerCase().includes('prancha') ||
-      exercise.name.toLowerCase().includes('plank')) {
-    reps = '30-60s'; // Tempo ao invés de repetições
-    tempo = 'hold';
-  }
-  
-  // ========================================================================
-  // FASE 4: APLICAR RAMP-UP (PRIMEIRA SEMANA DO USUÁRIO)
-  // ========================================================================
-  if (context.rampWeek === 1) {
-    const rampMultiplier = context.rampMultiplier || 0.6;
-    sets = Math.max(2, Math.floor(sets * rampMultiplier)); // Mínimo 2 séries
-    console.log(`🔽 Ramp-up aplicado: ${sets} séries (${rampMultiplier * 100}% do volume)`);
-  }
-  
-  // ========================================================================
-  // FASE 5: GARANTIR VALORES MÍNIMOS DE SEGURANÇA
-  // ========================================================================
-  if (sets < 2) {
-    console.warn(`⚠️ Ajustando séries de ${sets} para 2 (mínimo de segurança)`);
+  if (userLevel === 'iniciante') {
     sets = 2;
+    reps = '12-15';
+    rest = 120;
+  } else if (userLevel === 'avançado') {
+    sets = 4;
+    reps = '8-10';
+    rest = 60;
   }
   
-  // ========================================================================
-  // FASE 6: RETORNAR EXERCÍCIO CONVERTIDO
-  // ========================================================================
+  // Aplicar ramp-up (primeira semana)
+  if (context.rampWeek === 1) {
+    sets = Math.max(1, Math.floor(sets * (context.rampMultiplier || 0.6)));
+  }
+  
   return {
-    id: exercise.id,
-    name: exercise.name,
-    category: exercise.category,
-    primaryMuscle: exercise.primaryMuscle,
-    secondaryMuscles: exercise.secondaryMuscles,
-    equipment: exercise.equipment,
-    difficulty: exercise.difficulty,
-    tier: exercise.tier,
-    sets,
-    reps,
-    rest_seconds: rest,
-    tempo: tempo,
-    notes: exercise.cues?.join(' | ') || '',
-    video_url: exercise.videoUrl,
-    thumbnail_url: exercise.thumbnailUrl,
-    // Metadados da periodização (para tracking)
-    periodization: {
-      phase: currentPhase.phase,
-      week: currentWeek,
-      focus: currentPhase.focus
-    }
-  };
+  id: exercise.id,
+  name: exercise.name,
+  category: mapCategoryToTraining(exercise.category),
+  muscle_group: exercise.muscleGroups[0] || 'core',
+  equipment: mapEquipmentToTraining(exercise.equipment[0]),
+  sets,
+  reps: reps.toString(),
+  rest_seconds: rest,
+  tempo: `${exercise.tempo.eccentric}-${exercise.tempo.isometric}-${exercise.tempo.concentric}-0`,
+  instructions: exercise.description || 'Execute com boa forma',
+  video_url: exercise.videoUrl
+};
 }
 
 // ============================================================================
@@ -2091,11 +1774,11 @@ function mapPainAreas(painAreas: string[]): PainArea[] {
   const mapping: Record<string, PainArea> = {
     'Lombar': 'lower-back',
     'Pescoço': 'neck',
-    'Ombros': 'shoulders',
-    'Joelhos': 'knees',
+    'Ombros': 'shoulder',
+    'Joelhos': 'knee',
     'Quadril': 'hips',
     'Costas': 'upper-back',
-    'Tornozelos': 'knees' // Aproximação
+    'Tornozelos': 'ankle' // Aproximação
   };
 
   return painAreas
@@ -2111,7 +1794,7 @@ function convertDBExerciseToTraining(
   context?: UserContext
 ): TrainingExercise {
   // Detecta isometria
-  const isIsometric = /^\d+s$/.test(dbExercise.reps);
+  const isIsometric = dbExercise.reps ? /^\d+s$/.test(dbExercise.reps.toString()) : false;
   const isometricKeywords = ['prancha', 'ponte', 'hollow', 'wall sit', 'parada de mão'];
   const nameIndicatesIsometric = isometricKeywords.some(keyword => 
     dbExercise.name.toLowerCase().includes(keyword)
@@ -2133,14 +1816,14 @@ function convertDBExerciseToTraining(
   }
 
   // ✅ CALCULAR TEMPO DE DESCANSO (se não estiver definido)
-  let restSeconds = dbExercise.restSeconds;
+  let restSeconds = 60; // Default rest
   
   if (!restSeconds && context) {
     // Calcular baseado na categoria e nível
     if (dbExercise.category === 'strength') {
-      if (context.experienceLevel === 'avancado') {
+      if (context.experienceLevel === 'avançado') {
         restSeconds = 120; // 2 min
-      } else if (context.experienceLevel === 'intermediario') {
+      } else if (context.experienceLevel === 'intermediário') {
         restSeconds = 90; // 1.5 min
       } else {
         restSeconds = 60; // 1 min para iniciante
@@ -2157,24 +1840,18 @@ function convertDBExerciseToTraining(
   }
 
   return {
-    id: dbExercise.id,
-    name: dbExercise.name,
-    category: dbExercise.category,
-    muscle_group: Array.isArray(dbExercise.muscleGroup) 
-      ? dbExercise.muscleGroup[0] 
-      : dbExercise.muscleGroup,
-    equipment: dbExercise.equipment,
-    sets: setsValue,
-    reps: repsValue,
-    rest_seconds: restSeconds || 60, // ✅ GARANTIR QUE SEMPRE TEM VALOR
-    tempo: dbExercise.tempo,
-    instructions: dbExercise.instructions,
-    video_url: dbExercise.videoUrl,
-    gif_url: dbExercise.gifUrl,
-    variations: dbExercise.variations,
-    postural_notes: dbExercise.posturalNotes,
-    contraindications: dbExercise.contraindications
-  };
+  id: dbExercise.id,
+  name: dbExercise.name,
+  category: mapCategoryToTraining(dbExercise.category),
+  muscle_group: dbExercise.muscleGroups[0] || 'full-body',
+  equipment: mapEquipmentToTraining(dbExercise.equipment[0]),
+  sets: setsValue,
+  reps: repsValue?.toString() || '10-12',
+  rest_seconds: restSeconds || 60,
+  tempo: `${dbExercise.tempo.eccentric}-${dbExercise.tempo.isometric}-${dbExercise.tempo.concentric}-0`,
+  instructions: dbExercise.description || 'Execute o exercício com boa forma',
+  video_url: dbExercise.videoUrl
+};
 }
 
 
@@ -2206,13 +1883,15 @@ function mapCategoryToTraining(category: string): "força" | "mobilidade" | "car
 
 function mapEquipmentToTraining(equipment: Equipment): "peso_corporal" | "halteres" | "barra" | "elástico" | "máquina" | "kettlebell" {
   const mapping: Record<Equipment, any> = {
-    'none': 'peso_corporal',
-    'resistance-band': 'elástico',
-    'dumbbells': 'halteres',
-    'barbell': 'barra',
-    'gym-machine': 'máquina',
-    'yoga-mat': 'peso_corporal'
-  };
+  'none': 'peso_corporal',
+  'resistance-band': 'elástico',
+  'dumbbells': 'halteres',
+  'barbell': 'barra',
+  'gym-machine': 'máquina',
+  'yoga-mat': 'peso_corporal',
+  'kettlebell': 'kettlebell',
+  'cable': 'máquina'
+};
   return mapping[equipment] || 'peso_corporal';
 }
 

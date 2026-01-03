@@ -33,6 +33,7 @@ import { saveWorkoutProgress } from '@/lib/training/progressTracker';
 import {toast } from 'sonner';
 import { Activity } from 'lucide-react';
 import type { Exercise, WorkoutPhase } from '@/types/training';
+import PaywallModal from "./PaywallModal";
 
 interface TrainingPlanProps {
   userProfile: any;
@@ -72,7 +73,45 @@ export default function TrainingPlan({ userProfile }: TrainingPlanProps) {
   const [showPeriodizationModal, setShowPeriodizationModal] = useState(false);
   const [showBorgModal, setShowBorgModal] = useState(false);
   const [borgScore, setBorgScore] = useState<number | null>(null);
+  const [isPremium, setIsPremium] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallFeature, setPaywallFeature] = useState("");
 
+  useEffect(() => {
+  const checkPremiumStatus = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        setIsPremium(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('subscription_status, subscription_tier, is_premium')
+        .eq('id', user.id)
+        .single();
+
+      if (error) {
+        console.error('Erro ao verificar Premium:', error);
+        setIsPremium(false);
+        return;
+      }
+
+      const isActive = data?.is_premium === true || 
+                      (data?.subscription_status === 'active' && 
+                       data?.subscription_tier === 'premium');
+      
+      setIsPremium(isActive);
+    } catch (error) {
+      console.error('Erro ao verificar Premium:', error);
+      setIsPremium(false);
+    }
+  };
+
+  checkPremiumStatus();
+}, []);
 
   useEffect(() => {
     if (userProfile?.id) {
@@ -299,6 +338,15 @@ const handleWorkoutComplete = (completedIds: string[], duration: number) => {
   // ✅ CALCULAR MÉTRICAS
   const metrics = calculateWorkoutMetrics(exerciseLogs as any, duration);
   
+  const handlePremiumFeature = (featureName: string) => {
+  if (!isPremium) {
+    setPaywallFeature(featureName);
+    setShowPaywall(true);
+    return false;
+  }
+  return true;
+};
+
   // ✅ CRIAR SESSÃO DE TREINO (SEM SALVAR AINDA)
   const session: WorkoutSession = {
     id: `workout-${Date.now()}`,
@@ -452,12 +500,26 @@ return (
     
     {/* ✅ BOTÃO CORRETO PARA ABRIR MODAL */}
     <button
-      onClick={() => setShowPeriodizationModal(true)}
-      className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl"
-    >
-      <Info className="w-4 h-4" />
-      <span>Como funciona</span>
-    </button>
+  onClick={() => {
+    // ✅ BLOQUEAR PERIODIZAÇÃO COMPLETA
+    if (!isPremium) {
+      setPaywallFeature("Periodização Completa de 1 Ano");
+      setShowPaywall(true);
+      return;
+    }
+    setShowPeriodizationModal(true);
+  }}
+  className="..."
+>
+  {!isPremium ? (
+    <>🔒 Periodização Completa (Premium)</>
+  ) : (
+    <>
+      <Info size={16} />
+      Como funciona
+    </>
+  )}
+</button>
   </div>
 </div>
 
@@ -488,9 +550,34 @@ return (
     
     return (
       <div
-        key={index}
-        className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-slate-200"
-      >
+  key={index}
+  className="bg-white border border-gray-200 rounded-2xl p-6 shadow-lg relative"
+>
+  {/* ✅ OVERLAY DE BLOQUEIO */}
+  {!isPremium && index > 0 && (
+    <div className="absolute inset-0 bg-gradient-to-br from-purple-900/90 to-pink-900/90 backdrop-blur-sm z-10 rounded-2xl flex items-center justify-center">
+      <div className="text-center p-6">
+        <div className="w-16 h-16 bg-amber-400 rounded-full flex items-center justify-center mx-auto mb-4">
+          <span className="text-3xl">🔒</span>
+        </div>
+        <h3 className="text-white text-xl font-bold mb-2">Fase Premium</h3>
+        <p className="text-white/90 text-sm mb-4">
+          Desbloqueie todas as fases do seu treino
+        </p>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setPaywallFeature(`Fase ${index + 1}`);
+            setShowPaywall(true);
+          }}
+          className="bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white font-bold py-2 px-6 rounded-xl transition-all"
+        >
+          Assinar Premium
+        </button>
+      </div>
+    </div>
+  )}
+
         {/* HEADER DO CARD */}
         <div className="p-4">
           <div className="flex items-center justify-between mb-3">
@@ -508,21 +595,23 @@ return (
             {/* Botão de Ação - APENAS EXPANDIR/COLAPSAR */}
 <div className="flex items-center gap-2">
   <button
-    onClick={() => togglePhase(index)}
-    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold transition-all duration-200 flex items-center gap-2"
-  >
-    {isExpanded ? (
-      <>
-        <ChevronUp className="w-4 h-4" />
-        Recolher
-      </>
-    ) : (
-      <>
-        <ChevronDown className="w-4 h-4" />
-        Ver Exercícios
-      </>
-    )}
-  </button>
+  onClick={() => {
+    // ✅ BLOQUEAR FASES PREMIUM
+    if (!isPremium && index > 0) {
+      setPaywallFeature(`Fase ${index + 1}: ${phase.name}`);
+      setShowPaywall(true);
+      return;
+    }
+    togglePhase(index);
+  }}
+  className="..."
+>
+  {!isPremium && index > 0 ? (
+    <>🔒 Ver Exercícios (Premium)</>
+  ) : (
+    'Ver Exercícios'
+  )}
+</button>
             </div>
           </div>
           

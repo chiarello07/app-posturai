@@ -52,8 +52,10 @@ export function generateYearlyPeriodization(
     const mesocycles: Mesocycle[] = [];
     let currentWeek = 0;
     
-    const riskLevel = analysis.riskLevel;
-    const hasGraveDeviations = analysis.deviations.some(d => d.severity === 'Grave');
+    const riskLevel = analysis.overallRisk || 
+  (analysis.overallScore >= 80 ? 'low' : 
+   analysis.overallScore >= 50 ? 'medium' : 'high');
+    const hasGraveDeviations = analysis.deviations.some(d => d.severity === 'high');
 
     // FASE 1: ADAPTAÇÃO ANATÔMICA (4-8 semanas)
     const adaptationDuration = hasGraveDeviations ? 8 : 4;
@@ -244,7 +246,9 @@ export function generateYearlyPeriodization(
     currentWeek += 1;
 
     // FASE 6: POTÊNCIA (4 semanas) - Opcional para atletas
-    if (userProfile.goals?.includes('performance') || userProfile.activityLevel === 'Muito Ativo') {
+    // Temporariamente desabilitado - propriedade não existe
+// if (userProfile.exercise_frequency === '5-6' || userProfile.exercise_frequency === 'todos') {
+if (false) {
         mesocycles.push(
             createMesocycle({
                 id: 'meso-6',

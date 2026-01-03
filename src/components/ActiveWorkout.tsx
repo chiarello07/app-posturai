@@ -141,8 +141,7 @@ export default function ActiveWorkout({
           const media = getExerciseMedia(exercise.name);
 
           return (
-            <div
-              key={exercise.id}
+            <div key={exercise.id}
               className={`
                 bg-white rounded-2xl shadow-md overflow-hidden transition-all duration-300
                 ${isCompleted ? "ring-2 ring-green-500" : ""}

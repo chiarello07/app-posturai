@@ -572,7 +572,7 @@ const handleLogin = async (e: React.FormEvent) => {
         )}
 
         {currentTab === "training" && userProfile && (
-          <TrainingPlan userProfile={userProfile} />
+          <TrainingPlan />
         )}
 
         {currentTab === "progress" && (

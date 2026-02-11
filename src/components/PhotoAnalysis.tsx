@@ -6,6 +6,9 @@ import { analyzeAllPhotos } from "@/lib/ai/posturalAnalysis";
 import { detectDeviations, generateDeviationSummary } from "@/lib/ai/deviationDetector";
 import { saveAnalysis } from "@/lib/supabase";
 import CompleteAnalysisReport from "./CompleteAnalysisReport";
+import { generateTrainingPlan } from '@/lib/training/contextualTrainingGenerator';
+import type { ExperienceLevel } from '@/types/training';
+import { createUserWorkout } from '@/lib/supabase';
 
 interface PhotoAnalysisProps {
   onBack?: () => void;
@@ -68,11 +71,9 @@ export default function PhotoAnalysis({ onBack, onComplete, userProfile, onBackT
       return;
     }
 
-
-    // ✅ PREVENIR MÚLTIPLAS CHAMADAS
     if (isSaving) {
-    console.warn('⚠️ [ANALYSIS] Salvamento já em andamento, ignorando...');
-    return;
+      console.warn('⚠️ [ANALYSIS] Salvamento já em andamento, ignorando...');
+      return;
     }
 
     setIsAnalyzing(true);
@@ -83,7 +84,6 @@ export default function PhotoAnalysis({ onBack, onComplete, userProfile, onBackT
     try {
       console.log('🔍 [ANALYSIS] Iniciando análise com IA...');
       
-      // ✅ ETAPA 1: ANÁLISE COM MEDIAPIPE POSE (40%)
       setAnalysisProgress(10);
       setProgressMessage('Processando imagens com IA...');
       
@@ -97,7 +97,6 @@ export default function PhotoAnalysis({ onBack, onComplete, userProfile, onBackT
       setAnalysisProgress(40);
       console.log('✅ [ANALYSIS] Landmarks detectados!', poseResults.summary);
       
-      // ✅ ETAPA 2: DETECÇÃO DE DESVIOS (60%)
       setAnalysisProgress(50);
       setProgressMessage('Detectando desvios posturais...');
       
@@ -110,72 +109,65 @@ export default function PhotoAnalysis({ onBack, onComplete, userProfile, onBackT
       setAnalysisProgress(60);
       console.log('✅ [ANALYSIS] Desvios detectados:', deviations.length);
       
-      // ✅ ETAPA 3: GERAR RESUMO (80%)
       setAnalysisProgress(70);
       setProgressMessage('Gerando recomendações personalizadas...');
       
       const summary = generateDeviationSummary(deviations);
       
-      // ✅ ETAPA 4: MONTAR ANÁLISE COMPLETA (90%)
       setAnalysisProgress(80);
       
       const completeAnalysis = {
-  // ✅ DADOS DA IA (REAL)
-  aiAnalysis: {
-    confidence: poseResults.summary.overallConfidence || 85, // ← VALOR REAL
-    deviations: deviations || [],
-    summary: summary || {},
-    poseResults: {
-      frontal: poseResults.frontal,
-      lateral: poseResults.lateral,
-      posterior: poseResults.posterior,
-    }
-  },
-  
-  // Análise postural detalhada (formato legacy para compatibilidade)
-  posturalAnalysis: {
-    frontal: {
-      title: "Vista Frontal",
-      findings: deviations
-        .filter(d => d.affectedArea === 'Ombros' || d.affectedArea === 'Quadril')
-        .map(d => `${d.description} (Severidade: ${d.severity})`),
-      severity: deviations.some(d => d.severity === 'high') ? 'Grave' : 
-               deviations.some(d => d.severity === 'medium') ? 'Moderada' : 'Leve',
-      explanation: "A vista frontal mostra o alinhamento lateral do corpo através de 33 pontos detectados pela IA.",
-      confidence: poseResults.frontal?.confidence || 0
-    },
-    lateral: {
-      title: "Vista Lateral",
-      findings: deviations
-        .filter(d => 
-  d.name.includes('Cabeça') || 
-  d.name.includes('Lordose') || 
-  d.name.includes('Cifose') ||
-  d.affectedArea === 'Coluna Cervical' ||
-  d.affectedArea === 'Coluna Lombar' ||
-  d.affectedArea === 'Coluna Torácica'
-)
-        .map(d => `${d.description} (Severidade: ${d.severity})`),
-      severity: deviations.some(d => d.severity === 'high') ? 'Grave' : 
-               deviations.some(d => d.severity === 'medium') ? 'Moderada' : 'Leve',
-      explanation: "A vista lateral revela a curvatura da coluna através de análise biomecânica.",
-      confidence: poseResults.lateral?.confidence || 0
-    },
-    posterior: {
-      title: "Vista Posterior",
-      findings: deviations
-  .filter(d => d.affectedArea === 'Ombros' || d.affectedArea === 'Quadril')
-  .map(d => d.description),
-severity: deviations.some(d => d.severity === 'high') ? 'Grave' : 
-         deviations.some(d => d.severity === 'medium') ? 'Moderada' : 'Leve',
-      explanation: "A vista de costas mostra se ombros e quadris estão nivelados.",
-      confidence: poseResults.posterior?.confidence || 0
-    },
-  },
-  
-
+        aiAnalysis: {
+          confidence: poseResults.summary.overallConfidence || 85,
+          deviations: deviations || [],
+          summary: summary || {},
+          poseResults: {
+            frontal: poseResults.frontal,
+            lateral: poseResults.lateral,
+            posterior: poseResults.posterior,
+          }
+        },
         
-        // Correlação com anamnese
+        posturalAnalysis: {
+          frontal: {
+            title: "Vista Frontal",
+            findings: deviations
+              .filter(d => d.affectedArea === 'Ombros' || d.affectedArea === 'Quadril')
+              .map(d => `${d.description} (Severidade: ${d.severity})`),
+            severity: deviations.some(d => d.severity === 'high') ? 'Grave' : 
+                     deviations.some(d => d.severity === 'medium') ? 'Moderada' : 'Leve',
+            explanation: "A vista frontal mostra o alinhamento lateral do corpo através de 33 pontos detectados pela IA.",
+            confidence: poseResults.frontal?.confidence || 0
+          },
+          lateral: {
+            title: "Vista Lateral",
+            findings: deviations
+              .filter(d => 
+                d.name.includes('Cabeça') || 
+                d.name.includes('Lordose') || 
+                d.name.includes('Cifose') ||
+                d.affectedArea === 'Coluna Cervical' ||
+                d.affectedArea === 'Coluna Lombar' ||
+                d.affectedArea === 'Coluna Torácica'
+              )
+              .map(d => `${d.description} (Severidade: ${d.severity})`),
+            severity: deviations.some(d => d.severity === 'high') ? 'Grave' : 
+                     deviations.some(d => d.severity === 'medium') ? 'Moderada' : 'Leve',
+            explanation: "A vista lateral revela a curvatura da coluna através de análise biomecânica.",
+            confidence: poseResults.lateral?.confidence || 0
+          },
+          posterior: {
+            title: "Vista Posterior",
+            findings: deviations
+              .filter(d => d.affectedArea === 'Ombros' || d.affectedArea === 'Quadril')
+              .map(d => d.description),
+            severity: deviations.some(d => d.severity === 'high') ? 'Grave' : 
+                     deviations.some(d => d.severity === 'medium') ? 'Moderada' : 'Leve',
+            explanation: "A vista de costas mostra se ombros e quadris estão nivelados.",
+            confidence: poseResults.posterior?.confidence || 0
+          },
+        },
+        
         anamnesisCorrelation: {
           lifestyle: [
             userProfile.workPosition === "Sentado" && `Trabalha sentado - principal fator de risco postural`,
@@ -190,7 +182,6 @@ severity: deviations.some(d => d.severity === 'high') ? 'Grave' :
           ) || [],
         },
         
-        // Diagnóstico
         diagnosis: {
           primary: summary.primary,
           secondary: summary.secondary,
@@ -198,7 +189,6 @@ severity: deviations.some(d => d.severity === 'high') ? 'Grave' :
           whatThisMeans: "Esses diagnósticos são baseados em análise por IA. Com exercícios específicos, é possível melhorar significativamente."
         },
         
-        // Recomendações
         recommendations: {
           immediate: deviations.slice(0, 3).map(d => 
             `Corrigir ${d.name} através de exercícios específicos`
@@ -216,7 +206,6 @@ severity: deviations.some(d => d.severity === 'high') ? 'Grave' :
           whatThisMeans: "Essas recomendações são um mapa para melhorar sua postura. As ações imediatas trazem alívio rápido."
         },
         
-        // Prognóstico
         prognosis: {
           timeline: userProfile.dedicationHours >= "1" ? "3-6 meses" : "6-9 meses",
           expectedResults: [
@@ -237,80 +226,131 @@ severity: deviations.some(d => d.severity === 'high') ? 'Grave' :
       
       setAnalysisProgress(90);
       
-      // ✅ ETAPA 5: SALVAR NO SUPABASE (100%)
-setProgressMessage('Salvando análise...');
-console.log('💾 [ANALYSIS] Salvando no Supabase...');
+      setProgressMessage('Salvando análise...');
+      console.log('💾 [ANALYSIS] Salvando no Supabase...');
 
-if (userProfile.id) {
+      if (userProfile.id) {
+        console.log('💾 [SAVE] Iniciando saveAnalysis() - userId:', userProfile.id);
+        await saveAnalysis(userProfile.id, completeAnalysis);
+        console.log('✅ [SAVE] saveAnalysis() concluído!');
+        console.log('✅ [ANALYSIS] Salvo no Supabase!');
+        
+        console.log('🏋️ [TRAINING] Gerando plano de treino personalizado...');
+        setProgressMessage('Gerando seu treino personalizado...');
+        
+        try {
+          const { createClient } = await import('@/lib/supabase');
+          const supabase = createClient();
+          
+          const { data: onboardingData } = await supabase
+            .from('onboarding')
+            .select('training_days, experience_level, main_goals')
+            .eq('user_id', userProfile.id)
+            .single();
+          
+          const trainingDays = onboardingData?.training_days 
+            ? onboardingData.training_days.map((day: string) => {
+                const dayMap: Record<string, number> = {
+                  'monday': 1, 'tuesday': 2, 'wednesday': 3, 
+                  'thursday': 4, 'friday': 5, 'saturday': 6, 'sunday': 0
+                };
+                return dayMap[day.toLowerCase()] ?? 1;
+              })
+            : [1, 3, 5];
+          
+          const experienceLevel = (onboardingData?.experience_level || 'beginner') as ExperienceLevel;
+          
+          const result = await generateTrainingPlan({
+            userId: userProfile.id,
+            experienceLevel,
+            trainingDays,
+            availableEquipment: ['bodyweight', 'dumbbells', 'barbell', 'resistance_band'],
+            posturalProfile: {
+              deviations: (completeAnalysis.aiAnalysis.deviations || []).map((d: any) => ({
+                type: d.type || d.name || 'unknown',
+                severity: d.severity || 'mild',
+                affectedMuscles: d.affectedMuscles || [],
+                recommendations: d.recommendations || [],
+                overactiveMuscles: d.overactiveMuscles,
+                underactiveMuscles: d.underactiveMuscles,
+              })),
+              overactiveMuscles: [],
+              underactiveMuscles: [],
+              priorityCorrections: completeAnalysis.aiAnalysis.deviations.slice(0, 3).map((d: any) => d.name) || [],
+            },
+            goals: onboardingData?.main_goals || [],
+            limitations: userProfile.painAreas || [],
+          });
+          
+          if (result.success && result.trainingPlan) {
+            console.log('✅ [TRAINING] Treino gerado com sucesso!');
+            console.log('📊 [TRAINING] Workouts:', result.trainingPlan.workouts.length);
+            console.log('📅 [TRAINING] Mesociclos:', result.trainingPlan.mesocycles.length);
+            
+            const { error: saveError } = await supabase
+              .from('user_workouts')
+              .upsert({
+                user_id: userProfile.id,
+                plan: {
+                  id: result.trainingPlan.id,
+                  name: `Plano ${result.trainingPlan.splitType} - ${experienceLevel}`,
+                  workouts: result.trainingPlan.workouts || result.trainingPlan.phases || [],
+                  mesocycles: result.trainingPlan.mesocycles,
+                  phases: result.trainingPlan.phases || [],
+                  currentPhase: result.trainingPlan.currentPhase,
+                  totalWeeks: result.trainingPlan.totalWeeks,
+                  frequency: result.trainingPlan.frequency,
+                  splitType: result.trainingPlan.splitType,
+                },
+                phase: 'A',
+                updated_at: new Date().toISOString(),
+              }, {
+                onConflict: 'user_id',
+              });
+            
+            if (saveError) {
+              console.error('⚠️ [TRAINING] Erro ao salvar:', saveError);
+            } else {
+              console.log('✅ [TRAINING] Salvo em user_workouts!');
+              localStorage.setItem('currentTrainingPlan', JSON.stringify(result.trainingPlan));
+            }
+          } else {
+            console.error('⚠️ [TRAINING] Falha na geração:', result.errors);
+          }
+          
+        } catch (trainErr: any) {
+          console.error('⚠️ [TRAINING] Erro ao gerar treino:', trainErr);
+        }
 
-  console.log('💾 [SAVE] Iniciando saveAnalysis() - userId:', userProfile.id);
-
-  await saveAnalysis(userProfile.id, completeAnalysis);
-  console.log('✅ [SAVE] saveAnalysis() concluído!');
-  console.log('✅ [ANALYSIS] Salvo no Supabase!');
-  
-  // ✅ CORREÇÃO: GERAR TREINO BASEADO NA ANÁLISE
-  console.log('🏋️ [TRAINING] Gerando plano de treino personalizado...');
-  setProgressMessage('Gerando seu treino personalizado...');
-  
-  try {
-    // Importar funções necessárias
-    const { generatePersonalizedTrainingPlan } = await import('@/lib/training/trainingGenerator');
-    const { createUserWorkout } = await import('@/lib/supabase');
-    
-    // Gerar o treino usando o perfil + análise postural
-    const trainingPlan = generatePersonalizedTrainingPlan(userProfile, completeAnalysis as any);
-    
-    console.log('✅ [TRAINING] Treino gerado:', trainingPlan.name);
-    
-    // Salvar no Supabase usando a função que já existe
-    const result = await createUserWorkout(userProfile.id, trainingPlan, 'A');
-    
-    if (result.success) {
-      console.log('✅ [TRAINING] Treino salvo em user_workouts!');
-      // Salvar no localStorage como backup
-      localStorage.setItem('currentTrainingPlan', JSON.stringify(trainingPlan));
-    } else {
-      console.error('⚠️ [TRAINING] Erro ao salvar treino:', result.error);
-    }
-    
-  } catch (trainErr: any) {
-    console.error('⚠️ [TRAINING] Erro ao gerar treino:', trainErr);
-    // Não bloquear o fluxo se falhar - usuário pode gerar depois
-  }
-}
-
-// Salvar análise no localStorage como backup
-localStorage.setItem('completeAnalysis', JSON.stringify(completeAnalysis));
-      
-      // Atualizar perfil do usuário
-      const updatedProfile = {
-        ...userProfile,
-        has_analysis: true,
-        analysisDate: new Date().toISOString(),
-      };
-      localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
-      
-      setAnalysisProgress(100);
-      setAnalysisData(completeAnalysis);
-      
-      // ✅ CONCLUIR
-      setTimeout(() => {
-        console.log('🎉 [ANALYSIS] Análise concluída!');
-        onComplete(completeAnalysis);
-        setIsAnalyzing(false);
-        setShowReport(true);
-      }, 500);
+        localStorage.setItem('completeAnalysis', JSON.stringify(completeAnalysis));
+        
+        const updatedProfile = {
+          ...userProfile,
+          has_analysis: true,
+          analysisDate: new Date().toISOString(),
+        };
+        localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
+        
+        setAnalysisProgress(100);
+        setAnalysisData(completeAnalysis);
+        
+        setTimeout(() => {
+          console.log('🎉 [ANALYSIS] Análise concluída!');
+          onComplete(completeAnalysis);
+          setIsAnalyzing(false);
+          setShowReport(true);
+        }, 500);
+      }
       
     } catch (err: any) {
       console.error('❌ [ANALYSIS] Erro:', err);
       setError(err.message || 'Erro ao processar análise. Tente novamente.');
       setIsAnalyzing(false);
-      setIsSaving(false); // ← LIBERAR FLAG EM CASO DE ERRO
+      setIsSaving(false);
     } finally {
-      setIsSaving(false); // ← SEMPRE LIBERAR FLAG
-  }
-};
+      setIsSaving(false);
+    }
+  };
 
   const handleRedoAnalysis = () => {
     setShowReport(false);
@@ -325,7 +365,7 @@ localStorage.setItem('completeAnalysis', JSON.stringify(completeAnalysis));
 
   if (isAnalyzing) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-600 via-purple-500 to-pink-500 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-gradient-to-br from-purple-600 via-purple-500 to-pink-500 dark:from-purple-800 dark:via-purple-700 dark:to-pink-700 flex items-center justify-center px-4">
         <div className="max-w-md w-full text-center space-y-6">
           <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse backdrop-blur-sm">
             <Loader2 className="w-12 h-12 text-white animate-spin" />
@@ -363,53 +403,51 @@ localStorage.setItem('completeAnalysis', JSON.stringify(completeAnalysis));
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-gray-100 to-slate-200 px-4 py-8 pb-24">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-gray-100 to-slate-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 px-4 py-8 pb-24">
       <div className="max-w-2xl mx-auto">
         
-        {/* Header */}
         <div className="text-center mb-8">
           <div className="w-20 h-20 bg-gradient-to-br from-pink-500 to-purple-600 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-lg">
             <Camera className="w-10 h-10 text-white" />
           </div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
             Análise Postural com IA
           </h2>
-          <p className="text-gray-600 text-lg">Instruções para as Fotos</p>
+          <p className="text-gray-600 dark:text-gray-400 text-lg">Instruções para as Fotos</p>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <p className="text-red-600 text-sm">{error}</p>
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+            <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
           </div>
         )}
 
-        {/* Instruções para as Fotos */}
-        <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-2xl p-6 space-y-4 mb-6 shadow-lg">
-          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+        <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 border border-purple-200 dark:border-purple-800 rounded-2xl p-6 space-y-4 mb-6 shadow-lg">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <Camera className="w-5 h-5 text-pink-500" />
             Vestimenta Recomendada
           </h3>
           
-          <div className="space-y-3 text-sm text-gray-700">
+          <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
             <ul className="list-disc list-inside space-y-1 ml-2">
               <li><strong>Homens:</strong> Sunga ou calção curto (preferência)</li>
               <li><strong>Mulheres:</strong> Biquíni ou maiô (preferência)</li>
               <li><strong>Alternativa:</strong> Roupas bem justas ou de ginástica</li>
             </ul>
 
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mt-3 flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-3 mt-3 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-yellow-800 font-semibold text-xs">Observação Importante:</p>
-                <p className="text-gray-700 text-xs mt-1">
+                <p className="text-yellow-800 dark:text-yellow-400 font-semibold text-xs">Observação Importante:</p>
+                <p className="text-gray-700 dark:text-gray-300 text-xs mt-1">
                   Se você possui cabelos grandes, amarre o cabelo (coque) para melhor análise. 
                   A falta de visibilidade pode afetar o resultado do diagnóstico.
                 </p>
               </div>
             </div>
 
-            <h4 className="font-semibold text-pink-600 mt-4">Posicionamento da Câmera:</h4>
+            <h4 className="font-semibold text-pink-600 dark:text-pink-400 mt-4">Posicionamento da Câmera:</h4>
             <ol className="list-decimal list-inside space-y-1 ml-2">
               <li>Posicione a câmera à uma distância de <strong>3 metros</strong> do seu corpo</li>
               <li>Mantenha a câmera alinhada com a guia horizontal do rodapé da parede</li>
@@ -420,16 +458,15 @@ localStorage.setItem('completeAnalysis', JSON.stringify(completeAnalysis));
           </div>
         </div>
 
-        {/* Passo a Passo para as Fotos */}
         <div className="space-y-6">
           {/* Foto Frontal */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-lg">
-            <h4 className="text-gray-900 font-bold mb-3 flex items-center gap-2">
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 shadow-lg">
+            <h4 className="text-gray-900 dark:text-white font-bold mb-3 flex items-center gap-2">
               <span className="w-8 h-8 bg-gradient-to-br from-pink-500 to-purple-600 text-white rounded-full flex items-center justify-center text-sm shadow-lg">1</span>
               Foto Frontal
               {formData.photoFrontal && <CheckCircle2 className="w-5 h-5 text-green-500 ml-auto" />}
             </h4>
-            <ul className="text-sm text-gray-600 space-y-1 mb-4 ml-10">
+            <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1 mb-4 ml-10">
               <li>• Braços relaxados ao lado do corpo</li>
               <li>• Mantenha uma postura natural</li>
               <li>• Evite olhar para a câmera, olhe para frente</li>
@@ -445,7 +482,7 @@ localStorage.setItem('completeAnalysis', JSON.stringify(completeAnalysis));
               />
               <label
                 htmlFor="photo-frontal"
-                className="flex items-center justify-center gap-3 w-full px-4 py-4 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-pink-500 hover:text-pink-500 hover:bg-pink-50 transition-all cursor-pointer"
+                className="flex items-center justify-center gap-3 w-full px-4 py-4 bg-gray-50 dark:bg-gray-700 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl text-gray-600 dark:text-gray-300 hover:border-pink-500 dark:hover:border-pink-400 hover:text-pink-500 dark:hover:text-pink-400 hover:bg-pink-50 dark:hover:bg-pink-900/20 transition-all cursor-pointer"
               >
                 <Upload className="w-5 h-5" />
                 <span className="font-medium text-sm">
@@ -458,24 +495,23 @@ localStorage.setItem('completeAnalysis', JSON.stringify(completeAnalysis));
           </div>
 
           {/* Fotos Laterais */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-lg">
-            <h4 className="text-gray-900 font-bold mb-3 flex items-center gap-2">
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 shadow-lg">
+            <h4 className="text-gray-900 dark:text-white font-bold mb-3 flex items-center gap-2">
               <span className="w-8 h-8 bg-gradient-to-br from-pink-500 to-purple-600 text-white rounded-full flex items-center justify-center text-sm shadow-lg">2</span>
               Foto Lateral (ambos os lados)
               {formData.photoLateralEsquerdo && formData.photoLateralDireito && (
                 <CheckCircle2 className="w-5 h-5 text-green-500 ml-auto" />
               )}
             </h4>
-            <ul className="text-sm text-gray-600 space-y-1 mb-4 ml-10">
+            <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1 mb-4 ml-10">
               <li>• Braços relaxados ao lado do corpo</li>
               <li>• Mantenha uma postura natural</li>
               <li>• Olhe para frente</li>
             </ul>
             
             <div className="space-y-3 ml-10">
-              {/* Lado Esquerdo */}
               <div className="relative">
-                <label className="block text-xs font-medium text-gray-500 mb-2">Lado Esquerdo</label>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Lado Esquerdo</label>
                 <input
                   type="file"
                   accept="image/*"
@@ -486,7 +522,7 @@ localStorage.setItem('completeAnalysis', JSON.stringify(completeAnalysis));
                 />
                 <label
                   htmlFor="photo-lateral-esquerdo"
-                  className="flex items-center justify-center gap-3 w-full px-4 py-4 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-pink-500 hover:text-pink-500 hover:bg-pink-50 transition-all cursor-pointer"
+                  className="flex items-center justify-center gap-3 w-full px-4 py-4 bg-gray-50 dark:bg-gray-700 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl text-gray-600 dark:text-gray-300 hover:border-pink-500 dark:hover:border-pink-400 hover:text-pink-500 dark:hover:text-pink-400 hover:bg-pink-50 dark:hover:bg-pink-900/20 transition-all cursor-pointer"
                 >
                   <Upload className="w-5 h-5" />
                   <span className="font-medium text-sm">
@@ -497,9 +533,8 @@ localStorage.setItem('completeAnalysis', JSON.stringify(completeAnalysis));
                 </label>
               </div>
 
-              {/* Lado Direito */}
               <div className="relative">
-                <label className="block text-xs font-medium text-gray-500 mb-2">Lado Direito</label>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Lado Direito</label>
                 <input
                   type="file"
                   accept="image/*"
@@ -510,7 +545,7 @@ localStorage.setItem('completeAnalysis', JSON.stringify(completeAnalysis));
                 />
                 <label
                   htmlFor="photo-lateral-direito"
-                  className="flex items-center justify-center gap-3 w-full px-4 py-4 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-pink-500 hover:text-pink-500 hover:bg-pink-50 transition-all cursor-pointer"
+                  className="flex items-center justify-center gap-3 w-full px-4 py-4 bg-gray-50 dark:bg-gray-700 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl text-gray-600 dark:text-gray-300 hover:border-pink-500 dark:hover:border-pink-400 hover:text-pink-500 dark:hover:text-pink-400 hover:bg-pink-50 dark:hover:bg-pink-900/20 transition-all cursor-pointer"
                 >
                   <Upload className="w-5 h-5" />
                   <span className="font-medium text-sm">
@@ -524,13 +559,13 @@ localStorage.setItem('completeAnalysis', JSON.stringify(completeAnalysis));
           </div>
 
           {/* Foto de Costas */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-lg">
-            <h4 className="text-gray-900 font-bold mb-3 flex items-center gap-2">
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 shadow-lg">
+            <h4 className="text-gray-900 dark:text-white font-bold mb-3 flex items-center gap-2">
               <span className="w-8 h-8 bg-gradient-to-br from-pink-500 to-purple-600 text-white rounded-full flex items-center justify-center text-sm shadow-lg">3</span>
               Foto de Costas
               {formData.photoCostas && <CheckCircle2 className="w-5 h-5 text-green-500 ml-auto" />}
             </h4>
-            <ul className="text-sm text-gray-600 space-y-1 mb-4 ml-10">
+            <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1 mb-4 ml-10">
               <li>• Braços relaxados ao lado do corpo</li>
               <li>• Mantenha uma postura natural</li>
               <li>• Olhe para frente</li>
@@ -546,7 +581,7 @@ localStorage.setItem('completeAnalysis', JSON.stringify(completeAnalysis));
               />
               <label
                 htmlFor="photo-costas"
-                className="flex items-center justify-center gap-3 w-full px-4 py-4 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-pink-500 hover:text-pink-500 hover:bg-pink-50 transition-all cursor-pointer"
+                className="flex items-center justify-center gap-3 w-full px-4 py-4 bg-gray-50 dark:bg-gray-700 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl text-gray-600 dark:text-gray-300 hover:border-pink-500 dark:hover:border-pink-400 hover:text-pink-500 dark:hover:text-pink-400 hover:bg-pink-50 dark:hover:bg-pink-900/20 transition-all cursor-pointer"
               >
                 <Upload className="w-5 h-5" />
                 <span className="font-medium text-sm">
@@ -559,17 +594,16 @@ localStorage.setItem('completeAnalysis', JSON.stringify(completeAnalysis));
           </div>
         </div>
 
-        {/* Botão Finalizar */}
         <button
           onClick={handleFinalize}
           disabled={!isFormValid()}
           className={`w-full mt-8 py-4 rounded-2xl font-bold text-lg transition-all shadow-lg ${
             isFormValid()
               ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white hover:shadow-xl hover:scale-[1.02]'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              : 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed'
           }`}
         >
-          {isFormValid() ? '🔍 Analisar com IA' : '📸 Envie todas as 4 fotos'}
+          {isFormValid() ? '🔍 Analisar com PosturAI' : '📸 Envie todas as 4 fotos'}
         </button>
       </div>
     </div>

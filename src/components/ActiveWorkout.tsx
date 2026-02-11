@@ -92,8 +92,12 @@ export default function ActiveWorkout({
     onBack();
   };
 
-  const allCompleted = completedExercises.size === phase.exercises.length;
-  const progress = (completedExercises.size / phase.exercises.length) * 100;
+  // ✅ CORRIGIDO: Adicionar verificação de undefined
+  const exercisesList = phase.exercises || [];
+  const allCompleted = completedExercises.size === exercisesList.length;
+  const progress = exercisesList.length > 0 
+    ? (completedExercises.size / exercisesList.length) * 100 
+    : 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white pb-32">
@@ -119,7 +123,8 @@ export default function ActiveWorkout({
             <div className="flex items-center justify-between">
               <h1 className="text-xl font-bold text-gray-900">{phase.name}</h1>
               <span className="text-sm font-medium text-gray-600">
-                {completedExercises.size}/{phase.exercises.length} concluídos
+                {/* ✅ CORRIGIDO */}
+                {completedExercises.size}/{exercisesList.length} concluídos
               </span>
             </div>
 
@@ -135,7 +140,8 @@ export default function ActiveWorkout({
 
       {/* ✅ LISTA DE EXERCÍCIOS */}
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
-        {phase.exercises.map((exercise, index) => {
+        {/* ✅ CORRIGIDO: Usar exercisesList */}
+        {exercisesList.map((exercise, index) => {
           const isExpanded = expandedExercises.has(exercise.id);
           const isCompleted = completedExercises.has(exercise.id);
           const media = getExerciseMedia(exercise.name);
@@ -156,9 +162,10 @@ export default function ActiveWorkout({
                 <div className="flex items-start gap-4">
                   {/* IMAGEM/GIF */}
                   <div className="flex-shrink-0 w-24 h-24 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl flex items-center justify-center overflow-hidden">
-                    {exercise.gif_url ? (
+                    {/* ✅ CORRIGIDO: gif_url → gifUrl */}
+                    {exercise.gifUrl ? (
                       <img
-                        src={exercise.gif_url}
+                        src={exercise.gifUrl}
                         alt={exercise.name}
                         className="w-full h-full object-cover"
                       />
@@ -202,11 +209,11 @@ export default function ActiveWorkout({
                         </div>
                       )}
 
-                      {/* ✅ TEMPO DE DESCANSO */}
-                      {exercise.rest_seconds && (
+                      {/* ✅ CORRIGIDO: rest_seconds → rest */}
+                      {exercise.rest && (
                         <div className="flex items-center gap-1 text-gray-600">
                           <Clock className="w-4 h-4" />
-                          <span className="font-semibold">{exercise.rest_seconds}s</span> descanso
+                          <span className="font-semibold">{exercise.rest}</span> descanso
                         </div>
                       )}
                     </div>
@@ -230,21 +237,21 @@ export default function ActiveWorkout({
                     </div>
                   )}
 
-                  {/* NOTAS POSTURAIS */}
-                  {exercise.postural_notes && (
+                  {/* ✅ CORRIGIDO: postural_notes → notes */}
+                  {exercise.notes && (
                     <div>
                       <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
                         <AlertCircle className="w-4 h-4 text-amber-500" />
-                        Atenção Postural
+                        Observações Importantes
                       </h4>
                       <p className="text-gray-700 text-sm leading-relaxed">
-                        {exercise.postural_notes}
+                        {exercise.notes}
                       </p>
                     </div>
                   )}
 
-                  {/* VÍDEO (SE DISPONÍVEL) */}
-                  {exercise.video_url && (
+                  {/* ✅ CORRIGIDO: video_url → videoUrl */}
+                  {exercise.videoUrl && (
                     <div>
                       <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
                         <Award className="w-4 h-4 text-purple-500" />
@@ -252,7 +259,7 @@ export default function ActiveWorkout({
                       </h4>
                       <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
                         <video
-                          src={exercise.video_url}
+                          src={exercise.videoUrl}
                           controls
                           className="w-full h-full"
                         />
@@ -313,7 +320,8 @@ export default function ActiveWorkout({
                 🎉 Finalizar Treino
               </span>
             ) : (
-              `Complete todos os exercícios (${completedExercises.size}/${phase.exercises.length})`
+              /* ✅ CORRIGIDO */
+              `Complete todos os exercícios (${completedExercises.size}/${exercisesList.length})`
             )}
           </button>
         </div>

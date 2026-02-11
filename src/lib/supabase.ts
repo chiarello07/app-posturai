@@ -1,12 +1,12 @@
 // src/lib/supabase.ts
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { TrainingPlan, TrainingPrescription, UserWorkout, WorkoutHistory } from '@/types/training';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createSupabaseClient(supabaseUrl, supabaseAnonKey);
 
 // ============================================================================
 // INTERFACES
@@ -54,6 +54,11 @@ export interface OnboardingData {
   training_time: string;
   training_days?: number;
   completed: boolean;
+}
+
+// Função factory para compatibilidade com código novo
+export function createClient() {
+  return supabase;
 }
 
 // ============================================================================
@@ -940,3 +945,4 @@ export async function saveWorkoutToSupabase(session: any) {
     return { success: false, error: err };
   }
 }
+

@@ -206,3 +206,302 @@
 }
 
 }
+
+/* ========================================
+   🎨 POSTURAI - DESIGN TOKENS
+   Sistema de Trial & Paywall
+   ======================================== */
+
+:root {
+  /* === CORES PRINCIPAIS === */
+  --posturai-primary: #a855f7; /* purple-500 */
+  --posturai-primary-dark: #9333ea; /* purple-600 */
+  --posturai-secondary: #ec4899; /* pink-500 */
+  --posturai-secondary-dark: #db2777; /* pink-600 */
+  
+  /* === GRADIENTES === */
+  --gradient-primary: linear-gradient(135deg, #ec4899 0%, #a855f7 100%);
+  --gradient-primary-hover: linear-gradient(135deg, #db2777 0%, #9333ea 100%);
+  --gradient-trial: linear-gradient(to right, #ec4899, #a855f7);
+  --gradient-premium: linear-gradient(to right, #f59e0b, #eab308);
+  --gradient-expired: linear-gradient(to right, #ef4444, #dc2626);
+  
+  /* === TRIAL STATES === */
+  --trial-preview-bg: #fdf4ff; /* purple-50 */
+  --trial-preview-border: #e9d5ff; /* purple-200 */
+  --trial-preview-text: #7e22ce; /* purple-700 */
+  
+  --trial-active-bg: #f0fdf4; /* green-50 */
+  --trial-active-border: #bbf7d0; /* green-200 */
+  --trial-active-text: #15803d; /* green-700 */
+  
+  --trial-expired-bg: #fef2f2; /* red-50 */
+  --trial-expired-border: #fecaca; /* red-200 */
+  --trial-expired-text: #b91c1c; /* red-700 */
+  
+  --trial-premium-bg: #fffbeb; /* amber-50 */
+  --trial-premium-border: #fde68a; /* amber-200 */
+  --trial-premium-text: #b45309; /* amber-700 */
+  
+  /* === PAYWALL COMPONENTS === */
+  --paywall-overlay-bg: rgba(0, 0, 0, 0.75);
+  --paywall-modal-bg: #ffffff;
+  --paywall-modal-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  
+  --banner-height: 56px;
+  --banner-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  
+  --gate-card-blur: blur(8px);
+  --gate-card-overlay: rgba(255, 255, 255, 0.95);
+  
+  /* === BOTÕES CTA === */
+  --cta-primary-bg: var(--gradient-primary);
+  --cta-primary-hover: var(--gradient-primary-hover);
+  --cta-primary-shadow: 0 10px 15px -3px rgba(236, 72, 153, 0.3);
+  --cta-primary-shadow-hover: 0 20px 25px -5px rgba(236, 72, 153, 0.4);
+  
+  --cta-secondary-bg: #f3f4f6; /* gray-100 */
+  --cta-secondary-hover: #e5e7eb; /* gray-200 */
+  --cta-secondary-text: #374151; /* gray-700 */
+  
+  /* === ANIMAÇÕES === */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 500ms cubic-bezier(0.4, 0, 0.2, 1);
+  
+  --animation-pulse: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animation-bounce: bounce 1s infinite;
+  --animation-shimmer: shimmer 2s linear infinite;
+  
+  /* === ESPAÇAMENTOS === */
+  --spacing-xs: 0.25rem; /* 4px */
+  --spacing-sm: 0.5rem; /* 8px */
+  --spacing-md: 1rem; /* 16px */
+  --spacing-lg: 1.5rem; /* 24px */
+  --spacing-xl: 2rem; /* 32px */
+  --spacing-2xl: 3rem; /* 48px */
+  
+  /* === BORDAS === */
+  --radius-sm: 0.5rem; /* 8px */
+  --radius-md: 0.75rem; /* 12px */
+  --radius-lg: 1rem; /* 16px */
+  --radius-xl: 1.5rem; /* 24px */
+  --radius-full: 9999px;
+  
+  /* === TIPOGRAFIA === */
+  --font-size-xs: 0.75rem; /* 12px */
+  --font-size-sm: 0.875rem; /* 14px */
+  --font-size-base: 1rem; /* 16px */
+  --font-size-lg: 1.125rem; /* 18px */
+  --font-size-xl: 1.25rem; /* 20px */
+  --font-size-2xl: 1.5rem; /* 24px */
+  --font-size-3xl: 1.875rem; /* 30px */
+}
+
+/* === DARK MODE === */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paywall-modal-bg: #1f2937; /* gray-800 */
+    --cta-secondary-bg: #374151; /* gray-700 */
+    --cta-secondary-hover: #4b5563; /* gray-600 */
+    --cta-secondary-text: #f9fafb; /* gray-50 */
+  }
+}
+
+/* ========================================
+   🎬 ANIMAÇÕES CUSTOMIZADAS
+   ======================================== */
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+@keyframes slideInFromBottom {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInFromTop {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ========================================
+   🎨 CLASSES UTILITÁRIAS
+   ======================================== */
+
+.gradient-primary {
+  background: var(--gradient-primary);
+}
+
+.gradient-primary-hover:hover {
+  background: var(--gradient-primary-hover);
+}
+
+.trial-banner-animation {
+  animation: slideInFromTop 0.3s ease-out;
+}
+
+.paywall-modal-animation {
+  animation: scaleIn 0.3s ease-out;
+}
+
+.paywall-overlay-animation {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.cta-button-primary {
+  background: var(--cta-primary-bg);
+  box-shadow: var(--cta-primary-shadow);
+  transition: all var(--transition-base);
+}
+
+.cta-button-primary:hover {
+  background: var(--cta-primary-hover);
+  box-shadow: var(--cta-primary-shadow-hover);
+  transform: translateY(-2px);
+}
+
+.cta-button-primary:active {
+  transform: translateY(0);
+}
+
+/* === ESTADOS DE TRIAL === */
+.trial-state-preview {
+  background-color: var(--trial-preview-bg);
+  border-color: var(--trial-preview-border);
+  color: var(--trial-preview-text);
+}
+
+.trial-state-active {
+  background-color: var(--trial-active-bg);
+  border-color: var(--trial-active-border);
+  color: var(--trial-active-text);
+}
+
+.trial-state-expired {
+  background-color: var(--trial-expired-bg);
+  border-color: var(--trial-expired-border);
+  color: var(--trial-expired-text);
+}
+
+.trial-state-premium {
+  background-color: var(--trial-premium-bg);
+  border-color: var(--trial-premium-border);
+  color: var(--trial-premium-text);
+}
+
+/* === BLUR EFFECT (para conteúdo bloqueado) === */
+.content-locked {
+  filter: var(--gate-card-blur);
+  pointer-events: none;
+  user-select: none;
+}
+
+.content-locked-overlay {
+  background: var(--gate-card-overlay);
+  backdrop-filter: blur(4px);
+}
+
+/* ============================================
+   TEMA CLARO/ESCURO
+   ============================================ */
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
+  
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 222.2 84% 4.9%;
+  
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+  
+  --card: 222.2 84% 4.9%;
+  --card-foreground: 210 40% 98%;
+  
+  --popover: 222.2 84% 4.9%;
+  --popover-foreground: 210 40% 98%;
+  
+  --primary: 210 40% 98%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+  
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+  
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+  
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 212.7 26.8% 83.9%;
+}

@@ -1,6 +1,9 @@
-// src/lib/posturalMappings.ts
+// src/lib/training/posturalMappings.ts
 
 import { PainArea } from './exerciseDatabase';
+
+// ✅ RE-EXPORTAR PainArea para outros arquivos poderem importar daqui
+export type { PainArea };
 
 // ============================================================================
 // MAPEAMENTOS CIENTÍFICOS (baseados na resposta do treinador + IDs confirmados)
@@ -73,7 +76,7 @@ export const PAIN_AREA_TO_CONTRAINDICATION: Record<PainArea, {
     modify: ['ex014', 'ex_pull_light'], // remada horizontal leve
     prioritize: ['ex_thoracic_mobility', 'ex030'] // mobilidade torácica + face pull
   },
-    'wrist': {
+  'wrist': {
     avoid: ['push-ups', 'plank', 'burpees'],
     modify: ['use-wrist-wraps', 'neutral-grip'],
     prioritize: ['wrist-mobility', 'forearm-strength']
@@ -90,7 +93,50 @@ export const PAIN_AREA_TO_CONTRAINDICATION: Record<PainArea, {
   }
 };
 
-// Função auxiliar para normalizar nomes de desvios
+// ============================================================================
+// ✅ NOVO: FUNÇÃO FALTANTE - getPosturalMappingForDeviation
+// ============================================================================
+
+/**
+ * Retorna o mapeamento de exercícios para um desvio postural específico
+ * @param deviationType - Tipo do desvio postural (será normalizado internamente)
+ * @returns Mapeamento com exercícios para fortalecer, alongar e evitar
+ */
+export function getPosturalMappingForDeviation(deviationType: string): {
+  strengthen: string[];
+  stretch: string[];
+  avoid: string[];
+} {
+  // Normalizar o tipo de desvio
+  const normalizedType = normalizeDeviationType(deviationType);
+  
+  // Buscar mapeamento
+  const mapping = POSTURAL_ISSUE_TO_EXERCISE_MAPPING[normalizedType];
+  
+  // Se encontrou, retornar
+  if (mapping) {
+    return mapping;
+  }
+  
+  // Se não encontrou, retornar estrutura vazia (não quebrar a aplicação)
+  console.warn(`⚠️ [POSTURAL] Mapeamento não encontrado para desvio: ${deviationType} (normalizado: ${normalizedType})`);
+  
+  return {
+    strengthen: [],
+    stretch: [],
+    avoid: []
+  };
+}
+
+// ============================================================================
+// FUNÇÕES AUXILIARES
+// ============================================================================
+
+/**
+ * Normaliza nomes de desvios posturais para formato padrão
+ * @param type - Tipo do desvio (em qualquer formato/idioma)
+ * @returns Tipo normalizado
+ */
 export function normalizeDeviationType(type: string): string {
   const normalized = type.toLowerCase()
     .normalize('NFD')
@@ -118,6 +164,11 @@ export function normalizeDeviationType(type: string): string {
   return mapping[normalized] || normalized;
 }
 
+/**
+ * Retorna os gatilhos de dor para uma área específica
+ * @param area - Área de dor
+ * @returns Lista de movimentos/situações que podem causar dor
+ */
 export function getPainTriggers(area: PainArea): string[] {
   const triggers: Record<PainArea, string[]> = {
     'lower-back': ['flexão', 'carga axial', 'rotação'],
@@ -132,4 +183,29 @@ export function getPainTriggers(area: PainArea): string[] {
   };
   
   return triggers[area] || [];
+}
+
+/**
+ * Retorna contraindicações para uma área de dor específica
+ * @param area - Área de dor
+ * @returns Mapeamento com exercícios a evitar, modificar e priorizar
+ */
+export function getContraindicationsForPainArea(area: PainArea): {
+  avoid: string[];
+  modify: string[];
+  prioritize: string[];
+} {
+  const contraindication = PAIN_AREA_TO_CONTRAINDICATION[area];
+  
+  if (contraindication) {
+    return contraindication;
+  }
+  
+  console.warn(`⚠️ [POSTURAL] Contraindicações não encontradas para área: ${area}`);
+  
+  return {
+    avoid: [],
+    modify: [],
+    prioritize: []
+  };
 }

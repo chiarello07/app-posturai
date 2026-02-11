@@ -1,228 +1,294 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect } from "react";
-import {
-  Play,
-  ChevronDown,
-  ChevronUp,
-  Clock,
-  Repeat,
-  TrendingUp,
-  CheckCircle2,
-  Info,
+import React, { useState, useEffect, useCallback } from 'react';
+import { createClient } from '@/lib/supabase';
+import { useTrialContext } from '@/contexts/TrialContext';
+import { TrialGateCard } from './TrialGateCard';
+import { TrialBanner } from './TrialBanner';
+import { TrialWeekStrip } from './TrialWeekStrip';
+import { 
+  Activity,
+  Award,
+  ChevronDown, 
+  ChevronUp, 
+  Clock, 
   Dumbbell,
   Calendar,
-  Target,
-  Award,
-  Image as ImageIcon,
-  Video
-} from "lucide-react";
+  TrendingUp,
+  Play,
+  CheckCircle2,
+  Lock,
+  Crown,
+  Info,
+  X,
+  ExternalLink
+} from 'lucide-react';
 
-import { getUserWorkout, getCurrentUser, supabase } from "@/lib/supabase";
-// import { PeriodizationTimeline } from './PeriodizationTimeline';
-import { getWorkoutStats } from '@/lib/training/progressTracker';
-import { 
-  saveWorkoutSession, 
-  calculateWorkoutMetrics,
-  getWorkoutHistory,
-  type WorkoutSession,
-  type ExerciseLog 
-} from '@/lib/training/workoutTracker';
-import ActiveWorkout from './ActiveWorkout';
-import { saveWorkoutProgress } from '@/lib/training/progressTracker';
-import {toast } from 'sonner';
-import { Activity } from 'lucide-react';
-import type { Exercise, WorkoutPhase } from '@/types/training';
-import PaywallModal from "./PaywallModal";
 
-interface TrainingPlanProps {
-  userProfile: any;
+interface Exercise {
+  id: string;
+  name: string;
+  sets: number;
+  reps: string;
+  rest: string;
+  instructions?: string;
+  videoUrl?: string;
+  gifUrl?: string;
+  muscleGroup?: string;
+  equipment?: string;
+}
+
+interface WorkoutDay {
+  dayIndex: number;
+  label: string;
+  description: string;
+  exercises: Exercise[];
+  focus?: string[];
+  isRestDay?: boolean;
+}
+
+interface Mesocycle {
+  id: number;
+  name: string;
+  weeks: string;
+  objective: string;
+  focus?: string;
+  parameters: {
+    sets: string;
+    reps: string;
+    rest: string;
+    rpe: string;
+    intensity: string;
+  };
+  cardio?: {
+    frequency: string;
+    duration: string;
+    intensity: string;
+  };
+  expectations: string[];
 }
 
 interface TrainingPlan {
-  programName: string;
-  userName: string;
-  level: string;
-  duration: string;
-  phases: WorkoutPhase[];
-  periodization?: {
-    currentPhase: string;
-    totalWeeks: number;
-    progressionCriteria: string;
-  };
+  id: string;
+  userId: string;
+  currentPhase: number;
+  totalWeeks: number;
+  adaptations?: any;
+  weeksCompleted: number;
+  workouts: WorkoutDay[];
+  mesocycles: Mesocycle[];
+  createdAt: string;
+  updatedAt: string;
 }
 
-// ✅ REGEX PARA DETECTAR TEMPO (seg, min, s)
-const TIME_PATTERN = /seg|min|s$/i;
+// ============================================
+// COMPONENTE PRINCIPAL
+// ============================================
 
-export default function TrainingPlan({ userProfile }: TrainingPlanProps) {
+export default function TrainingPlan() {
+  const { 
+    userState, 
+    isPremium, 
+    isTrialActive, 
+    trialDaysRemaining,
+    startTrial,
+    isLoading: isTrialLoading 
+  } = useTrialContext();
+
   const [trainingPlan, setTrainingPlan] = useState<TrainingPlan | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [expandedPhase, setExpandedPhase] = useState<number | null>(0);
-  const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
-  const [activeWorkout, setActiveWorkout] = useState<number | null>(null);
-  const [completedExercises, setCompletedExercises] = useState<Set<string>>(new Set());
-  const [workoutStats, setWorkoutStats] = useState<any>(null);
-  const [showCompletionModal, setShowCompletionModal] = useState(false);
-  const [completedPhaseName, setCompletedPhaseName] = useState('');
-  const [workoutTimer, setWorkoutTimer] = useState(0);
-  const [timerInterval, setTimerInterval] = useState<NodeJS.Timeout | null>(null);
-  const [workoutStartTime, setWorkoutStartTime] = useState<string>('');
-  const [showActiveWorkout, setShowActiveWorkout] = useState<number | null>(null);
-  const [selectedPhase, setSelectedPhase] = useState<number | null>(null);
-  const [showPeriodizationModal, setShowPeriodizationModal] = useState(false);
-  const [showBorgModal, setShowBorgModal] = useState(false);
-  const [borgScore, setBorgScore] = useState<number | null>(null);
-  const [isPremium, setIsPremium] = useState(false);
-  const [showPaywall, setShowPaywall] = useState(false);
-  const [paywallFeature, setPaywallFeature] = useState("");
-
-  useEffect(() => {
-  const checkPremiumStatus = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        setIsPremium(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('subscription_status, subscription_tier, is_premium')
-        .eq('id', user.id)
-        .single();
-
-      if (error) {
-        console.error('Erro ao verificar Premium:', error);
-        setIsPremium(false);
-        return;
-      }
-
-      const isActive = data?.is_premium === true || 
-                      (data?.subscription_status === 'active' && 
-                       data?.subscription_tier === 'premium');
-      
-      setIsPremium(isActive);
-    } catch (error) {
-      console.error('Erro ao verificar Premium:', error);
-      setIsPremium(false);
-    }
-  };
-
-  checkPremiumStatus();
-}, []);
-
-  useEffect(() => {
-    if (userProfile?.id) {
-      const stats = getWorkoutStats(userProfile.id);
-      setWorkoutStats(stats);
-      console.log('📊 [STATS] Carregado:', stats);
-    }
-  }, [userProfile]);
-
-  useEffect(() => {
-    if (userProfile) {
-      loadTrainingPlan();
-    }
-  }, [userProfile]);
-
-// ✅ LER LOCALSTORAGE E ABRIR TREINO ESPECÍFICO:
-useEffect(() => {
-  if (!trainingPlan) return;
+  const [expandedPhases, setExpandedPhases] = useState<Set<number>>(new Set());
+  const [expandedExercises, setExpandedExercises] = useState<Set<string>>(new Set());
   
-  const savedPhase = localStorage.getItem('currentWorkoutPhase');
-  if (savedPhase) {
-    const phaseIndex = parseInt(savedPhase, 10);
-    
-    // ✅ VALIDA SE O ÍNDICE EXISTE NO PLANO ATUAL
-    if (phaseIndex >= 0 && phaseIndex < trainingPlan.phases.length) {
-      setShowActiveWorkout(phaseIndex);
-      localStorage.removeItem('currentWorkoutPhase');
-    } else {
-      console.warn(`⚠️ Fase ${phaseIndex} não existe no plano atual (total: ${trainingPlan.phases.length})`);
-      localStorage.removeItem('currentWorkoutPhase');
-    }
-  }
-}, [trainingPlan]);
+  // Modals
+  const [showPeriodizationModal, setShowPeriodizationModal] = useState(false);
+  const [showPaywallModal, setShowPaywallModal] = useState(false);
+  const [selectedPhase, setSelectedPhase] = useState<WorkoutDay | null>(null);
+  const [showPhaseDetailsModal, setShowPhaseDetailsModal] = useState(false);
+  const [showWeeklyCalendarModal, setShowWeeklyCalendarModal] = useState(false);
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [selectedWorkoutForHelp, setSelectedWorkoutForHelp] = useState<WorkoutDay | null>(null);
 
-const loadTrainingPlan = async () => {
+  // Supabase
+  const supabase = createClient();
+
+    // ============================================
+  // FUNÇÕES DE FETCH
+  // ============================================
+
+// ============================================
+// BUSCAR PLANO DE TREINO DO USUÁRIO
+// ============================================
+
+const fetchTrainingPlan = useCallback(async () => {
   try {
     setIsLoading(true);
-    console.log('📥 [TRAINING] Iniciando carregamento do plano...');
-
-    const user = await getCurrentUser();
     
-    if (!user) {
-      console.log('❌ [TRAINING] Usuário não autenticado.');
-      toast.error('Faça login para ver seu treino');
+    // ✅ Obter sessão do usuário
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+
+    if (!userId) {
+      console.warn('❌ [TRAINING] Usuário não autenticado');
       setIsLoading(false);
       return;
     }
 
-    console.log('✅ [TRAINING] Usuário encontrado:', user.id);
+    console.log('🔍 [TRAINING] Buscando plano para userId:', userId);
 
-    const { success, data, error } = await getUserWorkout(user.id);
+    // ============================================
+    // ✅ CORREÇÃO: Buscar da tabela correta
+    // ============================================
+    const { data, error } = await supabase
+      .from('user_workouts') // ✅ TABELA CORRETA
+      .select('plan, created_at, updated_at') // ✅ CAMPO CORRETO
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false }) // ✅ MAIS RECENTE PRIMEIRO
+      .limit(1)
+      .maybeSingle();
 
-    // ✅ SE NÃO TEM WORKOUT, MOSTRAR MENSAGEM AMIGÁVEL
-    if (!success || !data || error) {
-      console.log("⚠️ [TRAINING] Nenhum treino encontrado no Supabase");
+    if (error) {
+      console.error('❌ [TRAINING] Erro ao buscar plano:', error);
       
-      // ✅ TENTAR CARREGAR DO LOCALSTORAGE (BACKUP)
-      const localPlan = localStorage.getItem('currentTrainingPlan');
-      if (localPlan) {
-        console.log("✅ [TRAINING] Treino encontrado no localStorage!");
-        const plan = JSON.parse(localPlan);
-        setTrainingPlan(plan);
-        setIsLoading(false);
-        return;
+      // ✅ Tratamento específico: plano não encontrado
+      if (error.code === 'PGRST116') {
+        console.warn('⚠️ [TRAINING] Nenhum plano encontrado');
       }
       
-      // ✅ SE NÃO TEM EM NENHUM LUGAR, MOSTRAR UI DE ERRO
-      console.warn("⚠️ [TRAINING] Nenhum treino disponível (Supabase e localStorage)");
-      setTrainingPlan(null);
       setIsLoading(false);
-      toast.error('Nenhum treino encontrado. Complete sua análise postural primeiro!');
       return;
     }
 
-    // ✅ SE TEM WORKOUT, CARREGAR E SALVAR NO LOCALSTORAGE
-    if (data && data.plan) {
-      console.log("✅ [TRAINING] Treino carregado do Supabase:", data.plan);
-      
-      // ✅ SALVAR NO LOCALSTORAGE (ESTAVA FALTANDO ISSO!)
-      localStorage.setItem('currentTrainingPlan', JSON.stringify(data.plan));
-      console.log("💾 [TRAINING] Treino salvo no localStorage!");
-      
-      setTrainingPlan(data.plan);
-    } else {
-      console.error("❌ [TRAINING] Workout encontrado, mas sem 'plan':", data);
-      toast.error('Erro: Treino sem dados. Contate o suporte.');
+    if (!data || !data.plan) {
+      console.warn('⚠️ [TRAINING] Nenhum plano encontrado ou workout_plan vazio');
+      setIsLoading(false);
+      return;
     }
 
-    setIsLoading(false);
-  } catch (err) {
-    console.error("❌ [TRAINING] Erro ao carregar treino:", err);
-    setIsLoading(false);
-    toast.error('Erro ao carregar treino. Tente novamente.');
-  }
-};
+    console.log('✅ [TRAINING] Dados brutos do banco:', data);
 
-  const togglePhase = (index: number) => {
-    setExpandedPhase(expandedPhase === index ? null : index);
+    // ============================================
+    // ✅ EXTRAIR JSONB CORRETAMENTE
+    // ============================================
+    const workoutPlanJsonb = data.plan as any;
+
+    console.log('📦 [TRAINING] JSONB extraído:', workoutPlanJsonb);
+
+    // ✅ COMPATIBILIDADE: Converter phases → workouts se necessário
+if (workoutPlanJsonb.phases && (!workoutPlanJsonb.workouts || workoutPlanJsonb.workouts.length === 0)) {
+  console.log('🔄 [TRAINING] Convertendo phases → workouts...');
+  workoutPlanJsonb.workouts = workoutPlanJsonb.phases.map((phase: any) => ({
+    id: phase.id,
+    name: phase.name,
+    focus: phase.focus,
+    exercises: phase.exercises || [],
+    phase: phase.phase,
+    weeks: phase.weeks,
+  }));
+  console.log(`✅ [TRAINING] ${workoutPlanJsonb.workouts.length} workouts convertidos!`);
+}
+
+    // ============================================
+    // ✅ DETECTAR ESTRUTURA: V1 (direto) ou V2 (com metadata)
+    // ============================================
+    let planData: any;
+
+    // Estrutura V2: { trainingPlan: {...}, metadata: {...} }
+    if (workoutPlanJsonb.trainingPlan && workoutPlanJsonb.metadata) {
+      console.log('🔧 [TRAINING] Estrutura V2 detectada (com metadata)');
+      planData = workoutPlanJsonb.trainingPlan;
+    }
+    // Estrutura V1: { mesocycles: [...], workouts: [...], ... }
+    else if (workoutPlanJsonb.mesocycles || workoutPlanJsonb.workouts) {
+      console.log('🔧 [TRAINING] Estrutura V1 detectada (direto)');
+      planData = workoutPlanJsonb;
+    }
+    // Estrutura desconhecida
+    else {
+      console.error('❌ [TRAINING] Estrutura de dados desconhecida:', workoutPlanJsonb);
+      setIsLoading(false);
+      return;
+    }
+
+    // ============================================
+    // ✅ VALIDAR CAMPOS ESSENCIAIS
+    // ============================================
+    if (!planData.mesocycles || !Array.isArray(planData.mesocycles)) {
+      console.error('❌ [TRAINING] mesocycles ausente ou inválido');
+      setIsLoading(false);
+      return;
+    }
+
+    if (!planData.workouts || !Array.isArray(planData.workouts)) {
+      console.error('❌ [TRAINING] workouts ausente ou inválido');
+      setIsLoading(false);
+      return;
+    }
+
+    // ============================================
+    // ✅ ESTRUTURAR NO FORMATO ESPERADO PELO COMPONENTE
+    // ============================================
+    const structuredPlan: TrainingPlan = {
+      id: planData.id || crypto.randomUUID(),
+      userId: userId,
+      currentPhase: planData.currentPhase || 0,
+      totalWeeks: planData.totalWeeks || 52,
+      weeksCompleted: planData.weeksCompleted || 0,
+      workouts: planData.workouts || [],
+      mesocycles: planData.mesocycles || [],
+      createdAt: data.created_at || new Date().toISOString(),
+      updatedAt: data.updated_at || new Date().toISOString(),
+    };
+
+    console.log('📊 [TRAINING] Plano estruturado com sucesso:', {
+      workouts: structuredPlan.workouts.length,
+      mesocycles: structuredPlan.mesocycles.length,
+      currentPhase: structuredPlan.currentPhase,
+      totalWeeks: structuredPlan.totalWeeks,
+    });
+
+    console.log('✅ [TRAINING] Plano carregado e validado!');
+
+    // ============================================
+    // ✅ SETAR ESTADO
+    // ============================================
+    setTrainingPlan(structuredPlan);
+    setIsLoading(false);
+
+  } catch (err) {
+    console.error('❌ [TRAINING] Erro inesperado:', err);
+    setIsLoading(false);
+  }
+}, [supabase]); // ✅ Dependência do useCallback
+
+  // ============================================
+  // EFFECTS
+  // ============================================
+
+  // Carregar plano ao montar componente
+  useEffect(() => {
+    fetchTrainingPlan();
+  }, [fetchTrainingPlan]);
+
+  // ============================================
+  // HANDLERS - EXPANSÃO/COLAPSO
+  // ============================================
+
+  const togglePhase = (dayIndex: number) => {
+    setExpandedPhases((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(dayIndex)) {
+        newSet.delete(dayIndex);
+      } else {
+        newSet.add(dayIndex);
+      }
+      return newSet;
+    });
   };
 
   const toggleExercise = (exerciseId: string) => {
-    setExpandedExercise(expandedExercise === exerciseId ? null : exerciseId);
-  };
-
-const startWorkout = (phaseIndex: number) => {
-  console.log('🏋️ [WORKOUT] Iniciando treino da fase:', phaseIndex);
-  setShowActiveWorkout(phaseIndex);
-};
-
-  const completeExercise = (exerciseId: string) => {
-    setCompletedExercises(prev => {
+    setExpandedExercises((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(exerciseId)) {
         newSet.delete(exerciseId);
@@ -233,1696 +299,1061 @@ const startWorkout = (phaseIndex: number) => {
     });
   };
 
-const finishWorkout = () => {
-  if (!trainingPlan || activeWorkout === null) return;
-  
-  const phase = trainingPlan.phases[activeWorkout];
-  const completedIds = Array.from(completedExercises);
-  
-  // ✅ PARAR CRONÔMETRO
-  if (timerInterval) {
-    clearInterval(timerInterval);
-    setTimerInterval(null);
-  }
-  
-  // ✅ CRIAR LOGS DOS EXERCÍCIOS
-  const exerciseLogs = phase.exercises.map((ex, idx) => {
-    const uniqueId = `phase-${activeWorkout}-exercise-${idx}`;
-    return {
-      exerciseId: ex.id,
-      exerciseName: ex.name,
-      sets: ex.sets,
-      reps: ex.reps,
-      rest: ex.rest_seconds,
-      completed: completedIds.includes(uniqueId),
-      tempo: ex.tempo
-    } as any;
-  });
-  
-  // ✅ CALCULAR MÉTRICAS
-  const metrics = calculateWorkoutMetrics(exerciseLogs, workoutTimer);
-  
-  // ✅ CRIAR SESSÃO DE TREINO
-  const session: WorkoutSession = {
-    id: `workout-${Date.now()}`,
-    userId: userProfile?.id || 'guest',
-    phaseName: phase.name,
-    date: new Date().toISOString().split('T')[0],
-    startTime: workoutStartTime,
-    endTime: new Date().toISOString(),
-    duration: workoutTimer,
-    exercises: exerciseLogs,
-    totalSets: metrics.totalSets,
-    totalReps: metrics.totalReps,
-    totalVolume: 0,
-    estimatedCalories: metrics.estimatedCalories,
-    completionRate: metrics.completionRate,
-    averageRPE: 5
-  };
-  
-  // ✅ SALVAR NO HISTÓRICO (PROCESSADO!)
-  const processedSession = {
-    ...session,
-    exercises: session.exercises.map(ex => ({
-      ...ex,
-      reps: typeof ex.reps === 'string' 
-        ? (TIME_PATTERN.test(ex.reps) ? 0 : parseInt(ex.reps, 10) || 0)
-        : (ex.reps || 0)
-    }))
-  };
-  saveWorkoutSession(processedSession);
-  
-  // ✅ MOSTRAR MODAL
-  setCompletedPhaseName(phase.name);
-  setShowBorgModal(true); // Mostra Borg ANTES do modal de conclusão
-  
-  setActiveWorkout(null);
-  setCompletedExercises(new Set());
-  
-toast.success('Treino salvo com sucesso! 🎉');
-};
+  // ============================================
+  // HANDLERS - MODALS
+  // ============================================
 
-  const cancelWorkout = () => {
-    if (window.confirm('Tem certeza que deseja encerrar o treino? Seu progresso será perdido.')) {
-      if (timerInterval) {
-        clearInterval(timerInterval);
-        setTimerInterval(null);
-      }
-      setActiveWorkout(null);
-      setCompletedExercises(new Set());
-      setWorkoutTimer(0);
-
-      toast.info('Treino cancelado');
+  const handleOpenPeriodization = () => {
+    // Se não é premium e não está em trial, mostrar paywall
+    if (!isPremium && userState === 'C') {
+      setShowPaywallModal(true);
+      return;
     }
+
+    // Caso contrário, mostrar periodização
+    setShowPeriodizationModal(true);
   };
 
-const handleWorkoutComplete = (completedIds: string[], duration: number) => {
-  if (!trainingPlan || showActiveWorkout === null) return;
-  
-  const phase = trainingPlan.phases[showActiveWorkout];
-  
-  // ✅ CRIAR LOGS DOS EXERCÍCIOS
-  const exerciseLogs = phase.exercises.map((ex, idx) => {
-    const uniqueId = `phase-${showActiveWorkout}-exercise-${idx}`;
-    return {
-      exerciseId: ex.id,
-      exerciseName: ex.name,
-      sets: ex.sets,
-      reps: (typeof ex.reps === 'string' && TIME_PATTERN.test(ex.reps)) ? 0 : (ex.reps || 0),
-      rest: ex.rest_seconds,
-      completed: completedIds.includes(uniqueId),
-      tempo: ex.tempo
-    };
-  });
-  
-  // ✅ CALCULAR MÉTRICAS
-  const metrics = calculateWorkoutMetrics(exerciseLogs as any, duration);
-  
-  const handlePremiumFeature = (featureName: string) => {
-  if (!isPremium) {
-    setPaywallFeature(featureName);
-    setShowPaywall(true);
+  const handlePhaseClick = (phase: WorkoutDay) => {
+    setSelectedPhase(phase);
+    setShowPhaseDetailsModal(true);
+  };
+
+  const closeAllModals = () => {
+    setShowPeriodizationModal(false);
+    setShowPaywallModal(false);
+    setShowPhaseDetailsModal(false);
+    setSelectedPhase(null);
+  };
+
+  // ============================================
+  // FUNÇÕES AUXILIARES
+  // ============================================
+
+  // Verificar se um treino está bloqueado
+  const isWorkoutLocked = (dayIndex: number): boolean => {
+    // Estado D (Premium): nada bloqueado
+    if (userState === 'D' || isPremium) {
+      return false;
+    }
+
+    // Estado A (Não iniciou trial): tudo bloqueado
+    if (userState === 'A') {
+      return true;
+    }
+
+    // Estado B (Trial ativo): D1-D7 desbloqueado, D8+ bloqueado
+    if (userState === 'B' && isTrialActive) {
+      return dayIndex > 7;
+    }
+
+    // Estado C (Trial expirado): D8+ bloqueado
+    if (userState === 'C') {
+      return dayIndex > 7;
+    }
+
     return false;
-  }
-  return true;
-};
-
-  // ✅ CRIAR SESSÃO DE TREINO (SEM SALVAR AINDA)
-  const session: WorkoutSession = {
-    id: `workout-${Date.now()}`,
-    userId: userProfile?.id || 'guest',
-    phaseName: phase.name,
-    date: new Date().toISOString().split('T')[0],
-    startTime: new Date(Date.now() - duration * 1000).toISOString(),
-    endTime: new Date().toISOString(),
-    duration: duration,
-    exercises: exerciseLogs as any,
-    totalSets: metrics.totalSets,
-    totalReps: metrics.totalReps,
-    totalVolume: 0,
-    estimatedCalories: metrics.estimatedCalories,
-    completionRate: metrics.completionRate,
-    averageRPE: null // ✅ ADICIONADO: RPE será preenchido depois
-  };
-  
-  // ✅ SALVAR SESSÃO TEMPORARIAMENTE NO ESTADO
-  // (não salvamos no localStorage ainda, esperamos o Borg)
-  localStorage.setItem('tempWorkoutSession', JSON.stringify(session));
-  
-  // ✅ GUARDAR DADOS PARA USAR DEPOIS
-  setCompletedExercises(new Set(completedIds));
-  setWorkoutTimer(duration);
-  setCompletedPhaseName(phase.name);
-  
-  // ✅ VOLTAR PARA LISTA DE TREINOS
-  setShowActiveWorkout(null);
-  
-  // ✅ ABRIR MODAL BORG (NÃO COMPLETION MODAL!)
-  setShowBorgModal(true);
-  setBorgScore(null); // Reset score
-  
-  console.log('📊 Treino finalizado! Aguardando Borg Scale...');
-  toast.success('Treino concluído! Agora avalie a dificuldade 💪');
-};
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // ✅ CHECK 1: Loading
-  if (isLoading) {
+  // Obter label do treino
+  const getWorkoutLabel = (dayIndex: number): string => {
+    const labels = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+    const labelIndex = (dayIndex - 1) % labels.length;
+    return `Treino ${labels[labelIndex]}`;
+  };
+
+    // ============================================
+  // RENDERIZAÇÃO - LOADING STATE
+  // ============================================
+
+  if (isLoading || isTrialLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 flex items-center justify-center">
         <div className="text-center">
-          <Activity className="w-16 h-16 text-blue-600 mx-auto mb-4 animate-spin" />
-          <p className="text-gray-600 font-medium">Carregando seu plano de treino...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Carregando seu plano de treino...</p>
         </div>
       </div>
     );
   }
 
-  // ✅ CHECK 2: Sem treino
-  if (!trainingPlan) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md text-center">
-          <Activity className="w-16 h-16 text-pink-500 mx-auto mb-4 animate-spin" />
-          <h3 className="text-lg font-semibold text-gray-600 mb-2">
-            Carregando...
-          </h3>
-          <p className="text-gray-500 text-sm">
-            Você será redirecionado para a Análise Postural
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // ============================================
+  // RENDERIZAÇÃO - SEM PLANO
+  // ============================================
 
-  // ✅ CHECK 3: Treino ativo (página individual)
-  if (showActiveWorkout !== null && trainingPlan) {
+  if (!trainingPlan || !trainingPlan.workouts || trainingPlan.workouts.length === 0) {
     return (
-      <ActiveWorkout
-  phase={{
-    ...trainingPlan.phases[showActiveWorkout],
-    phase: `Fase ${showActiveWorkout + 1}`,
-    estimated_duration_minutes: 60
-  } as any}
-  phaseIndex={showActiveWorkout}
-  onBack={() => setShowActiveWorkout(null)}
-  onComplete={handleWorkoutComplete}
-  userProfile={userProfile}
-/>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">Carregando seu plano de treino...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!trainingPlan) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md text-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 flex items-center justify-center">
+        <div className="text-center max-w-md">
           <Dumbbell className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">
-            Nenhum Treino Encontrado
-          </h2>
-          <p className="text-gray-600 mb-6">
-            Complete sua análise postural para gerar um plano de treino personalizado.
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Nenhum Plano Encontrado</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
+            Você ainda não tem um plano de treino personalizado. Complete sua análise postural para gerar seu primeiro treino!
           </p>
           <button
-            onClick={() => window.location.reload()}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
+            onClick={() => window.location.href = '/'}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition-all"
           >
-            Atualizar Página
+            Fazer Análise Postural
           </button>
         </div>
       </div>
     );
   }
 
-return (
-  <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 pb-24">
-    <div className="max-w-5xl mx-auto px-6 py-8">
-      
-      {/* ✅ HEADER MINIMALISTA */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Plano de Treino</h1>
-        <p className="text-gray-600">Personalizado para correção postural</p>
-      </div>
+  // ============================================
+  // RENDERIZAÇÃO PRINCIPAL
+  // ============================================
 
-      {/* ✅ FASE ATUAL + BOTÃO INFO */}
-<div className="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-100">
-  <div className="flex items-center justify-between">
-    <div className="flex items-center gap-4">
-      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
-        <Award className="w-6 h-6 text-white" />
-      </div>
-      <div>
-        <p className="text-xs text-gray-500 uppercase tracking-wide">Fase Atual</p>
-        <p className="text-lg font-bold text-gray-900">
-          {trainingPlan.periodization?.currentPhase || "Adaptação Anatômica"}
-        </p>
-        <p className="text-sm text-gray-600">
-          {workoutStats?.totalWeeksCompleted || 0} de {trainingPlan.periodization?.totalWeeks || 52} semanas
-        </p>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 md:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        
+        {/* ============================================
+            HEADER - TÍTULO + BOTÃO PERIODIZAÇÃO
+        ============================================ */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2">
+              Seu Plano de Treino
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Treinos personalizados baseados na sua análise postural
+            </p>
+          </div>
+
+          {/* Botão Ver Periodização */}
+          <button
+            onClick={handleOpenPeriodization}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700
+                       text-white font-bold py-3 px-6 rounded-xl shadow-lg
+                       transition-all duration-200 transform hover:scale-105
+                       flex items-center gap-2 justify-center"
+          >
+            <Calendar className="w-5 h-5" />
+            <span>Ver Periodização Completa</span>
+          </button>
+        </div>
+
+        {/* ============================================
+    CARD FASE ATUAL + PROGRESSO
+============================================ */}
+{trainingPlan.mesocycles && trainingPlan.mesocycles.length > 0 && (
+  <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 mb-6 shadow-sm border border-gray-100 dark:border-gray-700">
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-4">
+        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+          <Award className="w-6 h-6 text-white" />
+        </div>
+        <div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Fase Atual</p>
+          <p className="text-lg font-bold text-gray-900 dark:text-white">
+            {trainingPlan.mesocycles[trainingPlan.currentPhase]?.name || "Adaptação Anatômica"}
+          </p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {trainingPlan.weeksCompleted || 0} de {trainingPlan.totalWeeks || 52} semanas
+          </p>
+        </div>
       </div>
     </div>
-    
-    {/* ✅ BOTÃO CORRETO PARA ABRIR MODAL */}
-    <button
-  onClick={() => {
-    // ✅ BLOQUEAR PERIODIZAÇÃO COMPLETA
-    if (!isPremium) {
-      setPaywallFeature("Periodização Completa de 1 Ano");
-      setShowPaywall(true);
-      return;
-    }
-    setShowPeriodizationModal(true);
-  }}
-  className="..."
->
-  {!isPremium ? (
-    <>🔒 Periodização Completa (Premium)</>
-  ) : (
-    <>
-      <Info size={16} />
-      Como funciona
-    </>
-  )}
-</button>
+  </div>
+)}
+
+{/* ============================================
+    STATS COMPACTOS (3 CARDS)
+============================================ */}
+<div className="grid grid-cols-3 gap-3 mb-8">
+  <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 text-center">
+    <p className="text-2xl font-bold text-gray-900 dark:text-white">{trainingPlan.workouts.length}</p>
+    <p className="text-xs text-gray-600 dark:text-gray-400">Treinos</p>
+  </div>
+  <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 text-center">
+    <p className="text-2xl font-bold text-gray-900 dark:text-white">{trainingPlan.totalWeeks}sem</p>
+    <p className="text-xs text-gray-600 dark:text-gray-400">Duração</p>
+  </div>
+  <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 text-center">
+    <p className="text-2xl font-bold text-gray-900 dark:text-white">
+      {trainingPlan.mesocycles[trainingPlan.currentPhase]?.parameters?.intensity || "70%"}
+    </p>
+    <p className="text-xs text-gray-600 dark:text-gray-400">Intensidade</p>
   </div>
 </div>
 
-      {/* ✅ STATS COMPACTOS */}
-      <div className="grid grid-cols-3 gap-3 mb-8">
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
-          <p className="text-2xl font-bold text-gray-900">{trainingPlan.phases.length}</p>
-          <p className="text-xs text-gray-600">Treinos</p>
-        </div>
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
-          <p className="text-2xl font-bold text-gray-900">{trainingPlan.duration}</p>
-          <p className="text-xs text-gray-600">Duração</p>
-        </div>
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
-          <p className="text-2xl font-bold text-gray-900 capitalize">{trainingPlan.level}</p>
-          <p className="text-xs text-gray-600">Nível</p>
-        </div>
-      </div>
+        {/* ============================================
+            TRIAL BANNER (Estados B e C)
+        ============================================ */}
+        <TrialBanner />
 
-      {/* ✅ CARDS DE TREINOS HORIZONTAIS - DINÂMICO (2-7 TREINOS) */}
-<div className="space-y-3">
-  {trainingPlan.phases.map((phase, index) => {
-    const phaseLetter = String.fromCharCode(65 + index); // A=65, B=66, C=67...
-    const isExpanded = expandedPhase === index;
-    const phaseExercises = phase.exercises || [];
-    const completedCount = phaseExercises.filter(ex => completedExercises.has(ex.id)).length;
-    const totalExercises = phaseExercises.length;
-    
-    return (
-      <div
-  key={index}
-  className="bg-white border border-gray-200 rounded-2xl p-6 shadow-lg relative"
->
-  {/* ✅ OVERLAY DE BLOQUEIO */}
-  {!isPremium && index > 0 && (
-    <div className="absolute inset-0 bg-gradient-to-br from-purple-900/90 to-pink-900/90 backdrop-blur-sm z-10 rounded-2xl flex items-center justify-center">
-      <div className="text-center p-6">
-        <div className="w-16 h-16 bg-amber-400 rounded-full flex items-center justify-center mx-auto mb-4">
-          <span className="text-3xl">🔒</span>
-        </div>
-        <h3 className="text-white text-xl font-bold mb-2">Fase Premium</h3>
-        <p className="text-white/90 text-sm mb-4">
-          Desbloqueie todas as fases do seu treino
+        {/* ============================================
+            TRIAL WEEK STRIP (Estado B)
+        ============================================ */}
+        {userState === 'B' && <TrialWeekStrip />}
+
+        {/* ============================================
+    INFORMAÇÕES DO MESOCICLO ATUAL
+============================================ */}
+{trainingPlan.mesocycles && trainingPlan.mesocycles[trainingPlan.currentPhase] && (
+  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl p-6 mb-6 border border-blue-100 dark:border-blue-800">
+    <div className="flex items-center gap-3 mb-4">
+      <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
+        <TrendingUp className="w-5 h-5 text-white" />
+      </div>
+      <div>
+        <p className="text-xs text-blue-600 dark:text-blue-400 uppercase tracking-wide font-semibold">Parâmetros Atuais</p>
+        <p className="text-lg font-bold text-gray-900 dark:text-white">
+          {trainingPlan.mesocycles[trainingPlan.currentPhase].name}
         </p>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setPaywallFeature(`Fase ${index + 1}`);
-            setShowPaywall(true);
-          }}
-          className="bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white font-bold py-2 px-6 rounded-xl transition-all"
-        >
-          Assinar Premium
-        </button>
       </div>
     </div>
-  )}
 
-        {/* HEADER DO CARD */}
-        <div className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            {/* Letra e Nome */}
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
-                <span className="text-white font-bold text-xl">{phaseLetter}</span>
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-900 text-lg">{phase.name}</h3>
-                <p className="text-sm text-slate-500">{totalExercises} exercícios</p>
-              </div>
-            </div>
-            
-            {/* Botão de Ação - APENAS EXPANDIR/COLAPSAR */}
-<div className="flex items-center gap-2">
-  <button
-  onClick={() => {
-    // ✅ BLOQUEAR FASES PREMIUM
-    if (!isPremium && index > 0) {
-      setPaywallFeature(`Fase ${index + 1}: ${phase.name}`);
-      setShowPaywall(true);
-      return;
-    }
-    togglePhase(index);
-  }}
-  className="..."
->
-  {!isPremium && index > 0 ? (
-    <>🔒 Ver Exercícios (Premium)</>
-  ) : (
-    'Ver Exercícios'
-  )}
-</button>
-            </div>
-          </div>
-          
-          {/* Tags de Foco */}
-          {phase.focus && phase.focus.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {phase.focus.map((focusItem, idx) => (
-                <span
-                  key={idx}
-                  className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium"
-                >
-                  {focusItem}
-                </span>
-              ))}
-            </div>
-          )}
+    {/* Parâmetros de Treinamento */}
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-3 text-center shadow-sm">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Séries</p>
+        <p className="text-sm font-bold text-gray-900 dark:text-white">
+          {trainingPlan.mesocycles[trainingPlan.currentPhase].parameters.sets}
+        </p>
+      </div>
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-3 text-center shadow-sm">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Reps</p>
+        <p className="text-sm font-bold text-gray-900 dark:text-white">
+          {trainingPlan.mesocycles[trainingPlan.currentPhase].parameters.reps}
+        </p>
+      </div>
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-3 text-center shadow-sm">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Descanso</p>
+        <p className="text-sm font-bold text-gray-900 dark:text-white">
+          {trainingPlan.mesocycles[trainingPlan.currentPhase].parameters.rest}
+        </p>
+      </div>
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-3 text-center shadow-sm">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">RPE</p>
+        <p className="text-sm font-bold text-gray-900 dark:text-white">
+          {trainingPlan.mesocycles[trainingPlan.currentPhase].parameters.rpe}
+        </p>
+      </div>
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-3 text-center shadow-sm">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Intensidade</p>
+        <p className="text-sm font-bold text-gray-900 dark:text-white">
+          {trainingPlan.mesocycles[trainingPlan.currentPhase].parameters.intensity}
+        </p>
+      </div>
+    </div>
+
+    {/* Objetivo */}
+    <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Objetivo desta Fase</p>
+      <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+        {trainingPlan.mesocycles[trainingPlan.currentPhase].objective}
+      </p>
+    </div>
+
+    {/* Cardio (se houver) */}
+    {trainingPlan.mesocycles[trainingPlan.currentPhase].cardio && (
+      <div className="mt-4 bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-100 dark:border-green-800">
+        <div className="flex items-center gap-2 mb-3">
+          <Activity className="w-4 h-4 text-green-600 dark:text-green-400" />
+          <p className="text-xs text-green-700 dark:text-green-400 uppercase tracking-wide font-semibold">Protocolo Cardiovascular</p>
         </div>
-        
-        {/* LISTA DE EXERCÍCIOS (EXPANDÍVEL) */}
-        {isExpanded && (
-          <div className="border-t border-slate-200 bg-slate-50 p-4">
-            <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
-              <Dumbbell className="w-4 h-4" />
-              Exercícios
-            </h4>
-            <div className="space-y-2">
-              {phaseExercises.map((exercise, exIdx) => {
-                const isCompleted = completedExercises.has(exercise.id);
-                const isTimeBasedExercise = (exercise.reps && TIME_PATTERN.test(String(exercise.reps)));
-                
-                return (
-                  <div
-                    key={`${exIdx}-${exercise.id}`}
-                    className={`p-3 rounded-xl transition-all duration-200 ${
-                      isCompleted 
-                        ? 'bg-green-50 border border-green-200' 
-                        : 'bg-white border border-slate-200 hover:border-blue-300'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3 flex-1">
-                        {/* Número do Exercício */}
-                        <div className="w-6 h-6 rounded-lg bg-slate-200 flex items-center justify-center flex-shrink-0">
-                          <span className="text-xs font-bold text-slate-700">{exIdx + 1}</span>
-                        </div>
-                        
-                        {/* Info do Exercício */}
-                        <div className="flex-1">
-                          <h5 className="font-semibold text-slate-900 mb-1">{exercise.name}</h5>
-                          <div className="flex flex-wrap gap-3 text-sm text-slate-600">
-                            <span className="flex items-center gap-1">
-                              <Repeat className="w-3 h-3" />
-                              {exercise.sets} séries
-                            </span>
-                            {isTimeBasedExercise ? (
-                              <span className="flex items-center gap-1">
-                                <Clock className="w-3 h-3" />
-                                {exercise.reps} duração
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-1">
-                                <TrendingUp className="w-3 h-3" />
-                                {exercise.reps} reps
-                              </span>
-                            )}
-                            {exercise.rest_seconds && (
-                              <span className="flex items-center gap-1">
-                                <Clock className="w-3 h-3" />
-                                {exercise.rest_seconds}s descanso
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Botão Ver Detalhes */}
-                      <button
-                        onClick={() => toggleExercise(exercise.id)}
-                        className="px-3 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      >
-                        Ver detalhes
-                      </button>
-                    </div>
-                    
-                    {/* Detalhes Expandidos */}
-                    {expandedExercise === exercise.id && (
-                      <div className="mt-3 pt-3 border-t border-slate-200 space-y-2">
-                        {exercise.instructions && (
-                          <p className="text-sm text-slate-600">{exercise.instructions}</p>
-                        )}
-                        
-                        {(exercise.gif_url || exercise.video_url) && (
-  <div className="flex gap-2">
-    {exercise.gif_url && (
-      <a href={exercise.gif_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
-        Ver demonstração (GIF)
-      </a>
-    )}
-    {exercise.video_url && (
-      <a href={exercise.video_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
-        Assistir vídeo
-      </a>
+        <div className="grid grid-cols-3 gap-3 text-sm">
+          <div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Frequência</p>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+              {trainingPlan.mesocycles[trainingPlan.currentPhase].cardio.frequency}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Duração</p>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+              {trainingPlan.mesocycles[trainingPlan.currentPhase].cardio.duration}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Intensidade</p>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+              {trainingPlan.mesocycles[trainingPlan.currentPhase].cardio.intensity}
+            </p>
+          </div>
+        </div>
+      </div>
     )}
   </div>
 )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+
+        {/* ============================================
+            LISTA DE TREINOS
+        ============================================ */}
+        <div className="space-y-4">
+          {trainingPlan.workouts.map((workout, index) => {
+  // ✅ CORREÇÃO: Garantir que workout tenha estrutura correta
+  const workoutDay = {
+    dayIndex: workout.dayIndex || index + 1,
+    label: workout.label || workout.name || `Treino ${String.fromCharCode(65 + index)}`,
+    description: workout.description || workout.focus || 'Treino personalizado',
+    exercises: workout.exercises || [],
+    focus: workout.focus || [],
+  };
+
+  const isLocked = false; // ← DESABILITAR LOCKS TEMPORARIAMENTE PARA TESTE
+  const isExpanded = expandedPhases.has(workoutDay.dayIndex);
+
+  console.log(`[DEBUG] Renderizando treino ${workoutDay.dayIndex}:`, workoutDay);
+
+  return (
+    <div
+      key={`workout-${workoutDay.dayIndex}`}
+      className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden transition-all duration-300 hover:shadow-xl"
+    >
+      {/* ============================================ */}
+      {/* Header do Treino */}
+      {/* ============================================ */}
+      <button
+  onClick={() => togglePhase(workoutDay.dayIndex)}
+  className="w-full p-6 flex items-center justify-between hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-purple-50/50 dark:hover:from-blue-900/20 dark:hover:to-purple-900/20 transition-all duration-300"
+>
+  <div className="flex items-center gap-4 flex-1">
+    {/* Badge do Dia com Glow */}
+    <div className="relative">
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-purple-600 rounded-xl blur opacity-40"></div>
+      <div className="relative bg-gradient-to-br from-blue-500 to-purple-600 text-white font-black text-lg py-3 px-5 rounded-xl shadow-lg">
+        {workoutDay.phase || `D${workoutDay.dayIndex}`}
+      </div>
+    </div>
+
+    {/* Informações do Treino */}
+    <div className="flex-1 text-left">
+      <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-1">
+        {workoutDay.label}
+      </h3>
+      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+        {workoutDay.description}
+      </p>
+
+      {/* Informações Rápidas */}
+      <div className="flex flex-wrap gap-3 text-xs">
+        <span className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
+          <Dumbbell className="w-3.5 h-3.5 text-blue-600" />
+          <span className="font-medium">{workoutDay.exercises.length} exercícios</span>
+        </span>
+        <span className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
+          <Clock className="w-3.5 h-3.5 text-purple-600" />
+          <span className="font-medium">{workoutDay.exercises.length * 3}-{workoutDay.exercises.length * 5} min estimados</span>
+        </span>
+        {workoutDay.exercises.length > 0 && workoutDay.exercises[0].equipment && (
+          <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full font-medium">
+            {workoutDay.exercises[0].equipment}
+          </span>
+        )}
+      </div>
+      
+      {/* Tags de Foco */}
+      {Array.isArray(workoutDay.focus) && workoutDay.focus.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-3">
+          {workoutDay.focus.map((f: string, i: number) => (
+            <span
+              key={i}
+              className="px-3 py-1 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 text-blue-700 dark:text-blue-400 text-xs font-semibold rounded-full border border-blue-100 dark:border-blue-800"
+            >
+              {f}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+
+  {/* Ícone de Expansão + Badge */}
+  <div className="ml-4 flex flex-col items-end gap-2">
+    <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+      {isExpanded ? 'Ocultar' : 'Ver detalhes'}
+    </div>
+    {isExpanded ? (
+      <ChevronUp className="w-6 h-6 text-gray-400 dark:text-gray-500" />
+    ) : (
+      <ChevronDown className="w-6 h-6 text-gray-400 dark:text-gray-500" />
+    )}
+  </div>
+</button>
+
+      {/* ============================================ */}
+      {/* Conteúdo Expandido - Exercícios */}
+      {/* ============================================ */}
+      {isExpanded && (
+        <div className="px-6 pb-6 space-y-4 bg-gray-50 dark:bg-gray-900/50">
+          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 pt-4">
+            <Dumbbell className="w-4 h-4" />
+            <span>{workoutDay.exercises.length} exercícios</span>
+          </div>
+
+          {/* Lista de Exercícios */}
+          {workoutDay.exercises.length > 0 ? (
+            workoutDay.exercises.map((exercise: any, exIndex: number) => {
+              const exerciseKey = `workout-${workoutDay.dayIndex}-exercise-${exIndex}`;
+              const isExerciseExpanded = expandedExercises.has(exerciseKey);
+
+              return (
+                <div
+                key={exerciseKey}
+                className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-md border-2 border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-700 hover:shadow-lg transition-all duration-300"
+                >
+
+          {/* Header do Exercício */}
+            <button
+              onClick={() => toggleExercise(exerciseKey)}
+              className="w-full flex items-center justify-between text-left"
+            >
+    <div className="flex-1">
+      <div className="flex items-center gap-3 mb-2">
+        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 text-white font-black text-sm rounded-lg flex items-center justify-center shadow-md">
+          {exIndex + 1}
+        </div>
+        <h4 className="font-bold text-gray-900 dark:text-white text-base">
+          {exercise.name}
+        </h4>
+      </div>
+
+      {/* Parâmetros com Design Melhorado */}
+      <div className="flex flex-wrap gap-2 mt-3">
+        <span className="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-blue-100 dark:border-blue-800">
+          <strong>Séries:</strong> {exercise.sets || 3}
+        </span>
+        <span className="px-3 py-1.5 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-purple-100 dark:border-purple-800">
+          <strong>Reps:</strong> {exercise.reps || '10-12'}
+        </span>
+        <span className="px-3 py-1.5 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-green-100 dark:border-green-800">
+          <Clock className="w-3 h-3" />
+          <strong>Descanso:</strong> {exercise.rest || '60s'}
+        </span>
+        {exercise.tempo && (
+          <span 
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowHelpModal(true);
+          }}
+    className="px-3 py-1.5 bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-orange-100 dark:border-orange-800 cursor-pointer active:scale-95 transition-transform"
+  >
+    <strong>Execução:</strong> {exercise.tempo.split('-').map((t: string, i: number) => (
+      <span key={i}>{t}"{i < exercise.tempo.split('-').length - 1 ? '-' : ''}</span>
+    ))}
+    <Info className="w-3 h-3 ml-1 opacity-60" />
+  </span>
+)}
+      </div>
+
+      
+    </div>
+
+    {isExerciseExpanded ? (
+      <ChevronUp className="w-5 h-5 text-gray-400 dark:text-gray-500 ml-4 flex-shrink-0" />
+    ) : (
+      <ChevronDown className="w-5 h-5 text-gray-400 dark:text-gray-500 ml-4 flex-shrink-0" />
+    )}
+  </button>
+
+                  {/* Instruções */}
+                  {isExerciseExpanded && exercise.instructions && (
+                    <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                      <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                        {exercise.instructions}
+                      </p>
+
+                      {/* Botão de Ver Vídeo */}
+                      {exercise.videoUrl && (
+                        <a
+                          href={exercise.videoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-3 inline-flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+                        >
+                          <Play className="w-4 h-4" />
+                          Ver vídeo demonstrativo
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              <Dumbbell className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p>Nenhum exercício disponível para este treino.</p>
             </div>
+          )}          
+        </div>
+      )}
+    </div>
+  );
+})}
+        </div>
+
+{/* ============================================
+    DICA RÁPIDA
+============================================ */}
+<div className="mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl p-6 border border-blue-100 dark:border-blue-800">
+  <div className="flex items-start gap-4">
+    <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-xl flex items-center justify-center flex-shrink-0">
+      <Info className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+    </div>
+    <div>
+      <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
+        Para iniciar um treino, vá para a aba Home
+      </p>
+      <p className="text-xs text-gray-600 dark:text-gray-400">
+        Esta seção é apenas para visualizar e entender seu plano completo
+      </p>
+    </div>
+  </div>
+</div>
+
+        {/* ============================================
+            CTA PARA PREMIUM (Estado C)
+        ============================================ */}
+        {userState === 'C' && (
+          <div className="bg-gradient-to-r from-orange-600 to-red-600 rounded-2xl p-8 text-center shadow-2xl">
+            <Crown className="w-16 h-16 text-white mx-auto mb-4" />
+            <h3 className="text-2xl font-bold text-white mb-3">
+              Desbloqueie Todos os Treinos
+            </h3>
+            <p className="text-white/90 mb-6 max-w-2xl mx-auto">
+              Continue sua jornada de transformação postural! Assine agora e tenha acesso
+              vitalício a todos os treinos, análises e progressões personalizadas.
+            </p>
+            <button
+              onClick={() => window.location.href = '/planos'}
+              className="bg-white hover:bg-slate-100 text-orange-600 font-bold py-4 px-8 rounded-xl
+                         transition-all duration-200 transform hover:scale-105 shadow-lg"
+            >
+              Ver Planos Premium
+            </button>
           </div>
         )}
       </div>
-    );
-  })}
-</div>
 
-      {/* ✅ DICA RÁPIDA */}
-      <div className="mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-100">
-        <div className="flex items-start gap-4">
-          <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Info className="w-5 h-5 text-blue-600" />
+            {/* ============================================
+          MODAL - PERIODIZAÇÃO COMPLETA
+      ============================================ */}
+      {showPeriodizationModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-slate-700 shadow-2xl">
+            {/* Header do Modal */}
+            <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm p-6 border-b border-slate-700 flex items-center justify-between z-10">
+              <div>
+                <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                  <Calendar className="w-7 h-7 text-blue-400" />
+                  Periodização Anual Completa
+                </h2>
+                <p className="text-slate-400 text-sm mt-1">
+                  Planejamento científico de {trainingPlan.totalWeeks} semanas
+                </p>
+              </div>
+              <button
+                onClick={closeAllModals}
+                className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-slate-800 rounded-lg"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Conteúdo - Mesociclos */}
+            <div className="p-6 space-y-6">
+              {trainingPlan.mesocycles && trainingPlan.mesocycles.length > 0 ? (
+                trainingPlan.mesocycles.map((mesocycle, index) => (
+                  <div
+                    key={mesocycle.id}
+                    className="bg-slate-900/50 rounded-xl p-6 border border-slate-700 hover:border-blue-600/50 transition-all"
+                  >
+                    {/* Header do Mesociclo */}
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center">
+                            <span className="text-white font-bold">{index + 1}</span>
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-bold text-white">{mesocycle.name}</h3>
+                            <p className="text-sm text-slate-400">{mesocycle.weeks}</p>
+                          </div>
+                        </div>
+                        <p className="text-slate-300 text-sm">{mesocycle.objective}</p>
+                      </div>
+                    </div>
+
+                    {/* Parâmetros de Treinamento */}
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+                      <div className="bg-slate-800/50 rounded-lg p-3">
+                        <p className="text-xs text-slate-400 mb-1">Séries</p>
+                        <p className="text-white font-bold">{mesocycle.parameters.sets}</p>
+                      </div>
+                      <div className="bg-slate-800/50 rounded-lg p-3">
+                        <p className="text-xs text-slate-400 mb-1">Repetições</p>
+                        <p className="text-white font-bold">{mesocycle.parameters.reps}</p>
+                      </div>
+                      <div className="bg-slate-800/50 rounded-lg p-3">
+                        <p className="text-xs text-slate-400 mb-1">Descanso</p>
+                        <p className="text-white font-bold">{mesocycle.parameters.rest}</p>
+                      </div>
+                      <div className="bg-slate-800/50 rounded-lg p-3">
+                        <p className="text-xs text-slate-400 mb-1">RPE</p>
+                        <p className="text-white font-bold">{mesocycle.parameters.rpe}</p>
+                      </div>
+                      <div className="bg-slate-800/50 rounded-lg p-3">
+                        <p className="text-xs text-slate-400 mb-1">Intensidade</p>
+                        <p className="text-white font-bold">{mesocycle.parameters.intensity}</p>
+                      </div>
+                    </div>
+
+                    {/* Cardio (se houver) */}
+                    {mesocycle.cardio && (
+                      <div className="bg-blue-900/20 rounded-lg p-4 border border-blue-800/30 mb-4">
+                        <h4 className="text-blue-400 font-semibold mb-3 flex items-center gap-2">
+                          <Activity className="w-4 h-4" />
+                          Protocolo Cardiovascular
+                        </h4>
+                        <div className="grid grid-cols-3 gap-3 text-sm">
+                          <div>
+                            <p className="text-slate-400 text-xs">Frequência</p>
+                            <p className="text-white font-semibold">{mesocycle.cardio.frequency}</p>
+                          </div>
+                          <div>
+                            <p className="text-slate-400 text-xs">Duração</p>
+                            <p className="text-white font-semibold">{mesocycle.cardio.duration}</p>
+                          </div>
+                          <div>
+                            <p className="text-slate-400 text-xs">Intensidade</p>
+                            <p className="text-white font-semibold">{mesocycle.cardio.intensity}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Expectativas */}
+                    {mesocycle.expectations && mesocycle.expectations.length > 0 && (
+                      <div>
+                        <h4 className="text-white font-semibold mb-2 text-sm">Resultados Esperados:</h4>
+                        <ul className="space-y-2">
+                          {mesocycle.expectations.map((expectation, idx) => (
+                            <li key={idx} className="flex items-start gap-2 text-sm text-slate-300">
+                              <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
+                              <span>{expectation}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p className="text-slate-500 text-center py-8">Nenhum mesociclo cadastrado</p>
+              )}
+            </div>
+
+            {/* Footer do Modal */}
+<div className="sticky bottom-0 bg-slate-900/95 backdrop-blur-sm p-6 border-t border-slate-700 space-y-3">
+  <button
+    onClick={() => {
+      setShowPeriodizationModal(false);
+      setShowHelpModal(true);
+    }}
+    className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+  >
+    <Info className="w-5 h-5" />
+    Guia: Como Ler os Parâmetros
+  </button>
+  
+  <button
+    onClick={closeAllModals}
+    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all"
+  >
+    Fechar
+  </button>
+</div>
           </div>
+        </div>
+      )}
+
+      {/* ============================================
+    MODAL - CALENDÁRIO SEMANAL
+============================================ */}
+{showWeeklyCalendarModal && (
+  <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+      {/* Header */}
+      <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-purple-600 p-6 flex items-center justify-between z-10">
+        <div className="flex items-center gap-3">
+          <Calendar className="w-7 h-7 text-white" />
           <div>
-            <p className="text-sm font-semibold text-gray-900 mb-1">
-              Para iniciar um treino, vá para a aba Home
-            </p>
-            <p className="text-xs text-gray-600">
-              Esta seção é apenas para visualizar e entender seu plano completo
-            </p>
+            <h2 className="text-2xl font-bold text-white">Calendário Semanal</h2>
+            <p className="text-white/80 text-sm">Organize seus treinos na semana</p>
+          </div>
+        </div>
+        <button
+          onClick={() => setShowWeeklyCalendarModal(false)}
+          className="text-white/80 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"
+        >
+          <X className="w-6 h-6" />
+        </button>
+      </div>
+
+      {/* Conteúdo */}
+      <div className="p-6">
+        {/* Grid de dias da semana */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'].map((dia, index) => {
+            const workout = trainingPlan.workouts[index % trainingPlan.workouts.length];
+            const isRestDay = index % 2 === 1; // Exemplo: intercalar treino/descanso
+
+            return (
+              <div
+                key={dia}
+                className={`rounded-xl p-5 border-2 transition-all ${
+                  isRestDay
+                    ? 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600'
+                    : 'bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border-blue-200 dark:border-blue-700 hover:shadow-md'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <p className="font-bold text-gray-900 dark:text-white">{dia}</p>
+                  {isRestDay ? (
+                    <span className="px-3 py-1 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-full">
+                      Descanso
+                    </span>
+                  ) : (
+                    <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 text-xs font-medium rounded-full">
+                      Treino
+                    </span>
+                  )}
+                </div>
+
+                {!isRestDay && workout && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{workout.label}</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">{workout.description}</p>
+                    <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-2">
+                      <Dumbbell className="w-3 h-3" />
+                      <span>{workout.exercises?.length || 0} exercícios</span>
+                    </div>
+                  </div>
+                )}
+
+                {isRestDay && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Dia de recuperação muscular
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Dica */}
+        <div className="mt-6 bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-100 dark:border-blue-800">
+          <div className="flex items-start gap-3">
+            <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
+                Personalize sua rotina
+              </p>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                Você pode ajustar os dias de treino de acordo com sua disponibilidade.
+                O importante é manter a frequência de {trainingPlan.mesocycles[0]?.parameters.reps || '3-4'}x por semana.
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
-    </div>
-
-    {/* ✅ MODAL: DETALHES DO TREINO */}
-{selectedPhase !== null && (
-  <div 
-    className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-    onClick={() => setSelectedPhase(null)}
-  >
-    <div 
-      className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-      onClick={(e) => e.stopPropagation()}
-    >
-      {(() => {
-        const phase = trainingPlan.phases[selectedPhase];
-        const phaseLetter = String.fromCharCode(65 + selectedPhase);
-        const phaseColors = [
-          { bg: 'from-blue-500 to-indigo-600' },
-          { bg: 'from-purple-500 to-pink-600' },
-          { bg: 'from-green-500 to-emerald-600' },
-        ];
-        const colors = phaseColors[selectedPhase % 3];
-
-        return (
-          <>
-            {/* HEADER DO MODAL */}
-            <div className={`bg-gradient-to-br ${colors.bg} p-8 rounded-t-3xl text-white relative`}>
-              <button
-                onClick={() => setSelectedPhase(null)}
-                className="absolute top-4 right-4 w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors"
-              >
-                <span className="text-2xl">×</span>
-              </button>
-              
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
-                  <span className="text-4xl font-bold">{phaseLetter}</span>
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold">{phase.name}</h2>
-                </div>
-              </div>
-
-              {/* TAGS DE FOCO */}
-              <div className="flex flex-wrap gap-2">
-                {phase.focus.map((focus, idx) => (
-                  <span
-                    key={idx}
-                    className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium"
-                  >
-                    {focus}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* CONTEÚDO DO MODAL */}
-            <div className="p-8">
-              <div className="flex items-center gap-4 text-sm text-gray-600 mb-6">
-                <div className="flex items-center gap-2">
-                  <Dumbbell className="w-4 h-4" />
-                  <span>{phase.exercises.length} exercícios</span>
-                </div>
-              </div>
-
-              <h3 className="text-lg font-bold text-gray-900 mb-4">Exercícios</h3>
-              
-              <div className="space-y-3">
-                {phase.exercises.map((exercise, exIndex) => (
-                  <div
-                    key={exIndex}
-                    className="bg-gray-50 rounded-xl p-4 border border-gray-200"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-sm border border-gray-200">
-                        <span className="text-sm font-bold text-gray-700">{exIndex + 1}</span>
-                      </div>
-                      
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-bold text-gray-900 mb-2">
-                          {exercise.name}
-                        </h4>
-                        
-                        <div className="flex flex-wrap gap-3 text-xs text-gray-600 mb-2">
-                          {exercise.sets && (
-                            <div className="flex items-center gap-1">
-                              <Repeat className="w-3 h-3" />
-                              <span>{exercise.sets} séries</span>
-                            </div>
-                          )}
-                          {exercise.reps && (
-                            <div className="flex items-center gap-1">
-                              <TrendingUp className="w-3 h-3" />
-                              <span>{exercise.reps} reps</span>
-                            </div>
-                          )}
-                          {exercise.rest_seconds && (
-                            <div className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              <span>Descanso {exercise.rest_seconds}s</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {exercise.instructions && (
-                          <p className="text-xs text-gray-600 line-clamp-2">
-                            {exercise.instructions}
-                          </p>
-                        )}
-                      </div>
-
-                      {(exercise.gif_url || exercise.video_url) && (
-                        <div className="flex-shrink-0 w-16 h-16 bg-white rounded-lg overflow-hidden border border-gray-200">
-                          {exercise.gif_url && (
-                            <img
-                              src={exercise.gif_url}
-                              alt={exercise.name}
-                              className="w-full h-full object-cover"
-                            />
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-6 bg-blue-50 rounded-xl p-4 border border-blue-100">
-                <p className="text-sm text-gray-700 text-center">
-                  <span className="font-semibold">💡 Dica:</span> Inicie este treino pela aba Home
-                </p>
-              </div>
-            </div>
-          </>
-        );
-      })()}
+      {/* Footer */}
+      <div className="sticky bottom-0 bg-gray-50 dark:bg-gray-800 p-6 border-t border-gray-200 dark:border-gray-700">
+        <button
+          onClick={() => setShowWeeklyCalendarModal(false)}
+          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold py-3 rounded-xl transition-all"
+        >
+          Fechar
+        </button>
+      </div>
     </div>
   </div>
 )}
 
-{/* ============================================ */}
-{/* MODAL DE PERIODIZAÇÃO - VERSÃO 2.0 ÉPICA    */}
-{/* ============================================ */}
-{showPeriodizationModal && (
-  <div 
-    className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4"
-    onClick={() => setShowPeriodizationModal(false)}
-  >
-    <div 
-      className="bg-gradient-to-br from-white to-gray-50 rounded-3xl shadow-2xl w-full max-w-6xl max-h-[95vh] overflow-hidden flex flex-col"
-      onClick={(e) => e.stopPropagation()}
-    >
-      
-      {/* ============= HEADER ÉPICO ============= */}
-      <div className="relative bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 p-6 md:p-8">
-        {/* Efeitos visuais de fundo */}
-        <div className="absolute inset-0 opacity-20">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl -mr-48 -mt-48"></div>
-          <div className="absolute bottom-0 left-0 w-72 h-72 bg-white rounded-full blur-3xl -ml-36 -mb-36"></div>
-        </div>
-        
-        {/* ✅ AVISO DE FASE DE ADAPTAÇÃO */}
-<div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded-r-lg">
-  <div className="flex items-start gap-3">
-    <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-    <div>
-      <h4 className="font-semibold text-blue-900 mb-1">Fase de Adaptação (Semanas 1-2)</h4>
-      <p className="text-sm text-blue-800">
-        Seu treino começa com <strong>volume reduzido</strong> para garantir segurança, aperfeiçoar técnica e avaliar tolerância. 
-        Siga a prescrição antes de buscar falha muscular. O volume aumentará progressivamente nas próximas semanas.
-      </p>
-    </div>
-  </div>
-</div>
 
-        {/* Botão fechar */}
-        <button
-          onClick={() => setShowPeriodizationModal(false)}
-          className="absolute top-4 right-4 w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-all backdrop-blur-sm z-50 group cursor-pointer"
-          type="button"
-        >
-          <span className="text-2xl text-white group-hover:rotate-90 transition-transform pointer-events-none">×</span>
-        </button>
-        
-        {/* Conteúdo do header */}
-        <div className="relative z-10">
-          
-          {/* Título e objetivo */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
-                  <Target className="w-7 h-7 text-white" />
+      {/* ============================================
+          MODAL - AJUDA/LEGENDA (Mobile Friendly)
+      ============================================ */}
+      {showHelpModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end md:items-center justify-center overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-t-3xl md:rounded-2xl w-full md:max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl pb-safe">
+            {/* Header */}
+            <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-indigo-600 p-6 flex items-center justify-between z-10 rounded-t-3xl md:rounded-t-2xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                  <Info className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-2xl md:text-3xl font-bold text-white">
-                    Seu Plano de Transformação
-                  </h2>
-                  <p className="text-white/90 text-sm">
-                    Periodização científica de 1 ano completo
+                  <h2 className="text-xl font-bold text-white">Como Ler os Parâmetros</h2>
+                  <p className="text-white/80 text-sm">Guia completo para iniciantes</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowHelpModal(false);
+                  setSelectedWorkoutForHelp(null);
+                }}
+                className="text-white/80 hover:text-white transition-colors p-2 active:scale-95"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Conteúdo */}
+            <div className="p-6 space-y-5">
+              {/* 1. Séries */}
+              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-5 border-2 border-blue-100 dark:border-blue-800">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black">
+                    1
+                  </div>
+                  <div>
+                    <p className="font-bold text-gray-900 dark:text-white text-lg">Séries</p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400">Exemplo: 3 séries</p>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                  <strong>Séries</strong> é quantas vezes você vai repetir aquele exercício do início ao fim.
+                </p>
+                <div className="mt-3 bg-white dark:bg-gray-700 rounded-lg p-3 border border-blue-200 dark:border-blue-700">
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    💡 <strong>Exemplo prático:</strong> Se está escrito "3 séries de agachamento", você vai fazer agachamento 3 vezes, com descanso entre cada vez.
                   </p>
                 </div>
               </div>
-              
-              {/* Badge de objetivo */}
-              <div className="flex flex-wrap gap-2">
-                <span className="bg-white/20 backdrop-blur-sm text-white px-4 py-1.5 rounded-full text-sm font-semibold">
-                  🎯 Correção Postural + Hipertrofia
-                </span>
-                <span className="bg-white/20 backdrop-blur-sm text-white px-4 py-1.5 rounded-full text-sm font-semibold">
-                  📍 3x por semana
-                </span>
-              </div>
-            </div>
-            
-            {/* Badge Premium/Free */}
-            <div className="bg-gradient-to-r from-yellow-400 to-orange-500 px-6 py-3 rounded-2xl shadow-lg">
-              <div className="flex items-center gap-2">
-                <Award className="w-5 h-5 text-white" />
-                <span className="text-white font-bold">
-                  {userProfile?.subscription_status === 'active' ? 'PREMIUM' : 'FREE'}
-                </span>
-              </div>
-            </div>
-          </div>
-          
-          {/* Progresso atual - VERSÃO ENXUTA COM 48 SEMANAS */}
-          <div className="bg-white/15 backdrop-blur-md rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-xs text-white/70 uppercase tracking-wide mb-1">Progresso Anual</p>
-                <p className="text-xl font-bold text-white">
-                  Semana {workoutStats?.totalWeeksCompleted || 0}/52
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-white/70 uppercase tracking-wide mb-1">Mesociclo Atual</p>
-                <p className="text-sm font-bold text-white">
-                  {(workoutStats?.totalWeeksCompleted || 0) <= 8 
-                    ? "1. Adaptação"
-                    : (workoutStats?.totalWeeksCompleted || 0) <= 20
-                    ? "2. Hipertrofia"
-                    : (workoutStats?.totalWeeksCompleted || 0) <= 36
-                    ? "3. Força"
-                    : "4. Manutenção"}
-                </p>
-              </div>
-            </div>
-            
-            {/* Barra de progresso ANUAL (48 semanas) */}
-            <div className="relative bg-white/20 rounded-full h-2.5 overflow-hidden">
-              <div
-                className="absolute inset-0 bg-gradient-to-r from-green-400 via-blue-500 to-purple-600 rounded-full transition-all duration-1000 ease-out"
-                style={{ 
-                  width: `${Math.min(((workoutStats?.totalWeeksCompleted || 0) / 52) * 100, 100)}%` 
-                }}
-              />
-            </div>
-            <p className="text-xs text-white/80 text-right mt-1">
-              {Math.round(((workoutStats?.totalWeeksCompleted || 0) / 52) * 100)}% do ano completo
-            </p>
-          </div>
-        </div>
-      </div>
 
-      {/* ============= CONTEÚDO ROLÁVEL ============= */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-8">
-        
-        {/* ============= SEÇÃO: TIMELINE DE MESOCICLOS ============= */}
-        <section className="mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl md:text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <Calendar className="w-6 h-6 text-indigo-600" />
-              Fases da Periodização (1 Ano)
-            </h3>
-            
-            {/* Legenda */}
-            <div className="hidden md:flex items-center gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-green-500 rounded-full"></div>
-                <span className="text-gray-600">Concluído</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
-                <span className="text-gray-600">Atual</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-gray-300 rounded-full"></div>
-                <span className="text-gray-600">Próximo</span>
-              </div>
-            </div>
-          </div>
-          
-          {/* MESOCICLOS EM TIMELINE - AGORA COM 4 FASES */}
-          <div className="space-y-6">
-            
-            {/* ========== FASE 1: ADAPTAÇÃO ANATÔMICA (8 SEMANAS) ========== */}
-            <div className="relative">
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0">
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg ${
-                    (workoutStats?.totalWeeksCompleted || 0) <= 8 
-                      ? 'bg-gradient-to-br from-blue-500 to-indigo-600' 
-                      : 'bg-gradient-to-br from-green-500 to-emerald-600'
-                  }`}>
-                    {(workoutStats?.totalWeeksCompleted || 0) <= 8 ? (
-                      <span className="text-3xl font-bold text-white">1</span>
-                    ) : (
-                      <CheckCircle2 className="w-8 h-8 text-white" />
-                    )}
+              {/* 2. Repetições */}
+              <div className="bg-purple-50 dark:bg-purple-900/20 rounded-2xl p-5 border-2 border-purple-100 dark:border-purple-800">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 bg-purple-600 rounded-xl flex items-center justify-center text-white font-black">
+                    2
+                  </div>
+                  <div>
+                    <p className="font-bold text-gray-900 dark:text-white text-lg">Repetições (Reps)</p>
+                    <p className="text-xs text-purple-600 dark:text-purple-400">Exemplo: 12-15 reps</p>
                   </div>
                 </div>
+                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                  <strong>Repetições</strong> é quantas vezes você faz o movimento em cada série.
+                </p>
+                <div className="mt-3 bg-white dark:bg-gray-700 rounded-lg p-3 border border-purple-200 dark:border-purple-700">
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    💡 <strong>Exemplo prático:</strong> "12-15 reps" significa fazer entre 12 e 15 repetições do movimento. Se diz "3 séries de 12-15 reps", você faz 12-15 repetições, descansa, faz mais 12-15, descansa, e faz mais 12-15.
+                  </p>
+                </div>
+              </div>
+
+              {/* 3. Descanso */}
+              <div className="bg-green-50 dark:bg-green-900/20 rounded-2xl p-5 border-2 border-green-100 dark:border-green-800">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 bg-green-600 rounded-xl flex items-center justify-center text-white font-black">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-gray-900 dark:text-white text-lg">Descanso</p>
+                    <p className="text-xs text-green-600 dark:text-green-400">Exemplo: 60s (60 segundos)</p>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                  <strong>Descanso</strong> é quanto tempo você deve esperar entre uma série e outra.
+                </p>
+                <div className="mt-3 bg-white dark:bg-gray-700 rounded-lg p-3 border border-green-200 dark:border-green-700">
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    💡 <strong>Exemplo prático:</strong> "60s" significa 60 segundos (1 minuto). Após terminar uma série, descanse 1 minuto antes de começar a próxima.
+                  </p>
+                </div>
+              </div>
+
+              {/* 4. Execução (Tempo) */}
+              <div className="bg-orange-50 dark:bg-orange-900/20 rounded-2xl p-5 border-2 border-orange-100 dark:border-orange-800">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 bg-orange-600 rounded-xl flex items-center justify-center text-white font-black">
+                    <TrendingUp className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-gray-900 dark:text-white text-lg">Execução (Tempo)</p>
+                    <p className="text-xs text-orange-600 dark:text-orange-400">Exemplo: 2"-1"-2"-0"</p>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed mb-3">
+                  <strong>Execução</strong> mostra a velocidade de cada parte do movimento, em segundos.
+                </p>
                 
-                <div className="flex-1 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border-2 border-blue-200">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h4 className="text-xl font-bold text-gray-900 mb-1">
-                        Mesociclo 1: Adaptação Anatômica
-                      </h4>
-                      <p className="text-sm text-gray-600">Semanas 1-8 • Duração: 8 semanas</p>
-                    </div>
-                    {(workoutStats?.totalWeeksCompleted || 0) <= 8 && (
-                      <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold">
-                        EM ANDAMENTO
-                      </span>
-                    )}
-                  </div>
+                {/* Explicação visual */}
+                <div className="bg-white dark:bg-gray-700 rounded-xl p-4 border border-orange-200 dark:border-orange-700 space-y-3">
+                  <p className="text-xs font-bold text-gray-800 dark:text-gray-200">Os 4 números representam:</p>
                   
-                  {/* Objetivo */}
-                  <div className="mb-4">
-                    <p className="text-xs font-semibold text-blue-900 uppercase tracking-wide mb-2">
-                      🎯 Objetivo
-                    </p>
-                    <p className="text-sm text-gray-700 leading-relaxed">
-                      Preparar músculos, tendões e articulações para treinos mais intensos. 
-                      Foco em aprender os padrões de movimento corretos e criar uma base sólida.
-                    </p>
-                  </div>
-                  
-                  {/* Grid de parâmetros */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                    <div className="bg-white/60 rounded-lg p-3">
-                      <p className="text-xs text-gray-600 mb-1">Séries x Reps</p>
-                      <p className="text-sm font-bold text-gray-900">3 x 12-15</p>
-                    </div>
-                    <div className="bg-white/60 rounded-lg p-3">
-                      <p className="text-xs text-gray-600 mb-1">Descanso</p>
-                      <p className="text-sm font-bold text-gray-900">60s</p>
-                    </div>
-                    <div className="bg-white/60 rounded-lg p-3">
-                      <p className="text-xs text-gray-600 mb-1">RPE Alvo</p>
-                      <p className="text-sm font-bold text-gray-900">4-6</p>
-                    </div>
-                    <div className="bg-white/60 rounded-lg p-3">
-                      <p className="text-xs text-gray-600 mb-1">Intensidade</p>
-                      <p className="text-sm font-bold text-gray-900">50-60% 1RM</p>
-                    </div>
-                  </div>
-                  
-                  {/* Cardio pós-treino */}
-                  <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-4 border border-orange-200 mb-4">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <TrendingUp className="w-5 h-5 text-orange-600" />
+                  <div className="space-y-2">
+                    <div className="flex items-start gap-2">
+                      <span className="bg-orange-600 text-white font-black text-xs w-6 h-6 rounded flex items-center justify-center flex-shrink-0">1</span>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-800 dark:text-gray-200">Descida (Fase Excêntrica)</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Tempo para abaixar o peso/descer</p>
                       </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-bold text-gray-900 mb-1">
-                          🔥 Cardio Pós-Treino
-                        </p>
-                        <p className="text-sm text-gray-700 mb-2">
-                          <span className="font-semibold">10min</span> • Leve (RPE 3-4)
-                        </p>
-                        <p className="text-xs text-gray-600 italic">
-                          💡 Cardio leve para recovery ativo e adaptação cardiovascular inicial
-                        </p>
+                    </div>
+                    
+                    <div className="flex items-start gap-2">
+                      <span className="bg-orange-600 text-white font-black text-xs w-6 h-6 rounded flex items-center justify-center flex-shrink-0">2</span>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-800 dark:text-gray-200">Pausa Embaixo</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Tempo parado na posição inferior</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-start gap-2">
+                      <span className="bg-orange-600 text-white font-black text-xs w-6 h-6 rounded flex items-center justify-center flex-shrink-0">3</span>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-800 dark:text-gray-200">Subida (Fase Concêntrica)</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Tempo para levantar o peso/subir</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-start gap-2">
+                      <span className="bg-orange-600 text-white font-black text-xs w-6 h-6 rounded flex items-center justify-center flex-shrink-0">4</span>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-800 dark:text-gray-200">Pausa em Cima</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Tempo parado na posição superior</p>
                       </div>
                     </div>
                   </div>
-                  
-                  {/* O que esperar */}
-                  <div className="bg-white/80 rounded-lg p-4 border border-gray-200">
-                    <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                      💪 O que esperar
-                    </p>
-                    <ul className="space-y-2 text-sm text-gray-700">
-                      <li className="flex items-start gap-2">
-                        <span className="text-blue-600 mt-0.5 flex-shrink-0">•</span>
-                        <span>Exercícios com peso corporal e resistência leve</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-blue-600 mt-0.5 flex-shrink-0">•</span>
-                        <span>Foco em técnica perfeita e consciência corporal</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-blue-600 mt-0.5 flex-shrink-0">•</span>
-                        <span>Base sólida para próximas fases</span>
-                      </li>
-                    </ul>
-                  </div>
+                </div>
+
+                {/* Exemplo prático */}
+                <div className="mt-3 bg-gradient-to-r from-orange-100 to-red-50 dark:from-orange-900/30 dark:to-red-900/30 rounded-lg p-4 border-2 border-orange-300 dark:border-orange-700">
+                  <p className="text-xs font-bold text-gray-800 dark:text-gray-200 mb-2">💡 Exemplo prático - Agachamento:</p>
+                  <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
+                    <strong className="text-orange-700 dark:text-orange-400">2"-1"-2"-0"</strong> significa:
+                    <br />
+                    • <strong>2 segundos</strong> descendo (agachando)
+                    <br />
+                    • <strong>1 segundo</strong> parado embaixo
+                    <br />
+                    • <strong>2 segundos</strong> subindo (voltando)
+                    <br />
+                    • <strong>0 segundos</strong> parado em cima (já inicia a próxima repetição)
+                  </p>
                 </div>
               </div>
-              
-              {/* Linha conectora */}
-              <div className="absolute left-8 top-20 w-0.5 h-16 bg-gradient-to-b from-blue-300 to-purple-300"></div>
-            </div>
 
-            {/* ========== FASE 2: HIPERTROFIA FUNCIONAL (12 SEMANAS) ========== */}
-            <div className="relative">
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0">
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg ${
-                    (workoutStats?.totalWeeksCompleted || 0) > 8 && (workoutStats?.totalWeeksCompleted || 0) <= 2
-                      ? 'bg-gradient-to-br from-purple-500 to-pink-600' 
-                      : (workoutStats?.totalWeeksCompleted || 0) > 20
-                      ? 'bg-gradient-to-br from-green-500 to-emerald-600'
-                      : 'bg-gray-200'
-                  }`}>
-                    {(workoutStats?.totalWeeksCompleted || 0) > 20 ? (
-                      <CheckCircle2 className="w-8 h-8 text-white" />
-                    ) : (
-                      <span className={`text-3xl font-bold ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-white' : 'text-gray-400'
-                      }`}>2</span>
-                    )}
-                  </div>
-                </div>
-                
-                <div className={`flex-1 rounded-2xl p-6 border-2 ${
-                  (workoutStats?.totalWeeksCompleted || 0) > 8 && (workoutStats?.totalWeeksCompleted || 0) <= 24
-                    ? 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200'
-                    : 'bg-gray-50 border-gray-200'
-                }`}>
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h4 className={`text-xl font-bold mb-1 ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-900' : 'text-gray-500'
-                      }`}>
-                        Mesociclo 2: Hipertrofia Funcional
-                      </h4>
-                      <p className={`text-sm ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-600' : 'text-gray-400'
-                      }`}>
-                        Semanas 9-24 • Duração: 16 semanas
-                      </p>
-                    </div>
-                    {(workoutStats?.totalWeeksCompleted || 0) > 8 && (workoutStats?.totalWeeksCompleted || 0) <= 20 && (
-                      <span className="bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-bold">
-                        EM ANDAMENTO
-                      </span>
-                    )}
-                  </div>
-                  
-                  {/* Objetivo */}
-                  <div className="mb-4">
-                    <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${
-                      (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-purple-900' : 'text-gray-400'
-                    }`}>
-                      🎯 Objetivo
-                    </p>
-                    <p className={`text-sm leading-relaxed ${
-                      (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-700' : 'text-gray-400'
-                    }`}>
-                      Construir massa muscular funcional para suportar correções posturais. 
-                      Aumento gradual de intensidade e volume de treino.
-                    </p>
-                  </div>
-                  
-                  {/* Grid de parâmetros */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                    <div className={`rounded-lg p-3 ${
-                      (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'bg-white/60' : 'bg-gray-100'
-                    }`}>
-                      <p className={`text-xs mb-1 ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-600' : 'text-gray-400'
-                      }`}>Séries x Reps</p>
-                      <p className={`text-sm font-bold ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-900' : 'text-gray-400'
-                      }`}>4 x 8-10</p>
-                    </div>
-                    <div className={`rounded-lg p-3 ${
-                      (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'bg-white/60' : 'bg-gray-100'
-                    }`}>
-                      <p className={`text-xs mb-1 ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-600' : 'text-gray-400'
-                      }`}>Descanso</p>
-                      <p className={`text-sm font-bold ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-900' : 'text-gray-400'
-                      }`}>90s</p>
-                    </div>
-                    <div className={`rounded-lg p-3 ${
-                      (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'bg-white/60' : 'bg-gray-100'
-                    }`}>
-                      <p className={`text-xs mb-1 ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-600' : 'text-gray-400'
-                      }`}>RPE Alvo</p>
-                      <p className={`text-sm font-bold ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-900' : 'text-gray-400'
-                      }`}>7-8</p>
-                    </div>
-                    <div className={`rounded-lg p-3 ${
-                      (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'bg-white/60' : 'bg-gray-100'
-                    }`}>
-                      <p className={`text-xs mb-1 ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-600' : 'text-gray-400'
-                      }`}>Intensidade</p>
-                      <p className={`text-sm font-bold ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 8 ? 'text-gray-900' : 'text-gray-400'
-                      }`}>65-75% 1RM</p>
-                    </div>
-                  </div>
-                  
-                  {/* O que esperar */}
-                  {(workoutStats?.totalWeeksCompleted || 0) > 8 && (
-                    <div className="bg-white/80 rounded-lg p-4 border border-gray-200">
-                      <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                        💪 O que esperar
-                      </p>
-                      <ul className="space-y-2 text-sm text-gray-700">
-                        <li className="flex items-start gap-2">
-                          <span className="text-purple-600 mt-0.5 flex-shrink-0">•</span>
-                          <span>Aumento de carga e resistência progressiva</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <span className="text-purple-600 mt-0.5 flex-shrink-0">•</span>
-                          <span>Ganhos visíveis de força e definição muscular</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <span className="text-purple-600 mt-0.5 flex-shrink-0">•</span>
-                          <span>Melhora significativa na postura no dia a dia</span>
-                        </li>
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {/* Linha conectora */}
-              <div className="absolute left-8 top-20 w-0.5 h-16 bg-gradient-to-b from-purple-300 to-orange-300"></div>
-            </div>
-
-            {/* ========== FASE 3: FORÇA E POTÊNCIA (16 SEMANAS) ========== */}
-            <div className="relative">
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0">
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg ${
-                    (workoutStats?.totalWeeksCompleted || 0) > 24 && (workoutStats?.totalWeeksCompleted || 0) <= 40
-                      ? 'bg-gradient-to-br from-orange-500 to-red-600' 
-                      : (workoutStats?.totalWeeksCompleted || 0) > 36
-                      ? 'bg-gradient-to-br from-green-500 to-emerald-600'
-                      : 'bg-gray-200'
-                  }`}>
-                    {(workoutStats?.totalWeeksCompleted || 0) > 36 ? (
-                      <CheckCircle2 className="w-8 h-8 text-white" />
-                    ) : (
-                      <span className={`text-3xl font-bold ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 20 ? 'text-white' : 'text-gray-400'
-                      }`}>3</span>
-                    )}
-                  </div>
-                </div>
-                
-                <div className={`flex-1 rounded-2xl p-6 border-2 ${
-                  (workoutStats?.totalWeeksCompleted || 0) > 20 && (workoutStats?.totalWeeksCompleted || 0) <= 36
-                    ? 'bg-gradient-to-br from-orange-50 to-red-50 border-orange-200'
-                    : 'bg-gray-50 border-gray-200'
-                }`}>
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h4 className={`text-xl font-bold mb-1 ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 20 ? 'text-gray-900' : 'text-gray-500'
-                      }`}>
-                        Mesociclo 3: Força e Potência
-                      </h4>
-                      <p className={`text-sm ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 20 ? 'text-gray-600' : 'text-gray-400'
-                      }`}>
-                        Semanas 25-40 • Duração: 16 semanas
-                      </p>
-                    </div>
-                    {(workoutStats?.totalWeeksCompleted || 0) > 20 && (workoutStats?.totalWeeksCompleted || 0) <= 36 && (
-                      <span className="bg-orange-600 text-white px-3 py-1 rounded-full text-xs font-bold">
-                        EM ANDAMENTO
-                      </span>
-                    )}
-                  </div>
-                  
-                  {/* Objetivo */}
-                  <div className="mb-4">
-                    <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${
-                      (workoutStats?.totalWeeksCompleted || 0) > 20 ? 'text-orange-900' : 'text-gray-400'
-                    }`}>
-                      🎯 Objetivo
-                    </p>
-                    <p className={`text-sm leading-relaxed ${
-                      (workoutStats?.totalWeeksCompleted || 0) > 20 ? 'text-gray-700' : 'text-gray-400'
-                    }`}>
-                      Maximizar força e potência muscular. Consolidar todas as correções posturais 
-                      e preparar o corpo para manter os resultados a longo prazo.
-                    </p>
-                  </div>
-                  
-                  {/* Grid de parâmetros */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                    <div className={`rounded-lg p-3 ${
-                      (workoutStats?.totalWeeksCompleted || 0) > 20 ? 'bg-white/60' : 'bg-gray-100'
-                    }`}>
-                      <p className={`text-xs mb-1 ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 20 ? 'text-gray-600' : 'text-gray-400'
-                      }`}>Séries x Reps</p>
-                      <p className={`text-sm font-bold ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 20 ? 'text-gray-900' : 'text-gray-400'
-                      }`}>5 x 6-8</p>
-                    </div>
-                    <div className={`rounded-lg p-3 ${
-                      (workoutStats?.totalWeeksCompleted || 0) > 20 ? 'bg-white/60' : 'bg-gray-100'
-                    }`}>
-                      <p className={`text-xs mb-1 ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 20 ? 'text-gray-600' : 'text-gray-400'
-                      }`}>Descanso</p>
-                      <p className={`text-sm font-bold ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 20 ? 'text-gray-900' : 'text-gray-400'
-                      }`}>120s</p>
-                    </div>
-                    <div className={`rounded-lg p-3 ${
-                      (workoutStats?.totalWeeksCompleted || 0) > 20 ? 'bg-white/60' : 'bg-gray-100'
-                    }`}>
-                      <p className={`text-xs mb-1 ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 20 ? 'text-gray-600' : 'text-gray-400'
-                      }`}>RPE Alvo</p>
-                      <p className={`text-sm font-bold ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 20 ? 'text-gray-900' : 'text-gray-400'
-                      }`}>8-9</p>
-                    </div>
-                    <div className={`rounded-lg p-3 ${
-                      (workoutStats?.totalWeeksCompleted || 0) > 20 ? 'bg-white/60' : 'bg-gray-100'
-                    }`}>
-                      <p className={`text-xs mb-1 ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 20 ? 'text-gray-600' : 'text-gray-400'
-                      }`}>Intensidade</p>
-                      <p className={`text-sm font-bold ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 20 ? 'text-gray-900' : 'text-gray-400'
-                      }`}>75-85% 1RM</p>
-                    </div>
-                  </div>
-                  
-                  {/* O que esperar */}
-                  {(workoutStats?.totalWeeksCompleted || 0) > 20 && (
-                    <div className="bg-white/80 rounded-lg p-4 border border-gray-200">
-                      <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                        💪 O que esperar
-                      </p>
-                      <ul className="space-y-2 text-sm text-gray-700">
-                        <li className="flex items-start gap-2">
-                          <span className="text-orange-600 mt-0.5 flex-shrink-0">•</span>
-                          <span>Cargas mais pesadas com séries de 6-8 repetições</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <span className="text-orange-600 mt-0.5 flex-shrink-0">•</span>
-                          <span>Pico de força e resistência muscular</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <span className="text-orange-600 mt-0.5 flex-shrink-0">•</span>
-                          <span>Postura corrigida e automatizada no cotidiano</span>
-                        </li>
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {/* Linha conectora */}
-              <div className="absolute left-8 top-20 w-0.5 h-16 bg-gradient-to-b from-orange-300 to-green-300"></div>
-            </div>
-
-            {/* ========== FASE 4: MANUTENÇÃO E REFINAMENTO (12 SEMANAS) ========== */}
-            <div className="relative">
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0">
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg ${
-                    (workoutStats?.totalWeeksCompleted || 0) > 40
-                      ? 'bg-gradient-to-br from-green-500 to-emerald-600' 
-                      : 'bg-gray-200'
-                  }`}>
-                    <span className={`text-3xl font-bold ${
-                      (workoutStats?.totalWeeksCompleted || 0) > 40 ? 'text-white' : 'text-gray-400'
-                    }`}>4</span>
-                  </div>
-                </div>
-                
-                <div className={`flex-1 rounded-2xl p-6 border-2 ${
-                  (workoutStats?.totalWeeksCompleted || 0) > 40
-                    ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-200'
-                    : 'bg-gray-50 border-gray-200'
-                }`}>
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h4 className={`text-xl font-bold mb-1 ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 40 ? 'text-gray-900' : 'text-gray-500'
-                      }`}>
-                        Mesociclo 4: Manutenção e Refinamento
-                      </h4>
-                      <p className={`text-sm ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 40 ? 'text-gray-600' : 'text-gray-400'
-                      }`}>
-                        Semanas 41-52 • Duração: 12 semanas
-                      </p>
-                    </div>
-                    {(workoutStats?.totalWeeksCompleted || 0) > 40 && (
-                      <span className="bg-green-600 text-white px-3 py-1 rounded-full text-xs font-bold">
-                        EM ANDAMENTO
-                      </span>
-                    )}
-                  </div>
-                  
-                  {/* Objetivo */}
-                  <div className="mb-4">
-                    <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${
-                      (workoutStats?.totalWeeksCompleted || 0) > 40 ? 'text-green-900' : 'text-gray-400'
-                    }`}>
-                      🎯 Objetivo
-                    </p>
-                    <p className={`text-sm leading-relaxed ${
-                      (workoutStats?.totalWeeksCompleted || 0) > 40 ? 'text-gray-700' : 'text-gray-400'
-                    }`}>
-                      Manter todos os ganhos conquistados e refinar técnica. 
-                      Preparar o corpo para continuar evoluindo de forma sustentável.
-                    </p>
-                  </div>
-                  
-                  {/* Grid de parâmetros */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                    <div className={`rounded-lg p-3 ${
-                      (workoutStats?.totalWeeksCompleted || 0) > 40 ? 'bg-white/60' : 'bg-gray-100'
-                    }`}>
-                      <p className={`text-xs mb-1 ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 40 ? 'text-gray-600' : 'text-gray-400'
-                      }`}>Séries x Reps</p>
-                      <p className={`text-sm font-bold ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 40 ? 'text-gray-900' : 'text-gray-400'
-                      }`}>4 x 8-12</p>
-                    </div>
-                    <div className={`rounded-lg p-3 ${
-                      (workoutStats?.totalWeeksCompleted || 0) > 40 ? 'bg-white/60' : 'bg-gray-100'
-                    }`}>
-                      <p className={`text-xs mb-1 ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 40 ? 'text-gray-600' : 'text-gray-400'
-                      }`}>Descanso</p>
-                      <p className={`text-sm font-bold ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 40 ? 'text-gray-900' : 'text-gray-400'
-                      }`}>75s</p>
-                    </div>
-                    <div className={`rounded-lg p-3 ${
-                      (workoutStats?.totalWeeksCompleted || 0) > 40 ? 'bg-white/60' : 'bg-gray-100'
-                    }`}>
-                      <p className={`text-xs mb-1 ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 40 ? 'text-gray-600' : 'text-gray-400'
-                      }`}>RPE Alvo</p>
-                      <p className={`text-sm font-bold ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 40 ? 'text-gray-900' : 'text-gray-400'
-                      }`}>6-8</p>
-                    </div>
-                    <div className={`rounded-lg p-3 ${
-                      (workoutStats?.totalWeeksCompleted || 0) > 40 ? 'bg-white/60' : 'bg-gray-100'
-                    }`}>
-                      <p className={`text-xs mb-1 ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 40 ? 'text-gray-600' : 'text-gray-400'
-                      }`}>Intensidade</p>
-                      <p className={`text-sm font-bold ${
-                        (workoutStats?.totalWeeksCompleted || 0) > 40 ? 'text-gray-900' : 'text-gray-400'
-                      }`}>60-75% 1RM</p>
-                    </div>
-                  </div>
-                  
-                  {/* O que esperar */}
-                  {(workoutStats?.totalWeeksCompleted || 0) > 40 && (
-                    <div className="bg-white/80 rounded-lg p-4 border border-gray-200">
-                      <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                        💪 O que esperar
-                      </p>
-                      <ul className="space-y-2 text-sm text-gray-700">
-                        <li className="flex items-start gap-2">
-                          <span className="text-green-600 mt-0.5 flex-shrink-0">•</span>
-                          <span>Manutenção de todos os ganhos conquistados</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <span className="text-green-600 mt-0.5 flex-shrink-0">•</span>
-                          <span>Postura automatizada e natural no dia a dia</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <span className="text-green-600 mt-0.5 flex-shrink-0">•</span>
-                          <span>Corpo preparado para novos desafios</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <span className="text-green-600 mt-0.5 flex-shrink-0">•</span>
-                          <span>Prevenção de platô e adaptação</span>
-                        </li>
-                      </ul>
-                    </div>
-                  )}
+              {/* Resumo Final */}
+              <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-5 text-white">
+                <p className="font-bold text-lg mb-2">✅ Resumindo:</p>
+                <div className="space-y-1 text-sm">
+                  <p><strong>Séries:</strong> Quantas vezes fazer o exercício</p>
+                  <p><strong>Reps:</strong> Quantas repetições em cada série</p>
+                  <p><strong>Descanso:</strong> Tempo de pausa entre séries</p>
+                  <p><strong>Execução:</strong> Velocidade do movimento (descida-pausa-subida-pausa)</p>
                 </div>
               </div>
             </div>
-          </div>
-        </section>
-        
-{/* ============= SEÇÃO: CALENDÁRIO SEMANAL (DINÂMICO COM DIAS REAIS) ============= */}
-<section className="mb-8">
-  <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-    <Calendar className="w-6 h-6 text-indigo-600" />
-    Seu Calendário Semanal
-  </h3>
-  
-  <div className="bg-white rounded-2xl p-6 border-2 border-gray-200">
-    <div className="grid grid-cols-7 gap-2">
-      {(() => {
-        // ✅ BUSCAR DADOS DO USUÁRIO
-        let userProfileData = userProfile;
-        
-        if (!userProfileData || !userProfileData.trainingDays) {
-          const stored = localStorage.getItem('userProfile');
-          if (stored) {
-            userProfileData = JSON.parse(stored);
-          }
-        }
-        
-        console.log("📅 [CALENDAR DEBUG] userProfile completo:", userProfileData);
-        console.log("📅 [CALENDAR DEBUG] trainingDays:", userProfileData?.trainingDays);
-        console.log("📅 [CALENDAR DEBUG] exercise_frequency:", userProfileData?.exercise_frequency);
-        
-        const daysOfWeek = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
-        // ✅ CALCULAR DIAS DE TREINO
-const calculateTrainingDays = (frequency: number): number[] => {
-  if (frequency === 2) return [1, 4];
-  if (frequency === 3) return [1, 3, 5];
-  if (frequency === 4) return [1, 2, 4, 5];
-  if (frequency === 5) return [1, 2, 3, 4, 5];
-  if (frequency === 6) return [1, 2, 3, 4, 5, 6];
-  if (frequency >= 7) return [0, 1, 2, 3, 4, 5, 6];
-  return [1, 3, 5];
-};
 
-const trainingFrequency = trainingPlan?.phases?.length || 3;
-const trainingDaysIndexes = calculateTrainingDays(trainingFrequency);
-
-console.log(`📅 [CALENDAR] Frequência: ${trainingFrequency}x/semana | Dias: [${trainingDaysIndexes.join(', ')}]`);
-        const phases = trainingPlan.phases || [];
-        
-        // ✅ MAPEAR DIAS SELECIONADOS PELO USUÁRIO
-        const userSelectedDays = userProfileData?.trainingDays || [];
-        
-        // Mapeamento: 'seg' → 0 (índice do array daysOfWeek)
-        const dayMapping: Record<string, number> = {
-          'seg': 0,
-          'ter': 1,
-          'qua': 2,
-          'qui': 3,
-          'sex': 4,
-          'sab': 5,
-          'dom': 6
-        };
-        
-        // Converter ['seg', 'ter', 'qui', 'sex', 'sab'] → [0, 1, 3, 4, 5]
-        let trainingDays: number[] = userSelectedDays
-          .map((day: string) => dayMapping[day.toLowerCase()])
-          .filter((index: number) => index !== undefined);
-        
-        console.log("📅 [CALENDAR DEBUG] Dias selecionados:", userSelectedDays);
-        console.log("📅 [CALENDAR DEBUG] Índices mapeados:", trainingDays);
-        
-        // ✅ FALLBACK: Se não tiver trainingDays, usar frequência genérica
-        if (trainingDays.length === 0) {
-          console.warn("⚠️ [CALENDAR] trainingDays vazio, usando frequência genérica");
-          const frequency = parseInt(userProfileData?.exercise_frequency || '3');
-          
-          if (frequency === 2) trainingDays = [0, 3];
-          else if (frequency === 3) trainingDays = [0, 2, 4];
-          else if (frequency === 4) trainingDays = [0, 2, 3, 5];
-          else if (frequency === 5) trainingDays = [0, 1, 3, 4, 5];
-          else if (frequency >= 6) trainingDays = [0, 1, 2, 3, 4, 5];
-          else trainingDays = [0, 2, 4];
-          
-          console.log("📅 [CALENDAR] Fallback - Frequência:", frequency, "→ Dias:", trainingDays);
-        }
-        
-        // ✅ DISTRIBUIR FASES NOS DIAS DE TREINO - SUPORTA ATÉ 7 FASES
-const weekSchedule = daysOfWeek.map((day, dayIndex) => {
-  const isTrainingDay = trainingDaysIndexes.includes(dayIndex);
-  
-  if (!isTrainingDay) {
-    return { day, activity: 'Descanso', color: 'bg-slate-100 text-slate-500' };
-  }
-  
-  // Calcular qual fase (A, B, C, D, E, F, G) vai neste dia
-  const trainingDayPosition = trainingDaysIndexes.indexOf(dayIndex);
-  const totalPhases = trainingPlan?.phases?.length || 3;
-  const phaseIndex = trainingDayPosition % totalPhases;
-  const phaseLetter = String.fromCharCode(65 + phaseIndex); // A=65, B=66, C=67...
-  
-  // Cores diferentes para cada fase
-  const phaseColors = [
-    'bg-blue-500 text-white',    // A
-    'bg-green-500 text-white',   // B
-    'bg-purple-500 text-white',  // C
-    'bg-orange-500 text-white',  // D
-    'bg-pink-500 text-white',    // E
-    'bg-indigo-500 text-white',  // F
-    'bg-teal-500 text-white'     // G
-  ];
-  
-  return {
-    day,
-    activity: `Treino ${phaseLetter}`,
-    color: phaseColors[phaseIndex] || 'bg-blue-500 text-white'
-  };
-});
-        
-        console.log("📅 [CALENDAR DEBUG] Schedule final:", weekSchedule);
-        
-        // ✅ RENDERIZAR
-        return daysOfWeek.map((day, index) => {
-          const schedule = weekSchedule[index];
-          const isWorkout = schedule.activity.includes('Treino');
-          const isStretch = schedule.activity.includes('Alongamento');
-          const isRest = schedule.activity.includes('Descanso');
-          
-          return (
-            <div key={day} className="text-center">
-              <p className="text-xs font-semibold text-gray-600 mb-2">{day}</p>
-              <div className={`rounded-xl p-3 ${
-                isWorkout ? "bg-gradient-to-br from-blue-500 to-indigo-600 text-white" :
-                isStretch ? "bg-gradient-to-br from-green-500 to-teal-600 text-white" :
-                "bg-gray-100 text-gray-500"
-              }`}>
-                {isWorkout && (
-  <>
-    <p className="text-xl font-bold">{schedule.activity}</p>
-    <p className="text-xs mt-1 opacity-80">Treino completo</p>
-  </>
-)}
-                {isStretch && (
-                  <>
-                    <p className="text-xl">🧘</p>
-                    <p className="text-xs mt-1 font-semibold">Alongamento</p>
-                  </>
-                )}
-                {isRest && (
-                  <>
-                    <p className="text-xl">😴</p>
-                    <p className="text-xs mt-1">Descanso</p>
-                  </>
-                )}
-              </div>
-            </div>
-          );
-        });
-      })()}
-    </div>
-    
-    <div className="mt-6 bg-blue-50 rounded-xl p-4 border border-blue-200">
-      <p className="text-sm text-gray-700">
-        <span className="font-bold">💡 Dica:</span> Mantenha consistência nos dias escolhidos para melhores resultados!
-      </p>
-    </div>
-  </div>
-</section>
-        
-        {/* ============= SEÇÃO: CRITÉRIOS DE PROGRESSÃO (MANTÉM IGUAL) ============= */}
-        <section>
-          <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <TrendingUp className="w-6 h-6 text-indigo-600" />
-            Como Progredir
-          </h3>
-          
-          <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-6 border-2 border-amber-200">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                <span className="text-2xl">📈</span>
-              </div>
-              <div>
-                <p className="text-sm font-bold text-gray-900 mb-2">Critério de Progressão</p>
-                <p className="text-sm text-gray-700 leading-relaxed mb-4">
-                  Quando conseguir completar todas as séries no limite superior do range de reps 
-                  (ex: 4x10 em vez de 4x8) com RPE menor que o alvo da fase, 
-                  <strong> aumente a carga em 2,5-5kg</strong> e volte para o limite inferior do range.
-                </p>
-                <div className="bg-white/60 rounded-lg p-4">
-                  <p className="text-xs font-semibold text-gray-700 mb-2">Exemplo prático:</p>
-                  <ul className="space-y-1 text-xs text-gray-600">
-                    <li>• Semana 1: 4x8 com 50kg (RPE 8)</li>
-                    <li>• Semana 2: 4x9 com 50kg (RPE 7)</li>
-                    <li>• Semana 3: 4x10 com 50kg (RPE 6) → <strong className="text-green-600">AUMENTAR CARGA!</strong></li>
-                    <li>• Semana 4: 4x8 com 52,5kg (RPE 8) → <strong>Ciclo reinicia</strong></li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-        
-      </div>
-    </div>
-  </div>
-)}
-
-{/* ✅ MODAL: ESCALA DE BORG */}
-{showBorgModal && (
-  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-    <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
-      <div className="text-center mb-6">
-        <div className="mx-auto w-16 h-16 bg-gradient-to-r from-orange-400 to-red-500 rounded-full flex items-center justify-center mb-4">
-          <span className="text-3xl">💪</span>
-        </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
-          Como foi o treino?
-        </h2>
-        <p className="text-sm text-gray-600">
-          Avalie a dificuldade de 1 (muito fácil) a 10 (máximo esforço)
-        </p>
-      </div>
-
-      {/* ESCALA VISUAL */}
-      <div className="grid grid-cols-5 gap-2 mb-6">
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((score) => (
-          <button
-            key={score}
-            onClick={() => setBorgScore(score)}
-            className={`h-16 rounded-xl font-bold text-lg transition-all ${
-              borgScore === score
-                ? score <= 3
-                  ? 'bg-green-500 text-white shadow-lg scale-110'
-                  : score <= 6
-                  ? 'bg-yellow-500 text-white shadow-lg scale-110'
-                  : score <= 8
-                  ? 'bg-orange-500 text-white shadow-lg scale-110'
-                  : 'bg-red-500 text-white shadow-lg scale-110'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            {score}
-          </button>
-        ))}
-      </div>
-
-      {/* LEGENDA */}
-      <div className="bg-gray-50 rounded-xl p-4 mb-6 text-xs text-gray-600 space-y-1">
-        <p><span className="font-bold text-green-600">1-3:</span> Muito fácil, pode aumentar carga</p>
-        <p><span className="font-bold text-yellow-600">4-6:</span> Moderado - Perfeito para técnica</p>
-        <p><span className="font-bold text-orange-600">7-8:</span> Intenso - Ideal para ganhos</p>
-        <p><span className="font-bold text-red-600">9-10:</span> Máximo - Seu melhor esforço! 🔥</p>
-      </div>
-
-      {/* BOTÃO CONTINUAR - AGORA SALVA TUDO */}
-      <button
-        onClick={() => {
-          if (!borgScore) {
-            toast.warning('Selecione uma nota de 1 a 10');
-            return;
-          }
-          
-          console.log('🔥 [BORG] Usuário selecionou RPE:', borgScore);
-          
-          // ✅ RECUPERAR SESSÃO TEMPORÁRIA
-          const tempSession = localStorage.getItem('tempWorkoutSession');
-          if (tempSession) {
-            const session = JSON.parse(tempSession) as WorkoutSession;
-            
-            // ✅ ADICIONAR RPE À SESSÃO
-            session.averageRPE = borgScore;
-            
-            // ✅ PROCESSAR EXERCÍCIOS
-            const processedSession = {
-              ...session,
-              exercises: session.exercises.map(ex => ({
-                ...ex,
-                reps: typeof ex.reps === 'string' 
-                  ? (TIME_PATTERN.test(ex.reps) ? 0 : parseInt(ex.reps, 10) || 0)
-                  : (ex.reps || 0)
-              }))
-            };
-            
-            // ✅ SALVAR NO HISTÓRICO
-            saveWorkoutSession(processedSession);
-            
-            // ✅ SALVAR PROGRESSO
-            saveWorkoutProgress(
-              userProfile?.id || 'guest',
-              session.phaseName,
-              session.exercises.filter(e => e.completed).map((e, idx) => `phase-${showActiveWorkout}-exercise-${idx}`),
-              Math.floor(session.duration / 60)
-            );
-            
-            // ✅ LIMPAR TEMPORÁRIO
-            localStorage.removeItem('tempWorkoutSession');
-            
-            console.log('✅ [BORG] Sessão salva com RPE:', borgScore);
-            console.log('✅ [BORG] Sessão completa:', processedSession);
-            
-            toast.success(`Treino salvo! RPE: ${borgScore}/10 🎉`);
-          }
-          
-          // ✅ FECHAR BORG E ABRIR COMPLETION MODAL
-          setShowBorgModal(false);
-          setShowCompletionModal(true);
-        }}
-        disabled={!borgScore}
-        className={`w-full py-4 rounded-xl font-bold transition-all ${
-          borgScore
-            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700'
-            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-        }`}
-      >
-        {borgScore ? `Salvar RPE ${borgScore} e Continuar` : 'Selecione uma nota'}
-      </button>
-    </div>
-  </div>
-)}
-
-    {/* ✅ MODAL DE CONCLUSÃO (MANTÉM) */}
-    {showCompletionModal && (() => {
-      const lastSession = getWorkoutHistory(userProfile?.id || 'guest').slice(-1)[0];
-      
-      return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
-            <div className="text-center">
-              <div className="mx-auto w-20 h-20 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full flex items-center justify-center mb-4">
-                <CheckCircle2 className="w-12 h-12 text-white" />
-              </div>
-              
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">🎉 Parabéns!</h2>
-              <p className="text-xl text-gray-700 mb-4">
-                <span className="font-bold text-blue-600">{completedPhaseName}</span> concluído!
-              </p>
-              
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 mb-6">
-                <p className="text-sm text-gray-600 mb-1">Tempo de Treino</p>
-                <p className="text-3xl font-bold text-gray-900">{formatTime(workoutTimer)}</p>
-              </div>
-              
-              {lastSession && (
-                <div className="grid grid-cols-2 gap-3 mb-6">
-                  <div className="bg-green-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-600">Exercícios</p>
-                    <p className="text-2xl font-bold text-green-600">
-                      {lastSession.exercises.filter(e => e.completed).length}
-                    </p>
-                  </div>
-                  <div className="bg-blue-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-600">Séries</p>
-                    <p className="text-2xl font-bold text-blue-600">{lastSession.totalSets || 0}</p>
-                  </div>
-                  <div className="bg-purple-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-600">Repetições</p>
-                    <p className="text-2xl font-bold text-purple-600">{lastSession.totalReps || 0}</p>
-                  </div>
-                  <div className="bg-orange-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-600">Calorias</p>
-                    <p className="text-2xl font-bold text-orange-600">~{lastSession.estimatedCalories || 0}</p>
-                  </div>
-                </div>
-              )}
-              
-              <p className="text-sm text-gray-600 mb-6">
-                Continue assim! Cada treino te aproxima dos seus objetivos.
-              </p>
-              
+            {/* Footer */}
+            <div className="sticky bottom-0 bg-gray-50 dark:bg-gray-800 p-6 border-t border-gray-200 dark:border-gray-700">
               <button
-                onClick={() => setShowCompletionModal(false)}
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 transition"
+                onClick={() => {
+                  setShowHelpModal(false);
+                  setSelectedWorkoutForHelp(null);
+                }}
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-4 rounded-xl transition-all active:scale-95"
               >
-                Continuar
+                Entendi!
               </button>
             </div>
           </div>
         </div>
-      );
-    })()}
-  </div>
-);
+      )}
+
+      {/* ============================================
+          MODAL - PAYWALL (Trial Expirado)
+      ============================================ */}
+      {showPaywallModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl max-w-2xl w-full border border-slate-700 shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-orange-600 to-red-600 p-6 text-center relative">
+              <button
+                onClick={closeAllModals}
+                className="absolute top-4 right-4 text-white/80 hover:text-white transition-colors p-2"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <Crown className="w-16 h-16 text-white mx-auto mb-4" />
+              <h2 className="text-3xl font-bold text-white mb-2">
+                Conteúdo Premium
+              </h2>
+              <p className="text-white/90">
+                Seu período de avaliação gratuito terminou
+              </p>
+            </div>
+
+            {/* Conteúdo */}
+            <div className="p-8">
+              <p className="text-slate-300 text-center mb-6">
+                Para continuar acessando a periodização completa, análises detalhadas
+                e todos os treinos personalizados, assine um dos nossos planos.
+              </p>
+
+              {/* Benefícios */}
+              <div className="bg-slate-900/50 rounded-xl p-6 mb-6 space-y-3">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-slate-300 text-sm">
+                    <strong className="text-white">Acesso vitalício</strong> a todos os treinos
+                  </p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-slate-300 text-sm">
+                    <strong className="text-white">Periodização completa</strong> de 52 semanas
+                  </p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-slate-300 text-sm">
+                    <strong className="text-white">Progressão inteligente</strong> e adaptativa
+                  </p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-slate-300 text-sm">
+                    <strong className="text-white">Suporte prioritário</strong> e atualizações gratuitas
+                  </p>
+                </div>
+              </div>
+
+              {/* CTAs */}
+              <div className="space-y-3">
+                <button
+                  onClick={() => window.location.href = '/planos'}
+                  className="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700
+                             text-white font-bold py-4 rounded-xl shadow-lg
+                             transition-all duration-200 transform hover:scale-[1.02]"
+                >
+                  Ver Planos e Preços
+                </button>
+                <button
+                  onClick={closeAllModals}
+                  className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 rounded-xl transition-all"
+                >
+                  Voltar
+                </button>
+              </div>
+
+              {/* Garantia */}
+              <p className="text-center text-xs text-slate-500 mt-4">
+                💎 Garantia de 7 dias • Cancele quando quiser
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

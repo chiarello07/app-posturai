@@ -231,13 +231,13 @@ export default function HomePage({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-gray-100 to-slate-200 pb-24">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-gray-100 to-slate-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 pb-24">
       <header className="flex justify-between items-center p-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
             Olá, {firstName}
           </h1>
-          <p className="text-gray-600">Que bom ter você de volta!</p>
+          <p className="text-gray-600 dark:text-gray-400">Que bom ter você de volta!</p>
         </div>
         <button
           onClick={onNavigateToProfile}
@@ -251,16 +251,16 @@ export default function HomePage({
         {/* Card Boost Rotativo */}
         {currentBoostTip && (
           <section>
-            <div className={`relative bg-gradient-to-br ${currentBoostTip.bgGradient} border border-gray-200 rounded-2xl p-4 shadow-lg hover:shadow-xl transition-all overflow-hidden`}>
-              <div className="absolute top-3 right-3 flex items-center gap-1 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full shadow-sm">
+            <div className={`relative bg-gradient-to-br ${currentBoostTip.bgGradient} dark:opacity-90 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 shadow-lg hover:shadow-xl transition-all overflow-hidden`}>
+              <div className="absolute top-3 right-3 flex items-center gap-1 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm px-2 py-1 rounded-full shadow-sm">
                 <Sparkles className="w-3 h-3 text-pink-500" />
-                <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wide">
+                <span className="text-[10px] font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
                   Boost
                 </span>
               </div>
 
               <div className="flex items-center gap-3">
-                <div className="flex-shrink-0 w-14 h-14 bg-white/80 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-md">
+                <div className="flex-shrink-0 w-14 h-14 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-md">
                   <span className="text-3xl">{currentBoostTip.icon}</span>
                 </div>
 
@@ -268,10 +268,10 @@ export default function HomePage({
                   <h3 className={`text-base font-bold ${currentBoostTip.color} mb-0.5 truncate`}>
                     {currentBoostTip.title}
                   </h3>
-                  <p className="text-xs text-gray-700 mb-2 line-clamp-1">
+                  <p className="text-xs text-gray-700 dark:text-gray-300 mb-2 line-clamp-1">
                     {currentBoostTip.subtitle}
                   </p>
-                  <p className="text-[11px] text-gray-600 font-medium line-clamp-2 leading-snug">
+                  <p className="text-[11px] text-gray-600 dark:text-gray-400 font-medium line-clamp-2 leading-snug">
                     💡 {currentBoostTip.cta}
                   </p>
                 </div>
@@ -307,7 +307,7 @@ export default function HomePage({
 
         {/* Card Sua Semana */}
         <section>
-          <div className="bg-gradient-to-br from-purple-600 via-purple-500 to-pink-500 rounded-3xl p-6 shadow-2xl">
+          <div className="bg-gradient-to-br from-purple-600 via-purple-500 to-pink-500 dark:from-purple-700 dark:via-purple-600 dark:to-pink-600 rounded-3xl p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-white">Sua Semana</h2>
               <span className="text-sm bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm text-white">
@@ -362,42 +362,25 @@ export default function HomePage({
           </div>
         </section>
 
-{/* ✅ AVISO: JÁ TREINOU HOJE */}
-{nextWorkout.alreadyTrainedToday && (
-  <div className="bg-green-50 border-2 border-green-500 rounded-3xl p-6 text-center mb-4">
-    <div className="flex items-center justify-center gap-2 mb-2">
-      <CheckCircle2 className="w-8 h-8 text-green-600" />
-      <p className="text-2xl font-bold text-green-600">Treino Concluído Hoje!</p>
-    </div>
-    <p className="text-gray-600 mb-4">
-      Ótimo trabalho! O descanso faz parte do treinamento. Volte amanhã para continuar sua jornada.
-    </p>
-    <div className="bg-white rounded-lg p-3 inline-block">
-      <p className="text-sm text-gray-600">Próximo treino:</p>
-      <p className="text-xl font-bold text-gray-900">Treino {nextWorkout.letter}</p>
-    </div>
-  </div>
-)}
-
 {/* Botão Iniciar Treino */}
 <section>
   {nextWorkout.alreadyTrainedToday ? (
-            <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-500 rounded-3xl p-6 text-center shadow-lg">
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-2 border-green-500 dark:border-green-600 rounded-3xl p-6 text-center shadow-lg">
               <div className="flex items-center justify-center gap-2 mb-2">
-                <CheckCircle2 className="w-8 h-8 text-green-600" />
-                <p className="text-2xl font-bold text-green-600">Treino Concluído Hoje!</p>
+                <CheckCircle2 className="w-8 h-8 text-green-600 dark:text-green-400" />
+                <p className="text-2xl font-bold text-green-600 dark:text-green-400">Treino Concluído Hoje!</p>
               </div>
-              <p className="text-gray-600 mb-4">Ótimo trabalho! Volte amanhã para continuar sua jornada.</p>
-              <div className="bg-white rounded-lg p-3 inline-block">
-                <p className="text-sm text-gray-600">Próximo treino:</p>
-                <p className="text-xl font-bold text-gray-900">Treino {nextWorkout.letter}</p>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">Ótimo trabalho! Volte amanhã para continuar sua jornada.</p>
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-3 inline-block">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Próximo treino:</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">Treino {nextWorkout.letter}</p>
               </div>
             </div>
           ) : (
             <button
   onClick={handleStartTraining}
   disabled={!hasAnalysis || nextWorkout.alreadyTrainedToday}
-  className={`w-full bg-gradient-to-r from-green-500 to-emerald-600 rounded-3xl p-6 flex items-center justify-between transition-all shadow-2xl ${
+  className={`w-full bg-gradient-to-r from-green-500 to-emerald-600 dark:from-green-600 dark:to-emerald-700 rounded-3xl p-6 flex items-center justify-between transition-all shadow-2xl ${
     !hasAnalysis || nextWorkout.alreadyTrainedToday
       ? 'opacity-50 cursor-not-allowed'
       : 'hover:scale-[1.02] hover:shadow-green-500/50'
@@ -425,39 +408,39 @@ export default function HomePage({
 
                 {/* Ações Rápidas */}
         <section>
-          <h3 className="text-sm font-semibold text-gray-500 mb-3 px-1">Ações Rápidas</h3>
+          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3 px-1">Ações Rápidas</h3>
           <div className="grid grid-cols-3 gap-3">
             {/* ✅ BOTÃO 1: PLANO DE TREINO */}
             <button
               onClick={handleShowTrainingPlan}
-              className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col items-center gap-2 hover:scale-105 transition-all shadow-lg hover:shadow-xl"
+              className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 flex flex-col items-center gap-2 hover:scale-105 transition-all shadow-lg hover:shadow-xl"
             >
               <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
                 <FileText className="w-6 h-6 text-white" />
               </div>
-              <span className="text-xs font-medium text-center text-gray-700">Plano de Treino</span>
+              <span className="text-xs font-medium text-center text-gray-700 dark:text-gray-300">Plano de Treino</span>
             </button>
 
             {/* ✅ BOTÃO 2: ANÁLISE */}
             <button
               onClick={onStartPosturalAnalysis}
-              className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col items-center gap-2 hover:scale-105 transition-all shadow-lg hover:shadow-xl"
+              className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 flex flex-col items-center gap-2 hover:scale-105 transition-all shadow-lg hover:shadow-xl"
             >
               <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
                 <Activity className="w-6 h-6 text-white" />
               </div>
-              <span className="text-xs font-medium text-center text-gray-700">Análise</span>
+              <span className="text-xs font-medium text-center text-gray-700 dark:text-gray-300">Análise</span>
             </button>
 
             {/* ✅ BOTÃO 3: BOOST POSTURAI */}
             <button
               onClick={handleShowBoostPosturAI}
-              className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col items-center gap-2 hover:scale-105 transition-all shadow-lg hover:shadow-xl"
+              className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 flex flex-col items-center gap-2 hover:scale-105 transition-all shadow-lg hover:shadow-xl"
             >
               <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
                 <Zap className="w-6 h-6 text-white" />
               </div>
-              <span className="text-xs font-medium text-center text-gray-700 leading-tight">Boost PosturAI</span>
+              <span className="text-xs font-medium text-center text-gray-700 dark:text-gray-300 leading-tight">Boost PosturAI</span>
             </button>
           </div>
         </section>
@@ -497,4 +480,3 @@ export default function HomePage({
     </div>
   );
 }
-

@@ -6,6 +6,8 @@ import "./globals.css";
 // Import all available fonts for AI usage
 import "../lib/fonts";
 import { Toaster } from 'sonner';
+import { TrialProvider } from '@/contexts/TrialContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,8 +20,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Criado com a Lasy",
-  description: "Projeto criado com Lasy AI",
+  title: "PosturAI - Análise Postural + Treinos Inteligentes",
+  description: "Plataforma SaaS de análise postural com IA e geração inteligente de treinos personalizados",
 };
 
 export default function RootLayout({
@@ -28,14 +30,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
         <Script src="/lasy-bridge.js" strategy="beforeInteractive" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <ThemeProvider>
+          <TrialProvider>
+            {children}
+          </TrialProvider>
+        </ThemeProvider>
         <Toaster position="top-center" richColors />
       </body>
     </html>

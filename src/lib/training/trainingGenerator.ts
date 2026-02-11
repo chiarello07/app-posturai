@@ -1,6 +1,6 @@
 // src/lib/trainingGenerator.ts
 
-import { TrainingPlan, SplitType, WorkoutPhase, Exercise as TrainingExercise } from '@/types/training';
+import { TrainingPlan, SplitType, Mesocycle, WorkoutPhase, Exercise as TrainingExercise } from '@/types/training';
 import { 
   EXERCISE_DATABASE,
   FILTERED_EXERCISE_DATABASE, 
@@ -14,6 +14,7 @@ import {
 } from './exerciseDatabase';
 import { PosturalAnalysisResult, calculatePosturalScore, requiresMedicalClearance } from '@/types/posturalAnalysis';
 import { normalizeDeviationType, POSTURAL_ISSUE_TO_EXERCISE_MAPPING } from './posturalMappings';
+import { config } from 'process';
 
 // ✅ CORREÇÃO BUG B: Mínimos por categoria
 const CATEGORY_MINIMUMS: Record<string, number> = {
@@ -264,8 +265,20 @@ const plan: TrainingPlan = {
   description: rationale,                          // ✅ Usar validado
   duration_weeks: durationWeeks,                   // ✅ Usar validado
   frequency_per_week: context.weeklyFrequency,
+  frequency: 3 as any, // ou crie um enum adequado
+  experienceLevel: profile.experience_level as any || 'intermediate',
   split_type: trainingStructure.splitType as SplitType,
   phases: phases,
+  id: crypto.randomUUID(),
+  userId: '',
+  currentPhase: 0,
+  totalWeeks: trainingStructure.durationWeeks,
+  weeksCompleted: 0,
+  workouts: [],
+  mesocycles: phases,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  splitType: trainingStructure.splitType as SplitType,
   progression_strategy: {
     type: context.progressionType,
     increment_every_weeks: context.progressionWeeks,
@@ -280,7 +293,7 @@ const plan: TrainingPlan = {
   
   console.log("🎉 [TREINO GERADO]:", plan.name);
   console.log("📊 [RESUMO]:", {
-    fases: plan.phases.length,
+    fases: plan.phases?.length || 0,
     frequencia: plan.frequency_per_week,
     duracao: plan.duration_weeks,
     split: plan.split_type
@@ -1082,7 +1095,9 @@ function generatePhaseNameFromExercises(
     
     if (muscleGroup) {
       // Normaliza e adiciona ao Set
-      const normalized = muscleGroup.toLowerCase().trim();
+      const normalized = Array.isArray(muscleGroup) 
+        ? muscleGroup[0]?.toLowerCase().trim()
+        : (muscleGroup as string).toLowerCase().trim();
       muscleGroupsSet.add(normalized);
     }
   });
@@ -1343,12 +1358,24 @@ function prescribeWorkoutPhases(context: UserContext, structure: TrainingStructu
     }
 
     phases.push({
-      phase: phaseLetter,
-      name: dynamicName,
-      focus: phaseConfig.focus,
-      exercises: exercises,
-      estimated_duration_minutes: totalTime
-    });
+  id: phases.length + 1,
+  name: phaseConfig.name,
+  weeks: `Semanas ${phases.length * 4 + 1}-${(phases.length + 1) * 4}`,
+  weekStart: phases.length * 4 + 1,
+  weekEnd: (phases.length + 1) * 4,
+  objective: 'Desenvolvimento progressivo',
+  phase: phaseLetter as 'anatomical' | 'hypertrophy' | 'strength' | 'power' | 'deload',
+  parameters: {
+    sets: '3-4',
+    reps: '10-12',
+    rest: '60-90s',
+    rpe: '7-8',
+    intensity: '70-75%'
+  },
+  expectations: ['Adaptação técnica', 'Ganhos de força'],
+  focus: Array.isArray(phaseConfig.focus) ? phaseConfig.focus.join(', ') : phaseConfig.focus,
+  exercises: exercises
+} as Mesocycle);
 
     console.log(`✅ [FASE] ${dynamicName}: ${exercises.length} exercícios`);
   });
@@ -1742,14 +1769,16 @@ function convertToTrainingExercise(
   id: exercise.id,
   name: exercise.name,
   category: mapCategoryToTraining(exercise.category),
-  muscle_group: exercise.muscleGroups[0] || 'core',
-  equipment: mapEquipmentToTraining(exercise.equipment[0]),
+  primaryMuscles: (exercise.muscleGroups?.slice(0, 1) || ['core']) as any,
+  secondaryMuscles: (exercise.muscleGroups?.slice(1) || []) as any,
+  difficulty: (context?.experienceLevel || 'intermediate') as any,
+  muscle_group: exercise.muscleGroups?.map(mg => mg as any) || [],
+  equipment: exercise.equipment?.map(eq => eq as any) || [],
   sets,
   reps: reps.toString(),
-  rest_seconds: rest,
   tempo: `${exercise.tempo.eccentric}-${exercise.tempo.isometric}-${exercise.tempo.concentric}-0`,
   instructions: exercise.description || 'Execute com boa forma',
-  video_url: exercise.videoUrl
+  videoUrl: exercise.videoUrl
 };
 }
 
@@ -1843,14 +1872,16 @@ function convertDBExerciseToTraining(
   id: dbExercise.id,
   name: dbExercise.name,
   category: mapCategoryToTraining(dbExercise.category),
-  muscle_group: dbExercise.muscleGroups[0] || 'full-body',
-  equipment: mapEquipmentToTraining(dbExercise.equipment[0]),
+  primaryMuscles: (dbExercise.muscleGroups?.slice(0, 1) || ['core']) as any,
+  secondaryMuscles: (dbExercise.muscleGroups?.slice(1) || []) as any,
+  difficulty: 'intermediate' as any,
+  muscle_group: dbExercise.muscleGroups?.map(mg => mg as any) || [],
+  equipment: dbExercise.equipment?.map(eq => eq as any) || [],
   sets: setsValue,
   reps: repsValue?.toString() || '10-12',
-  rest_seconds: restSeconds || 60,
   tempo: `${dbExercise.tempo.eccentric}-${dbExercise.tempo.isometric}-${dbExercise.tempo.concentric}-0`,
   instructions: dbExercise.description || 'Execute o exercício com boa forma',
-  video_url: dbExercise.videoUrl
+  videoUrl: dbExercise.videoUrl
 };
 }
 

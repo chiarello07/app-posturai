@@ -1,113 +1,154 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { Clock, Crown } from "lucide-react";
-import { useRouter } from "next/navigation";
+import React from 'react';
+import { useRouter } from 'next/navigation';
+import { useTrialContext } from '@/contexts/TrialContext';
+import { Clock, Zap, Crown, AlertCircle } from 'lucide-react';
 
-interface TrialBannerProps {
-  trialEndsAt: string | null;
-  isPremium: boolean;
-}
+// ============================================
+// COMPONENTE
+// ============================================
 
-export default function TrialBanner({ trialEndsAt, isPremium }: TrialBannerProps) {
+export const TrialBanner: React.FC = () => {
   const router = useRouter();
-  const [daysLeft, setDaysLeft] = useState<number | null>(null);
+  const { userState, trialDaysRemaining, isTrialActive } = useTrialContext();
 
-  useEffect(() => {
-    if (!trialEndsAt || isPremium) return;
+  // Só renderiza nos Estados B e C
+  if (userState !== 'B' && userState !== 'C') return null;
 
-    const calculateDaysLeft = () => {
-      const now = new Date();
-      const endDate = new Date(trialEndsAt);
-      const diffTime = endDate.getTime() - now.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      setDaysLeft(diffDays > 0 ? diffDays : 0);
-    };
+  // ============================================
+  // ESTADO B: Trial Ativo
+  // ============================================
+  if (userState === 'B' && isTrialActive) {
+    return (
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-6 shadow-lg border border-blue-500/50">
+        <div className="flex items-start justify-between gap-4">
+          {/* Conteúdo */}
+          <div className="flex items-start gap-4 flex-1">
+            <div className="bg-white/20 rounded-full p-3 backdrop-blur-sm">
+              <Clock className="w-6 h-6 text-white" />
+            </div>
 
-    calculateDaysLeft();
-    const interval = setInterval(calculateDaysLeft, 1000 * 60 * 60); // Atualiza a cada hora
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-white mb-1">
+                🎉 Período de Avaliação Ativo
+              </h3>
+              <p className="text-sm text-blue-100">
+                Você tem <span className="font-bold text-white">{trialDaysRemaining}</span>{' '}
+                {trialDaysRemaining === 1 ? 'dia' : 'dias'} restante{trialDaysRemaining === 1 ? '' : 's'} de acesso completo.
+                Continue explorando todos os treinos personalizados!
+              </p>
 
-    return () => clearInterval(interval);
-  }, [trialEndsAt, isPremium]);
+              {/* Benefícios */}
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="flex items-center gap-2 text-sm text-white">
+                  <Zap className="w-4 h-4 text-yellow-300" />
+                  <span>Treinos ilimitados</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-white">
+                  <Zap className="w-4 h-4 text-yellow-300" />
+                  <span>Análise postural</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-white">
+                  <Zap className="w-4 h-4 text-yellow-300" />
+                  <span>Progressão adaptativa</span>
+                </div>
+              </div>
+            </div>
+          </div>
 
-  // Não mostrar se for Premium ou não tiver trial
-  if (isPremium || !trialEndsAt || daysLeft === null) return null;
-
-  // Calcular porcentagem do trial (7 dias = 100%)
-  const trialDuration = 7;
-  const progressPercentage = ((trialDuration - daysLeft) / trialDuration) * 100;
-
-  // Cores baseadas nos dias restantes
-  const getColorScheme = () => {
-    if (daysLeft <= 2) return {
-      bg: "from-red-500 to-orange-500",
-      text: "text-red-100",
-      bar: "bg-red-400",
-      icon: "text-red-200"
-    };
-    if (daysLeft <= 4) return {
-      bg: "from-amber-500 to-yellow-500",
-      text: "text-amber-100",
-      bar: "bg-amber-400",
-      icon: "text-amber-200"
-    };
-    return {
-      bg: "from-purple-500 to-pink-500",
-      text: "text-purple-100",
-      bar: "bg-purple-400",
-      icon: "text-purple-200"
-    };
-  };
-
-  const colors = getColorScheme();
-
-  return (
-    <div className={`bg-gradient-to-r ${colors.bg} rounded-2xl p-4 mb-6 shadow-xl`}>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Clock className={`w-5 h-5 ${colors.icon}`} />
-          <h3 className="font-bold text-white">Período de Teste</h3>
+          {/* CTA Button */}
+          <button
+            onClick={() => router.push('/planos')}
+            className="bg-white hover:bg-slate-100 text-blue-600 font-bold py-3 px-6 rounded-xl
+                       transition-all duration-200 transform hover:scale-105 shadow-lg
+                       whitespace-nowrap"
+          >
+            <div className="flex items-center gap-2">
+              <Crown className="w-5 h-5" />
+              <span>Ver Planos</span>
+            </div>
+          </button>
         </div>
-        <div className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">
-          <span className="text-white font-bold text-sm">
-            {daysLeft} {daysLeft === 1 ? "dia" : "dias"} restantes
-          </span>
+
+        {/* Barra de Progresso */}
+        <div className="mt-4 bg-white/20 rounded-full h-2 overflow-hidden">
+          <div
+            className="bg-white h-full rounded-full transition-all duration-500"
+            style={{ width: `${(trialDaysRemaining / 7) * 100}%` }}
+          />
         </div>
       </div>
+    );
+  }
 
-      {/* Progress Bar */}
-      <div className="bg-white/20 rounded-full h-2 mb-3 overflow-hidden">
-        <div
-          className={`${colors.bar} h-full transition-all duration-500 rounded-full`}
-          style={{ width: `${progressPercentage}%` }}
-        />
+  // ============================================
+  // ESTADO C: Trial Expirado
+  // ============================================
+  if (userState === 'C') {
+    return (
+      <div className="bg-gradient-to-r from-red-600 to-orange-600 rounded-2xl p-6 shadow-lg border border-red-500/50">
+        <div className="flex items-start justify-between gap-4">
+          {/* Conteúdo */}
+          <div className="flex items-start gap-4 flex-1">
+            <div className="bg-white/20 rounded-full p-3 backdrop-blur-sm">
+              <AlertCircle className="w-6 h-6 text-white" />
+            </div>
+
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-white mb-1">
+                ⏰ Período de Avaliação Encerrado
+              </h3>
+              <p className="text-sm text-red-100 mb-4">
+                Seu período gratuito de 7 dias terminou. Assine agora para continuar
+                acessando seus treinos personalizados e alcançar seus objetivos!
+              </p>
+
+              {/* Benefícios Premium */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
+                <div className="flex items-center gap-2 text-sm text-white">
+                  <Crown className="w-4 h-4 text-yellow-300" />
+                  <span>Treinos ilimitados vitalícios</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-white">
+                  <Crown className="w-4 h-4 text-yellow-300" />
+                  <span>Análises posturais completas</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-white">
+                  <Crown className="w-4 h-4 text-yellow-300" />
+                  <span>Progressão inteligente</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-white">
+                  <Crown className="w-4 h-4 text-yellow-300" />
+                  <span>Suporte prioritário</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* CTA Button */}
+          <button
+            onClick={() => router.push('/planos')}
+            className="bg-white hover:bg-slate-100 text-red-600 font-bold py-4 px-8 rounded-xl
+                       transition-all duration-200 transform hover:scale-105 shadow-lg
+                       whitespace-nowrap"
+          >
+            <div className="flex items-center gap-2">
+              <Crown className="w-5 h-5" />
+              <span>Assinar Agora</span>
+            </div>
+          </button>
+        </div>
+
+        {/* Oferta Especial */}
+        <div className="mt-4 bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/20">
+          <p className="text-sm text-white text-center">
+            💎 <span className="font-bold">Oferta Especial:</span> Economize até 40% no plano anual!
+          </p>
+        </div>
       </div>
+    );
+  }
 
-      {/* Message */}
-      <p className={`text-sm ${colors.text} mb-3`}>
-        {daysLeft <= 2 
-          ? "⚠️ Seu período de teste está acabando! Assine agora para não perder o acesso."
-          : daysLeft <= 4
-          ? "🔔 Aproveite os últimos dias do seu teste gratuito!"
-          : "✨ Você está testando todos os recursos Premium gratuitamente!"
-        }
-      </p>
-
-      {/* CTA Button */}
-      <button
-        onClick={() => router.push("/planos")}
-        className="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-2 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg"
-      >
-        <Crown className="w-4 h-4" />
-        Assinar Premium Agora
-      </button>
-
-      {/* Bottom Text */}
-      <p className="text-xs text-white/80 text-center mt-2">
-        A partir de R$ 39,90/mês • Cancele quando quiser
-      </p>
-    </div>
-  );
-}
+  return null;
+};

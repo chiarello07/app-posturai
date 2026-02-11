@@ -14,15 +14,19 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>('system');
-  const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>('dark');
+  const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>('light');
+  const [mounted, setMounted] = useState(false);
 
   // Detectar preferência do sistema
   useEffect(() => {
+    setMounted(true);
+    
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     
     const handleChange = () => {
       if (theme === 'system') {
-        setEffectiveTheme(mediaQuery.matches ? 'dark' : 'light');
+        const isDark = mediaQuery.matches;
+        setEffectiveTheme(isDark ? 'dark' : 'light');
       }
     };
 
@@ -43,11 +47,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Aplicar tema ao documento
+  // ✅ APLICAR TEMA AO DOCUMENTO (CRITICAL FIX)
   useEffect(() => {
-    document.documentElement.classList.remove('light', 'dark');
-    document.documentElement.classList.add(effectiveTheme);
-  }, [effectiveTheme]);
+    if (!mounted) return;
+
+    const root = document.documentElement;
+    
+    // Remover classes anteriores
+    root.classList.remove('light', 'dark');
+    
+    // Adicionar classe correta
+    root.classList.add(effectiveTheme);
+    
+    console.log('🎨 Tema aplicado:', effectiveTheme);
+  }, [effectiveTheme, mounted]);
 
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);
@@ -60,6 +73,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       setEffectiveTheme(isDark ? 'dark' : 'light');
     }
   };
+
+  // Evitar flash de tema errado
+  if (!mounted) {
+    return <>{children}</>;
+  }
 
   return (
     <ThemeContext.Provider value={{ theme, effectiveTheme, setTheme }}>

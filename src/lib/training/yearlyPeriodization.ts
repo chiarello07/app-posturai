@@ -14,7 +14,7 @@ export interface Mesocycle {
     startDate: string;
     endDate: string;
     weekNumber: number;
-    duration: number; // em semanas
+    duration: number;
     focus: string[];
     volumeIntensity: {
         volume: 'low' | 'moderate' | 'high';
@@ -39,22 +39,18 @@ export interface YearlyPeriodization {
     deloadWeeks: number[];
 }
 
-/**
- * Gera periodização anual completa baseada em análise postural
- * Segue modelo de Bompa adaptado para correção postural
- */
 export function generateYearlyPeriodization(
     userProfile: UserProfile,
     analysis: PosturalAnalysis,
     startDate: Date = new Date()
 ): YearlyPeriodization {
-    const totalWeeks = 48; // 12 meses - 4 semanas de avaliação
+    const totalWeeks = 48;
     const mesocycles: Mesocycle[] = [];
     let currentWeek = 0;
     
     const riskLevel = analysis.overallRisk || 
-  (analysis.overallScore >= 80 ? 'low' : 
-   analysis.overallScore >= 50 ? 'medium' : 'high');
+        (analysis.overallScore >= 80 ? 'low' : 
+         analysis.overallScore >= 50 ? 'medium' : 'high');
     const hasGraveDeviations = analysis.deviations.some(d => d.severity === 'high');
 
     // FASE 1: ADAPTAÇÃO ANATÔMICA (4-8 semanas)
@@ -79,12 +75,7 @@ export function generateYearlyPeriodization(
                 'Estabelecer técnica correta',
                 'Preparar corpo para cargas progressivas'
             ],
-            exercises: {
-                corrective: 50,
-                strength: 20,
-                mobility: 20,
-                cardio: 10
-            }
+            exercises: { corrective: 50, strength: 20, mobility: 20, cardio: 10 }
         })
     );
     currentWeek += adaptationDuration;
@@ -113,24 +104,14 @@ export function generateYearlyPeriodization(
                 'Equilibrar musculatura agonista/antagonista',
                 'Melhorar suporte postural'
             ],
-            exercises: {
-                corrective: 30,
-                strength: 50,
-                mobility: 15,
-                cardio: 5
-            }
+            exercises: { corrective: 30, strength: 50, mobility: 15, cardio: 5 }
         })
     );
     currentWeek += 4;
 
     // DELOAD 1
     mesocycles.push(
-        createDeloadMesocycle({
-            id: 'meso-deload-1',
-            phase: 'Transição',
-            startWeek: currentWeek,
-            startDate
-        })
+        createDeloadMesocycle({ id: 'meso-deload-1', phase: 'Transição', startWeek: currentWeek, startDate })
     );
     const deloadWeeks = [currentWeek];
     currentWeek += 1;
@@ -155,12 +136,7 @@ export function generateYearlyPeriodization(
                 'Aumentar força relativa',
                 'Manter correções posturais'
             ],
-            exercises: {
-                corrective: 25,
-                strength: 55,
-                mobility: 15,
-                cardio: 5
-            }
+            exercises: { corrective: 25, strength: 55, mobility: 15, cardio: 5 }
         })
     );
     currentWeek += 4;
@@ -189,24 +165,14 @@ export function generateYearlyPeriodization(
                 'Melhorar eficiência neuromuscular',
                 'Consolidar padrões motores'
             ],
-            exercises: {
-                corrective: 20,
-                strength: 65,
-                mobility: 10,
-                cardio: 5
-            }
+            exercises: { corrective: 20, strength: 65, mobility: 10, cardio: 5 }
         })
     );
     currentWeek += 4;
 
     // DELOAD 2
     mesocycles.push(
-        createDeloadMesocycle({
-            id: 'meso-deload-2',
-            phase: 'Transição',
-            startWeek: currentWeek,
-            startDate
-        })
+        createDeloadMesocycle({ id: 'meso-deload-2', phase: 'Transição', startWeek: currentWeek, startDate })
     );
     deloadWeeks.push(currentWeek);
     currentWeek += 1;
@@ -231,12 +197,7 @@ export function generateYearlyPeriodization(
                 'Manter integridade postural sob carga',
                 'Preparar para fase de potência'
             ],
-            exercises: {
-                corrective: 15,
-                strength: 70,
-                mobility: 10,
-                cardio: 5
-            }
+            exercises: { corrective: 15, strength: 70, mobility: 10, cardio: 5 }
         })
     );
     currentWeek += 4;
@@ -245,10 +206,13 @@ export function generateYearlyPeriodization(
     evaluationWeeks.push(currentWeek);
     currentWeek += 1;
 
-    // FASE 6: POTÊNCIA (4 semanas) - Opcional para atletas
-    // Temporariamente desabilitado - propriedade não existe
-// if (userProfile.exercise_frequency === '5-6' || userProfile.exercise_frequency === 'todos') {
-if (false) {
+    // ✅ FIX #1: FASE 6 — Potência reativada com verificação real de frequência
+    const isHighFrequency =
+  userProfile.exercise_frequency === '5-6' ||
+  userProfile.exercise_frequency === 'todos' ||
+  parseInt(userProfile.exercise_frequency || '0') >= 5;
+
+    if (isHighFrequency) {
         mesocycles.push(
             createMesocycle({
                 id: 'meso-6',
@@ -268,17 +232,11 @@ if (false) {
                     'Melhorar performance atlética',
                     'Otimizar velocidade de contração'
                 ],
-                exercises: {
-                    corrective: 10,
-                    strength: 60,
-                    mobility: 10,
-                    cardio: 20
-                }
+                exercises: { corrective: 10, strength: 60, mobility: 10, cardio: 20 }
             })
         );
         currentWeek += 4;
     } else {
-        // Para não-atletas, repetir ciclo Hipertrofia-Força
         mesocycles.push(
             createMesocycle({
                 id: 'meso-6',
@@ -298,12 +256,7 @@ if (false) {
                     'Prevenir adaptação',
                     'Consolidar correções posturais'
                 ],
-                exercises: {
-                    corrective: 20,
-                    strength: 60,
-                    mobility: 15,
-                    cardio: 5
-                }
+                exercises: { corrective: 20, strength: 60, mobility: 15, cardio: 5 }
             })
         );
         currentWeek += 4;
@@ -311,54 +264,92 @@ if (false) {
 
     // DELOAD 3
     mesocycles.push(
-        createDeloadMesocycle({
-            id: 'meso-deload-3',
-            phase: 'Transição',
-            startWeek: currentWeek,
-            startDate
-        })
+        createDeloadMesocycle({ id: 'meso-deload-3', phase: 'Transição', startWeek: currentWeek, startDate })
     );
     deloadWeeks.push(currentWeek);
     currentWeek += 1;
 
-    // REPETIR CICLO para completar 48 semanas
+    // ✅ FIX #2: Ciclo 2 completo — nenhuma semana sem mesociclo
     const remainingWeeks = totalWeeks - currentWeek;
     if (remainingWeeks > 0) {
-        // Ciclo 2: Hipertrofia + Força (simplificado)
-        const cycle2Duration = Math.min(remainingWeeks, 12);
-        
-        mesocycles.push(
-            createMesocycle({
-                id: 'meso-7',
-                phase: 'Hipertrofia',
-                startWeek: currentWeek,
-                duration: 4,
-                startDate,
-                focus: ['Manutenção e refinamento'],
-                volumeIntensity: { volume: 'high', intensity: 'moderate' },
-                goals: ['Consolidar resultados'],
-                exercises: { corrective: 20, strength: 60, mobility: 15, cardio: 5 }
-            })
-        );
-        currentWeek += 4;
 
-        evaluationWeeks.push(currentWeek);
-        currentWeek += 1;
-
+        // Meso 7: Hipertrofia de manutenção
         if (currentWeek < totalWeeks) {
+            const dur7 = Math.min(4, totalWeeks - currentWeek);
+            mesocycles.push(
+                createMesocycle({
+                    id: 'meso-7',
+                    phase: 'Hipertrofia',
+                    startWeek: currentWeek,
+                    duration: dur7,
+                    startDate,
+                    focus: ['Manutenção e refinamento muscular', 'Prevenção de platô'],
+                    volumeIntensity: { volume: 'high', intensity: 'moderate' },
+                    goals: ['Consolidar resultados do ciclo 1'],
+                    exercises: { corrective: 20, strength: 60, mobility: 15, cardio: 5 }
+                })
+            );
+            currentWeek += dur7;
+        }
+
+        // Avaliação 4
+        if (currentWeek < totalWeeks) {
+            evaluationWeeks.push(currentWeek);
+            currentWeek += 1;
+        }
+
+        // Meso 8: Força de manutenção
+        if (currentWeek < totalWeeks) {
+            const dur8 = Math.min(4, totalWeeks - currentWeek);
             mesocycles.push(
                 createMesocycle({
                     id: 'meso-8',
                     phase: 'Força',
                     startWeek: currentWeek,
-                    duration: Math.min(4, totalWeeks - currentWeek),
+                    duration: dur8,
                     startDate,
-                    focus: ['Manutenção de força'],
+                    focus: ['Manutenção de força máxima', 'Qualidade de movimento'],
                     volumeIntensity: { volume: 'moderate', intensity: 'high' },
-                    goals: ['Manter ganhos de força'],
+                    goals: ['Manter ganhos de força do ciclo 1'],
                     exercises: { corrective: 15, strength: 70, mobility: 10, cardio: 5 }
                 })
             );
+            currentWeek += dur8;
+        }
+
+        // Deload final
+        if (currentWeek < totalWeeks) {
+            mesocycles.push(
+                createDeloadMesocycle({
+                    id: 'meso-deload-final',
+                    phase: 'Transição',
+                    startWeek: currentWeek,
+                    startDate
+                })
+            );
+            deloadWeeks.push(currentWeek);
+            currentWeek += 1;
+        }
+
+        // ✅ Preencher semanas restantes — getCurrentMesocycle() NUNCA retorna null
+        while (currentWeek < totalWeeks) {
+            const durExtra = Math.min(4, totalWeeks - currentWeek);
+            if (durExtra <= 0) break;
+
+            mesocycles.push(
+                createMesocycle({
+                    id: `meso-extra-${currentWeek}`,
+                    phase: 'Hipertrofia',
+                    startWeek: currentWeek,
+                    duration: durExtra,
+                    startDate,
+                    focus: ['Manutenção de resultados', 'Preparação para novo ciclo anual'],
+                    volumeIntensity: { volume: 'moderate', intensity: 'moderate' },
+                    goals: ['Manter composição corporal e postura corrigida'],
+                    exercises: { corrective: 20, strength: 55, mobility: 20, cardio: 5 }
+                })
+            );
+            currentWeek += durExtra;
         }
     }
 
@@ -443,74 +434,42 @@ function createDeloadMesocycle(params: {
             'Prevenir fadiga acumulada',
             'Preparar para próximo ciclo'
         ],
-        exercises: {
-            corrective: 30,
-            strength: 30,
-            mobility: 30,
-            cardio: 10
-        },
+        exercises: { corrective: 30, strength: 30, mobility: 30, cardio: 10 },
         deloadWeek: true
     };
 }
 
-/**
- * Retorna mesociclo atual baseado na data
- */
 export function getCurrentMesocycle(periodization: YearlyPeriodization): Mesocycle | null {
     const now = new Date();
-    
     for (const meso of periodization.mesocycles) {
         const start = new Date(meso.startDate);
         const end = new Date(meso.endDate);
-        
-        if (now >= start && now <= end) {
-            return meso;
-        }
+        if (now >= start && now <= end) return meso;
     }
-    
     return null;
 }
 
-/**
- * Retorna próximo mesociclo
- */
 export function getNextMesocycle(periodization: YearlyPeriodization, currentMeso: Mesocycle): Mesocycle | null {
     const currentIndex = periodization.mesocycles.findIndex(m => m.id === currentMeso.id);
-    
-    if (currentIndex === -1 || currentIndex === periodization.mesocycles.length - 1) {
-        return null;
-    }
-    
+    if (currentIndex === -1 || currentIndex === periodization.mesocycles.length - 1) return null;
     return periodization.mesocycles[currentIndex + 1];
 }
 
-/**
- * Verifica se é semana de avaliação
- */
 export function isEvaluationWeek(periodization: YearlyPeriodization, weekNumber: number): boolean {
     return periodization.evaluationWeeks.includes(weekNumber);
 }
 
-/**
- * Verifica se é semana de deload
- */
 export function isDeloadWeek(periodization: YearlyPeriodization, weekNumber: number): boolean {
     return periodization.deloadWeeks.includes(weekNumber);
 }
 
-/**
- * Calcula progresso no plano anual
- */
 export function calculateYearlyProgress(periodization: YearlyPeriodization): number {
     const start = new Date(periodization.startDate);
     const end = new Date(periodization.endDate);
     const now = new Date();
-    
     if (now < start) return 0;
     if (now > end) return 100;
-    
     const totalDuration = end.getTime() - start.getTime();
     const elapsed = now.getTime() - start.getTime();
-    
     return Math.round((elapsed / totalDuration) * 100);
 }

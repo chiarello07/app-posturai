@@ -56,99 +56,103 @@ export const TrialProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const supabase = createClient();
 
   // ============================================
-  // FUNÇÃO: Calcular Estado do Usuário
+// FUNÇÃO: Calcular Estado do Usuário
+// ============================================
+const calculateUserState = (
+  premium: boolean,
+  trialStarted: string | null,
+  subscriptionStatus: string | null,
+  premiumExpiresAt: string | null
+): UserState => {
+
+  // ✅ Estado D: qualquer sinal de premium ativo
+  const isActivePremium =
+    premium === true ||
+    subscriptionStatus === 'active' ||
+    subscriptionStatus === 'trialing' ||
+    (premiumExpiresAt && new Date(premiumExpiresAt) > new Date());
+
+  if (isActivePremium) return 'D';
+
+  // Estado A: nunca iniciou trial
+  if (!trialStarted) return 'A';
+
+  // Calcular dias do trial
+  const startDate = new Date(trialStarted);
+  const now = new Date();
+  const diffTime = now.getTime() - startDate.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  // Estado B: trial ativo (dias 0-6)
+  if (diffDays < 7) return 'B';
+
+  // Estado C: trial expirado
+  return 'C';
+};
+
   // ============================================
-  const calculateUserState = (
-    premium: boolean,
-    trialStarted: string | null
-  ): UserState => {
-    // Estado D: Usuário Premium
-    if (premium) {
-      return 'D';
-    }
+// FUNÇÃO: Calcular Dias Restantes do Trial
+// ============================================
+const calculateDaysRemaining = (trialStarted: string | null): number => {
+  if (!trialStarted) return 0;
 
-    // Estado A: Usuário não iniciou trial
-    if (!trialStarted) {
-      return 'A';
-    }
-
-    // Calcular dias desde o início do trial
-    const startDate = new Date(trialStarted);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - startDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    // Estado B: Trial ativo (dias 1-7)
-    if (diffDays <= 7) {
-      return 'B';
-    }
-
-    // Estado C: Trial expirado (dia 8+)
-    return 'C';
-  };
+  const startDate = new Date(trialStarted);
+  const now = new Date();
+  const diffTime = now.getTime() - startDate.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  const remaining = 7 - diffDays;
+  return remaining > 0 ? remaining : 0;
+};
 
   // ============================================
-  // FUNÇÃO: Calcular Dias Restantes do Trial
-  // ============================================
-  const calculateDaysRemaining = (trialStarted: string | null): number => {
-    if (!trialStarted) return 0;
+// FUNÇÃO: Buscar Dados do Usuário
+// ============================================
+const fetchUserData = async () => {
+  try {
+    setIsLoading(true);
 
-    const startDate = new Date(trialStarted);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - startDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const { data: { user } } = await supabase.auth.getUser();
     
-    const remaining = 7 - diffDays + 1;
-    return remaining > 0 ? remaining : 0;
-  };
-
-  // ============================================
-  // FUNÇÃO: Buscar Dados do Usuário
-  // ============================================
-  const fetchUserData = async () => {
-    try {
-      setIsLoading(true);
-
-      // Obter usuário autenticado
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        setUserState('A');
-        setIsLoading(false);
-        return;
-      }
-
-      // Buscar dados do perfil
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('is_premium, trial_started_at')
-        .eq('id', user.id)
-        .single();
-
-      if (error) {
-        console.error('Erro ao buscar perfil:', error);
-        setIsLoading(false);
-        return;
-      }
-
-      // Atualizar estados
-      const premium = profile?.is_premium || false;
-      const trialStarted = profile?.trial_started_at || null;
-      const state = calculateUserState(premium, trialStarted);
-      const daysRemaining = calculateDaysRemaining(trialStarted);
-
-      setIsPremium(premium);
-      setTrialStartedAt(trialStarted);
-      setUserState(state);
-      setTrialDaysRemaining(daysRemaining);
-      setIsTrialActive(state === 'B');
-
-    } catch (error) {
-      console.error('Erro ao buscar dados do usuário:', error);
-    } finally {
+    if (!user) {
+      setUserState('A');
       setIsLoading(false);
+      return;
     }
-  };
+
+    // ✅ FIX: busca TODOS os campos relevantes
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('is_premium, trial_started_at, subscription_status, premium_expires_at, subscription_tier')
+      .eq('id', user.id)
+      .single();
+
+    if (error) {
+      console.error('Erro ao buscar perfil:', error);
+      setIsLoading(false);
+      return;
+    }
+
+    const premium = profile?.is_premium === true;
+    const trialStarted = profile?.trial_started_at || null;
+    const subscriptionStatus = profile?.subscription_status || null;
+    const premiumExpiresAt = profile?.premium_expires_at || null;
+
+    // ✅ FIX: lógica robusta considerando todos os campos
+    const state = calculateUserState(premium, trialStarted, subscriptionStatus, premiumExpiresAt);
+    const daysRemaining = calculateDaysRemaining(trialStarted);
+
+    setIsPremium(premium);
+    setTrialStartedAt(trialStarted);
+    setUserState(state);
+    setTrialDaysRemaining(daysRemaining);
+    setIsTrialActive(state === 'B');
+
+  } catch (error) {
+    console.error('Erro ao buscar dados do usuário:', error);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // ============================================
   // FUNÇÃO: Iniciar Trial

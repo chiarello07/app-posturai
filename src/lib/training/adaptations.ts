@@ -263,11 +263,30 @@ export function applyAdaptations(
                 }));
             }
 
-            // Adicionar exercícios prioritários
-            if (modifications.exercisesToPrioritize) {
-                // Lógica para adicionar exercícios prioritários
-                // (implementar conforme necessidade)
-            }
+            // ✅ FIX: implementar inserção real de exercícios prioritários
+if (modifications.exercisesToPrioritize && modifications.exercisesToPrioritize.length > 0) {
+  adaptedProgram.workouts = adaptedProgram.workouts.map((workout: any) => {
+    // Verifica se os exercícios prioritários já existem no treino
+    const existingNames = workout.exercises.map((ex: any) => ex.name.toLowerCase());
+    
+    const toAdd = modifications.exercisesToPrioritize!
+      .filter(name => !existingNames.includes(name.toLowerCase()))
+      .map(name => ({
+        name,
+        sets: 3,
+        reps: '12-15',
+        rest: 60,
+        priority: 'corrective', // ✅ marcado como corretivo
+        note: 'Exercício prioritário para correção postural'
+      }));
+
+    // Insere os corretivos NO INÍCIO do treino (maior foco)
+    return {
+      ...workout,
+      exercises: [...toAdd, ...workout.exercises]
+    };
+  });
+}
 
             // Ajustar volume
             if (modifications.volumeAdjustment) {

@@ -150,7 +150,7 @@ function ensureVariety(
  * Seleciona exercícios de forma inteligente
  * FUNÇÃO PRINCIPAL DE SELEÇÃO
  */
-export function selectExercises(criteria: SelectionCriteria): SelectedExercise[] {
+export function selectExercises(criteria: SelectionCriteria, previouslyUsedIds: string[] = [] ): SelectedExercise[] {
   const {
     muscleGroup,
     equipment,
@@ -175,7 +175,7 @@ export function selectExercises(criteria: SelectionCriteria): SelectedExercise[]
 
   // 5. Garantir variedade (evitar repetição)
   // TODO: integrar com histórico do usuário
-  candidates = ensureVariety(candidates);
+  candidates = ensureVariety(candidates, previouslyUsedIds);
 
   // 6. Filtrar por dificuldade (iniciante não faz exercícios advanced)
   if (level === 'iniciante') {
@@ -237,30 +237,37 @@ export function selectExercisesForDay(
   equipment: string[],
   posturalRestrictions: string[],
   painAreas: PainArea[],
-  level: 'iniciante' | 'intermediário' | 'avançado'
+  level: 'iniciante' | 'intermediário' | 'avançado',
+  previouslyUsedIds: string[] = [] // ✅ FIX: histórico entre dias
 ): SelectedExercise[] {
   const allSelected: SelectedExercise[] = [];
 
+  // ✅ FIX: acumula IDs usados DENTRO do dia também
+  const usedInThisDay: string[] = [...previouslyUsedIds];
+
   for (const { muscle, priority } of muscleGroups) {
-    // Determinar quantidade de exercícios por prioridade
-    let count = 2; // default
+    let count = 2;
     if (priority === 'high') count = 3;
     else if (priority === 'low') count = 1;
 
-    const selected = selectExercises({
-      muscleGroup: muscle,
-      equipment,
-      posturalRestrictions,
-      painAreas,
-      priority,
-      count,
-      level
-    });
+    const selected = selectExercises(
+      {
+        muscleGroup: muscle,
+        equipment,
+        posturalRestrictions,
+        painAreas,
+        priority,
+        count,
+        level
+      },
+      usedInThisDay // ✅ passa histórico acumulado
+    );
 
+    // ✅ Registra os selecionados para evitar repetição no próximo grupo
+    selected.forEach(ex => usedInThisDay.push(ex.id));
     allSelected.push(...selected);
   }
 
-  // Ordenar final: compostos primeiro
   return orderByComplexity(allSelected);
 }
 

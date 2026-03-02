@@ -38,6 +38,16 @@ const FEATURE_FLAGS = {
 console.log('[FEATURE FLAGS] Mobilidade:', FEATURE_FLAGS.MOBILITY_ENABLED);
 console.log('[FEATURE FLAGS] Alongamento:', FEATURE_FLAGS.STRETCHING_ENABLED);
 
+// ============================================
+// ✅ FIX: SET GLOBAL DE IDs USADOS POR GERAÇÃO
+// Persiste durante toda a geração do plano
+// ============================================
+const _globalUsedExerciseIds = new Set<string>();
+
+export function clearGlobalExerciseIds(): void {
+  _globalUsedExerciseIds.clear();
+  console.log('🧹 [GLOBAL] IDs de exercícios limpos para nova geração');
+}
 
 // ============================================
 // MAPEAMENTO INTELIGENTE: PT → EN
@@ -103,12 +113,13 @@ const TARGET_MUSCLE_TO_DB_GROUPS: Record<string, string[]> = {
   'lombar': ['core', 'posterior-chain'],
   
   // MEMBROS SUPERIORES
-  'peito': ['upper-body', 'anterior-chain'],
-  'costas': ['upper-body', 'posterior-chain', 'costas'],
-  'ombros': ['upper-body', 'ombros'],
-  'bíceps': ['upper-body', 'anterior-chain'],
-  'tríceps': ['upper-body', 'anterior-chain'],
+  'peito': ['peito'],                        // ✅ isolado
+  'costas': ['costas', 'posterior-chain'],   // ✅ isolado
+  'ombros': ['ombro'],                       // ✅ isolado
+  'bíceps': ['biceps'],                      // ✅ FIX: era ['upper-body', 'anterior-chain']
+  'tríceps': ['triceps'],                    // ✅ FIX: era ['upper-body', 'anterior-chain']
   'antebraços': ['upper-body'],
+  'trapézio': ['costas', 'upper-body'],
   
   // GERAL
   'corpo-inteiro': ['upper-body', 'lower-body', 'core']
@@ -208,6 +219,7 @@ export function generatePersonalizedTrainingPlan(
   posturalAnalysis?: PosturalAnalysisResult
 ): TrainingPlan {
   console.log('🏋️ [TRAINING GENERATOR] ===== INICIANDO GERAÇÃO INTELIGENTE =====');
+  clearGlobalExerciseIds();
   console.log('👤 [PERFIL]:', profile.name);
   console.log('🎯 [OBJETIVOS]:', profile.main_goals);
   console.log('📊 [NÍVEL]:', profile.experience_level);
@@ -1531,7 +1543,7 @@ function selectExercisesByCategory(
   console.log(`🎯 [SELEÇÃO] Categoria: ${category} | Target: ${targetCount} | Músculos: ${targetMuscles.join(', ')}`);
   
   const selectedExercises: TrainingExercise[] = [];
-  const selectedIds = new Set<string>();
+  const selectedIdsThisCall = new Set<string>();
   
   // Obter todos os exercícios disponíveis
   const allExercises = getAllExercises();
@@ -1606,7 +1618,8 @@ let availableExercises = allExercises.filter(ex => {
       }
       
       // Verificar se já foi selecionado
-      if (selectedIds.has(ex.id)) {
+       // ✅ FIX: Bloqueia exercícios já usados NESTA FASE ou em QUALQUER FASE anterior
+      if (selectedIdsThisCall.has(ex.id) || _globalUsedExerciseIds.has(ex.id)) {
         return false;
       }
       
@@ -1639,12 +1652,14 @@ let availableExercises = allExercises.filter(ex => {
     // Selecionar exercícios
     const toSelect = muscleExercises.slice(0, Math.min(targetPerGroup, muscleExercises.length));
     
-    for (const exercise of toSelect) {
-      if (!selectedIds.has(exercise.id)) {
+        for (const exercise of toSelect) {
+      if (!selectedIdsThisCall.has(exercise.id) && !_globalUsedExerciseIds.has(exercise.id)) {
         const trainingExercise = convertToTrainingExercise(exercise, context, phaseIndex);
         selectedExercises.push(trainingExercise);
-        selectedIds.add(exercise.id);
-        console.log(`    ✅ Selecionado: ${exercise.name}`);
+        selectedIdsThisCall.add(exercise.id);
+        // ✅ FIX: Registrar globalmente para bloquear nas próximas fases
+        _globalUsedExerciseIds.add(exercise.id);
+        console.log(`    ✅ Selecionado: ${exercise.name} → registrado globalmente`);
       }
     }
   }

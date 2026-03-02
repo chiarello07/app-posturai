@@ -299,6 +299,10 @@ export function getOverallProgress(weeksCompleted: number): number {
  * @param weekNumber - Semana atual (1-52)
  * @returns Objeto com informações da fase
  */
+/**
+ * ✅ FIX: Unificado com PERIODIZATION_PHASES — fonte única de verdade
+ * Retorna a fase atual baseada na semana, alinhada com o array oficial
+ */
 export function getCurrentPhase(weekNumber: number): {
   phase: 'adaptation' | 'hypertrophy' | 'strength' | 'power' | 'deload' | 'peaking';
   week: number;
@@ -308,9 +312,10 @@ export function getCurrentPhase(weekNumber: number): {
 } {
   // Normalizar para 1-52
   const normalizedWeek = ((weekNumber - 1) % 52) + 1;
-  
-  // Definir fases da periodização
-  if (normalizedWeek >= 1 && normalizedWeek <= 4) {
+
+  // ✅ FIX: Alinhado com PERIODIZATION_PHASES
+  // Fase 1: Semanas 1-12  → Adaptação Anatômica
+  if (normalizedWeek >= 1 && normalizedWeek <= 12) {
     return {
       phase: 'adaptation',
       week: normalizedWeek,
@@ -319,63 +324,57 @@ export function getCurrentPhase(weekNumber: number): {
       intensityMultiplier: 0.6
     };
   }
-  
-  if (normalizedWeek >= 5 && normalizedWeek <= 20) {
+
+  // Fase 2: Semanas 13-24 → Hipertrofia Funcional
+  if (normalizedWeek >= 13 && normalizedWeek <= 24) {
     return {
       phase: 'hypertrophy',
       week: normalizedWeek,
-      focus: 'Hipertrofia Muscular',
+      focus: 'Hipertrofia Funcional',
       volumeMultiplier: 1.0,
       intensityMultiplier: 0.75
     };
   }
-  
-  if (normalizedWeek >= 21 && normalizedWeek <= 36) {
+
+  // Fase 3: Semanas 25-36 → Força Máxima
+  if (normalizedWeek >= 25 && normalizedWeek <= 36) {
     return {
       phase: 'strength',
       week: normalizedWeek,
-      focus: 'Força Máxima',
+      focus: 'Força Máxima e Consolidação',
       volumeMultiplier: 0.8,
       intensityMultiplier: 0.9
     };
   }
-  
+
+  // Semanas 37-44 → Manutenção (fase 4 do PERIODIZATION_PHASES)
   if (normalizedWeek >= 37 && normalizedWeek <= 44) {
     return {
       phase: 'power',
       week: normalizedWeek,
-      focus: 'Potência',
-      volumeMultiplier: 0.6,
-      intensityMultiplier: 0.85
+      focus: 'Manutenção e Especialização',
+      volumeMultiplier: 0.75,
+      intensityMultiplier: 0.75
     };
   }
-  
+
+  // Semanas 45-48 → Deload programado
   if (normalizedWeek >= 45 && normalizedWeek <= 48) {
     return {
       phase: 'deload',
       week: normalizedWeek,
       focus: 'Recuperação Ativa',
       volumeMultiplier: 0.5,
-      intensityMultiplier: 0.6
+      intensityMultiplier: 0.55
     };
   }
-  
-  if (normalizedWeek >= 49 && normalizedWeek <= 52) {
-    return {
-      phase: 'peaking',
-      week: normalizedWeek,
-      focus: 'Pico de Performance',
-      volumeMultiplier: 0.7,
-      intensityMultiplier: 0.95
-    };
-  }
-  
-  // Fallback (não deveria chegar aqui)
+
+  // Semanas 49-52 → Peaking / Novo ciclo
   return {
-    phase: 'hypertrophy',
+    phase: 'peaking',
     week: normalizedWeek,
-    focus: 'Hipertrofia Muscular',
-    volumeMultiplier: 1.0,
-    intensityMultiplier: 0.75
+    focus: 'Consolidação e Pico Anual',
+    volumeMultiplier: 0.7,
+    intensityMultiplier: 0.85
   };
 }

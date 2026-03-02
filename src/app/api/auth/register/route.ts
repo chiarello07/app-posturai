@@ -24,10 +24,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Usuário não foi criado" }, { status: 500 });
   }
 
-  // 2. Criar profile
+  // 2. Criar profile com trial iniciando automaticamente
+  const now = new Date().toISOString();
+
   const { error: profileError } = await supabase.from("profiles").insert({
     id: user.id,
     name: name,
+    trial_started_at: now, // ✅ CORREÇÃO: trial grava no momento do cadastro
   });
 
   if (profileError) {

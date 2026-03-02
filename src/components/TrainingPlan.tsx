@@ -406,13 +406,13 @@ if (workoutPlanJsonb.phases && (!workoutPlanJsonb.workouts || workoutPlanJsonb.w
   // ============================================
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 md:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen w-full overflow-x-hidden bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 md:p-6 lg:p-8 pb-32">
+      <div className="max-w-7xl mx-auto space-y-6 w-full">
         
         {/* ============================================
             HEADER - TÍTULO + BOTÃO PERIODIZAÇÃO
         ============================================ */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 w-full min-w-0">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2">
               Seu Plano de Treino
@@ -462,7 +462,7 @@ if (workoutPlanJsonb.phases && (!workoutPlanJsonb.workouts || workoutPlanJsonb.w
 {/* ============================================
     STATS COMPACTOS (3 CARDS)
 ============================================ */}
-<div className="grid grid-cols-3 gap-3 mb-8">
+<div className="grid grid-cols-3 gap-2 sm:gap-3 mb-8 w-full">
   <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 text-center">
     <p className="text-2xl font-bold text-gray-900 dark:text-white">{trainingPlan.workouts.length}</p>
     <p className="text-xs text-gray-600 dark:text-gray-400">Treinos</p>
@@ -507,7 +507,7 @@ if (workoutPlanJsonb.phases && (!workoutPlanJsonb.workouts || workoutPlanJsonb.w
     </div>
 
     {/* Parâmetros de Treinamento */}
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3 mb-4 w-full">
       <div className="bg-white dark:bg-gray-800 rounded-lg p-3 text-center shadow-sm">
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Séries</p>
         <p className="text-sm font-bold text-gray-900 dark:text-white">
@@ -639,11 +639,14 @@ if (workoutPlanJsonb.phases && (!workoutPlanJsonb.workouts || workoutPlanJsonb.w
           <Clock className="w-3.5 h-3.5 text-purple-600" />
           <span className="font-medium">{workoutDay.exercises.length * 3}-{workoutDay.exercises.length * 5} min estimados</span>
         </span>
-        {workoutDay.exercises.length > 0 && workoutDay.exercises[0].equipment && (
-          <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full font-medium">
-            {workoutDay.exercises[0].equipment}
-          </span>
-        )}
+        {workoutDay.exercises.length > 0 && 
+ workoutDay.exercises[0].equipment && 
+ workoutDay.exercises[0].equipment !== 'none' &&
+ workoutDay.exercises[0].equipment !== 'null' && (
+  <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full font-medium">
+    {workoutDay.exercises[0].equipment}
+  </span>
+)}
       </div>
       
       {/* Tags de Foco */}

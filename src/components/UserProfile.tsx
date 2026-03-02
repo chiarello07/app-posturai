@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import StandardModal from "./StandardModal";
 import { createClient } from '@supabase/supabase-js';
-import { TrialBanner } from './TrialBanner';
+import { TrialStatusCard } from './TrialStatusCard';
 import { useTrialContext } from '@/contexts/TrialContext';
 import ThemeToggle from './ThemeToggle';
 
@@ -264,31 +264,9 @@ export default function UserProfile({ profile, onBack, onLogout }: UserProfilePr
           </div>
         </div>
 
-        {/* ✅ TRIAL BANNER */}
-        <TrialBanner />
+        {/* ✅ CARD DE STATUS UNIFICADO */}
+        <TrialStatusCard />
 
-        {/* Upgrade to Premium (se NÃO for Premium) */}
-        {!isPremium && (
-          <button
-            onClick={() => router.push('/planos')}
-            disabled={isLoading}
-            className="w-full bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-600 text-white p-4 rounded-xl flex items-center gap-4 transition-all shadow-xl mb-4 group disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-              <Crown className="w-6 h-6 text-white" />
-            </div>
-            <div className="flex-1 text-left">
-              <h3 className="font-bold text-lg">
-                {isLoading ? 'Processando...' : 'Ver Planos Premium'}
-              </h3>
-              <p className="text-sm text-white/90">Escolha o melhor plano para você</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs line-through opacity-75">R$ 59,90/mês</p>
-              <p className="text-lg font-bold">A partir de R$ 39,90/mês</p>
-            </div>
-          </button>
-        )}
 
         {/* Gerenciar Assinatura (se for Premium) */}
         {isPremium && (

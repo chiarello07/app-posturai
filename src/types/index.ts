@@ -8,6 +8,7 @@ export interface UserProfile {
   weight?: number;
   height?: number;
   gender?: 'male' | 'female' | 'other';
+  exercise_frequency?: string;
   createdAt?: string;
   updatedAt?: string;
 }

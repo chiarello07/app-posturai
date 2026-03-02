@@ -483,3 +483,71 @@ export function suggestOptimalOrdering(
     reasoning
   };
 }
+
+// ============================================
+// ✅ VALIDAÇÃO INTER-DIAS DO PLANO SEMANAL
+// ============================================
+
+/**
+ * Valida o plano semanal completo verificando dias consecutivos
+ * INTEGRA canTrainConsecutiveDays com os SplitTemplates
+ * Chamada pelo gerador de plano antes de finalizar a semana
+ */
+export function validateWeeklyPlan(
+  days: {
+    muscles: string[];
+    intensity: 'light' | 'moderate' | 'heavy';
+    isRestDay?: boolean;
+  }[]
+): {
+  isValid: boolean;
+  dayConflicts: {
+    day1Index: number;
+    day2Index: number;
+    riskLevel: string;
+    conflicts: string[];
+    recommendations: string[];
+  }[];
+} {
+  const dayConflicts: {
+    day1Index: number;
+    day2Index: number;
+    riskLevel: string;
+    conflicts: string[];
+    recommendations: string[];
+  }[] = [];
+
+  for (let i = 0; i < days.length - 1; i++) {
+    const today = days[i];
+    const tomorrow = days[i + 1];
+
+    // Pula dias de descanso
+    if (today.isRestDay || tomorrow.isRestDay) continue;
+
+    const validation = canTrainConsecutiveDays(
+      today.muscles,
+      tomorrow.muscles,
+      today.intensity,
+      tomorrow.intensity
+    );
+
+    // ✅ Registra apenas conflitos de risco médio ou alto
+    if (validation.riskLevel !== 'none') {
+      dayConflicts.push({
+        day1Index: i,
+        day2Index: i + 1,
+        riskLevel: validation.riskLevel,
+        conflicts: validation.conflicts,
+        recommendations: validation.recommendations
+      });
+    }
+  }
+
+  // Plano inválido se houver qualquer conflito de risco ALTO
+  const hasHighRisk = dayConflicts.some(c => c.riskLevel === 'high');
+
+  return {
+    isValid: !hasHighRisk,
+    dayConflicts
+  };
+}

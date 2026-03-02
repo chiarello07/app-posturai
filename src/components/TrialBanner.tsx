@@ -13,13 +13,11 @@ export const TrialBanner: React.FC = () => {
   const router = useRouter();
   const { userState, trialDaysRemaining, isTrialActive } = useTrialContext();
 
-  // Só renderiza nos Estados B e C
   if (userState !== 'B' && userState !== 'C') return null;
 
-  // ============================================
-  // ESTADO B: Trial Ativo
-  // ============================================
-  if (userState === 'B' && isTrialActive) {
+// ✅ FIX: Estado B depende só do userState, não de isTrialActive
+// isTrialActive pode estar false por loading — userState é a fonte de verdade
+if (userState === 'B') {
     return (
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-6 shadow-lg border border-blue-500/50">
         <div className="flex items-start justify-between gap-4">

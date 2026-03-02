@@ -88,30 +88,30 @@ const INICIANTE_4X: SplitTemplate = {
   days: [
     {
       dayName: 'Dia 1 - Upper A',
-      focus: ['peito', 'costas', 'ombro', 'bíceps', 'tríceps'],
+      focus: ['peito', 'ombro', 'tríceps'],
       type: 'upper',
       priority: 'high'
     },
     {
       dayName: 'Dia 2 - Lower A',
-      focus: ['quadríceps', 'posteriores', 'glúteo', 'panturrilha'],
+      focus: ['quadríceps', 'glúteo', 'panturrilha'],
       type: 'lower',
       priority: 'high'
     },
     {
       dayName: 'Dia 3 - Upper B',
-      focus: ['peito', 'costas', 'ombro', 'bíceps', 'tríceps'],
+      focus: ['costas', 'bíceps', 'deltoide-posterior'],
       type: 'upper',
       priority: 'medium'
     },
     {
       dayName: 'Dia 4 - Lower B',
-      focus: ['quadríceps', 'posteriores', 'glúteo', 'core'],
+      focus: ['posteriores', 'glúteo', 'core'],
       type: 'lower',
       priority: 'medium'
     }
   ],
-  description: 'Divisão upper/lower 4x na semana. Permite maior volume por grupo muscular.',
+  description: 'Divisão upper/lower 4x. Upper A = Push, Upper B = Pull. Sem repetição muscular.',
   restDays: 3
 };
 
